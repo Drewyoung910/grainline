@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const {
   CHECKOUT_SUCCESS_SESSION_LIMIT,
+  checkoutSuccessParams,
   checkoutSuccessSessionIds,
 } = await import("../src/lib/checkoutSuccessState.ts");
 
@@ -13,6 +14,28 @@ const checkoutSuccessSource = fs.readFileSync(
 );
 
 describe("checkout success session parsing", () => {
+  it("survives a repeated session parameter instead of returning a 500", () => {
+    assert.deepEqual(
+      checkoutSuccessSessionIds(checkoutSuccessParams({
+        session_id: ["cs_first", "cs_second"],
+        session_ids: ["cs_first,cs_third", "cs_fourth"],
+      })),
+      { sessionIds: ["cs_first", "cs_third", "cs_fourth"], truncatedCount: 0 },
+    );
+    assert.deepEqual(checkoutSuccessParams({ session_id: "cs_one" }), { sessionId: "cs_one", sessionIds: undefined });
+    assert.deepEqual(checkoutSuccessParams(null), { sessionId: undefined, sessionIds: undefined });
+  });
+
+  it("drops session ids with characters Stripe never uses, such as NUL", () => {
+    assert.deepEqual(
+      checkoutSuccessSessionIds({
+        sessionId: "cs_test_a1B2",
+        sessionIds: "cs_\u0000,cs_bad id,cs_test_a1B2,cs_live_c3",
+      }),
+      { sessionIds: ["cs_test_a1B2", "cs_live_c3"], truncatedCount: 0 },
+    );
+  });
+
   it("dedupes comma-separated checkout session ids while preserving order", () => {
     assert.deepEqual(
       checkoutSuccessSessionIds({

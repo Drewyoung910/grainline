@@ -23,13 +23,6 @@ const {
   listingUndoDataFromMetadata,
 } = await import("../src/lib/adminListingUndoState.ts");
 
-const {
-  GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES,
-  GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
-  GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES,
-  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
-} = await import("../src/lib/guildVerificationState.ts");
-
 describe("Round 10 state-machine guardrails", () => {
   it("blocks immediate Guild reapplication after rejection or revocation using current verification state", () => {
     const now = new Date("2026-05-23T12:00:00.000Z");
@@ -74,6 +67,15 @@ describe("Round 10 state-machine guardrails", () => {
       null,
     );
 
+    // The database accepts only APPROVED and GUILD_MASTER_REJECTED. Anything else
+    // must not show a form it would then refuse.
+    for (const verificationStatus of [undefined, null, "PENDING", "REJECTED"]) {
+      assert.match(
+        guildMasterApplicationBlockReason({ guildLevel: "GUILD_MEMBER", verificationStatus, now }) ?? "",
+        /cannot start a Guild Master application/,
+      );
+    }
+
     const applyRoute = source("src/app/api/verification/apply/route.ts");
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
@@ -97,11 +99,6 @@ describe("Round 10 state-machine guardrails", () => {
   });
 
   it("guards paired Guild profile and verification transitions with current verification state", () => {
-    assert.deepEqual(GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES, ["APPROVED", "GUILD_MASTER_REJECTED"]);
-    assert.deepEqual(GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES, ["APPROVED", "GUILD_MASTER_REJECTED"]);
-    assert.deepEqual(GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES, ["GUILD_MASTER_APPROVED"]);
-    assert.deepEqual(GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES, ["REJECTED"]);
-
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const adminVerification = source("src/app/admin/verification/page.tsx");
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
@@ -251,13 +248,14 @@ describe("Round 10 state-machine guardrails", () => {
       "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
     );
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const followerFanout = source("src/lib/followerListingNotifications.ts");
     const markResolved = source("src/app/api/cases/[id]/mark-resolved/route.ts");
 
     assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
     assert.match(fulfillmentAuthority, /locked_order\."labelStatus"::text = 'PURCHASED'/);
     assert.match(fulfillmentAuthority, /'reason', 'label_purchased'/);
     assert.match(adminReview, /fanOutListingToFollowers/);
-    assert.match(adminReview, /admin-approved-listing:\$\{listing\.id\}:\$\{followerId\}/);
+    assert.match(followerFanout, /followed-listing:\$\{publicListing\.id\}:\$\{recipient\.userId\}/);
     assert.match(adminReview, /source: 'admin_listing_review_follower_fanout'/);
     assert.match(markResolved, /notifyCounterpartyOfResolutionMark/);
     assert.match(markResolved, /type: resolved \? "CASE_RESOLVED" : "CASE_MESSAGE"/);

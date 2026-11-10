@@ -32,6 +32,7 @@ import {
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
 import { finalizeSellerOrderRefund } from "@/lib/orderRefundFinalization";
+import { StripeRefundTerminalStatusError } from "@/lib/marketplaceRefunds";
 import {
   isOrderRefundProviderReconciliationRequiredError,
   resolveOrderRefundProviderOutcome,
@@ -133,7 +134,12 @@ export async function POST(
       actorUserId: me.id,
       orderId,
     });
-    const initialConflict = sellerRefundPreflightConflictResponse(initialDecision);
+    // PROCESSING may be this seller's own unconfirmed attempt, which is the retry
+    // the 503 below asks for. The claim replays only that; any other refund in
+    // progress returns no claim and gets the conflict below.
+    const initialConflict = initialDecision === "PROCESSING"
+      ? null
+      : sellerRefundPreflightConflictResponse(initialDecision);
     if (initialConflict) {
       return privateJson(
         { error: initialConflict.error },
@@ -234,7 +240,10 @@ export async function POST(
           throw dbError;
         }
       } else {
-        if (isOrderRefundProviderReconciliationRequiredError(err)) {
+        if (
+          isOrderRefundProviderReconciliationRequiredError(err)
+          || err instanceof StripeRefundTerminalStatusError
+        ) {
           try {
             await markOrderRefundClaimAmbiguous({
               claim: refundClaim,

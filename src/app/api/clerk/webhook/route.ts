@@ -33,6 +33,7 @@ import { isRequestBodyTooLargeError, readBoundedWebhookText as readBoundedText }
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { prepareClerkSentinelReceipt } from "@/lib/clerkWebhookReceipt.mjs";
+import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import {
   reserveUserClerkWelcomeEmail,
   userClerkLifecycleState,
@@ -141,7 +142,41 @@ export async function POST(req: Request) {
 
   try {
     if (event.type === "user.deleted") {
-      const anonymized = await anonymizeUserAccountByClerkId(event.data.id);
+      const clerkId = event.data.id;
+      let providerUserExists = true;
+      try {
+        await getCurrentClerkUserIdentity(clerkId);
+      } catch (error) {
+        if (!isClerkUserNotFoundError(error)) throw error;
+        providerUserExists = false;
+      }
+      if (providerUserExists) {
+        Sentry.captureMessage(
+          "Clerk user.deleted contradicted by current provider state",
+          {
+            level: "warning",
+            tags: { source: "clerk_webhook_user_deleted_provider_mismatch" },
+            extra: {
+              svixId,
+              clerkUserIdHash: hashIdentifierForTelemetry(clerkId) ?? "unknown",
+            },
+          },
+        );
+        // Keep the signed event retryable. Clerk's read can lag its delete, and
+        // finishing the event here would leave a deleted person's data in place.
+        const retryError = new Error("Clerk user.deleted contradicted by current provider state");
+        await markClerkWebhookFailed(svixId, claimGeneration, retryError).catch((markError) => {
+          Sentry.captureException(markError, {
+            tags: { source: "clerk_webhook_mark_failed" },
+            extra: { svixId, eventType: event.type },
+          });
+        });
+        return NextResponse.json(
+          { ok: false, status: "provider_user_still_present" },
+          { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
+        );
+      }
+      const anonymized = await anonymizeUserAccountByClerkId(clerkId);
       if ("inProgress" in anonymized && anonymized.inProgress) {
         const retryError = new Error("Clerk user.deleted local anonymization is already in progress");
         await markClerkWebhookFailed(svixId, claimGeneration, retryError).catch((markError) => {

@@ -14,7 +14,7 @@ export async function POST() {
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success, reset } = await safeRateLimit(stripeLoginLinkRatelimit, userId);
-  if (!success) return privateResponse(rateLimitResponse(reset, "Too many requests. Try again in a few minutes."));
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {

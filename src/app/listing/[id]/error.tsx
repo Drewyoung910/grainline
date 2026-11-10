@@ -37,6 +37,10 @@ export default function ListingError({
           </Link>
         </div>
 
+        {error.digest ? (
+          <p className="mt-4 text-xs text-red-700/80">Reference: {error.digest}</p>
+        ) : null}
+
         {process.env.NODE_ENV === "development" && (
           <details className="mt-4 text-xs text-red-700/70">
             <summary>Debug details</summary>

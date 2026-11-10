@@ -40,17 +40,17 @@ describe("onboarding-incomplete dashboard access", () => {
     const sales = source("src/app/dashboard/sales/page.tsx");
     assert.match(sales, /const seller = await sellerOwnerCore\(me\.id\)/);
     assert.match(sales, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.sellerProfileId\)/);
-    assert.match(sales, /if \(!sellerPrivate\.onboardingComplete\)/);
+    assert.match(sales, /if \(!sellerPrivate\.onboardingComplete && !seller\.chargesEnabled && total === 0\)/);
     assert.match(sales, /Connect Stripe to start accepting orders/);
 
     const salesDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
     assert.match(salesDetail, /const seller = await sellerOwnerCore\(me\.id\)/);
     assert.match(salesDetail, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.sellerProfileId\)/);
-    assert.match(salesDetail, /if \(!sellerPrivate\.onboardingComplete\) redirect\("\/dashboard\?setup=required"\)/);
+    assert.doesNotMatch(salesDetail, /setup=required/);
 
     const analyticsApi = source("src/app/api/seller/analytics/route.ts");
     assert.match(analyticsApi, /sellerProfile\.sellerProfileId/);
-    assert.match(analyticsApi, /if \(!sellerPrivate\.onboardingComplete\)/);
+    assert.match(analyticsApi, /!sellerPrivate\.onboardingComplete\s*&& !sellerProfile\.chargesEnabled\s*&& \(await countSellerOrders\(me\.id\)\) === 0/);
     assert.match(analyticsApi, /code: "SETUP_REQUIRED"/);
 
     const analyticsPage = source("src/app/dashboard/analytics/page.tsx");

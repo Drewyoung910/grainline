@@ -81,7 +81,7 @@ describe("notification email preferences", () => {
     assert.doesNotMatch(emailBlock, /if \(body &&/);
   });
 
-  it("uses the refund email preference for staff case refunds", () => {
+  it("uses the refund preference for buyer refunds and the case preference for seller decisions", () => {
     const finalization = source(
       "src/lib/caseStaffResolutionFinalization.ts",
     );
@@ -94,9 +94,10 @@ describe("notification email preferences", () => {
       finalization,
       /await enqueueEmailOutboxOnce\([\s\S]*preferenceKey: refunding/,
     );
-    assert.doesNotMatch(
-      finalization,
-      /preferenceKey: "EMAIL_CASE_RESOLVED"/,
+    assert.equal(
+      finalization.match(/preferenceKey: "EMAIL_CASE_RESOLVED"/g)?.length,
+      2,
+      "the seller recipient lookup and seller outbox row must both honor the case-resolution preference",
     );
   });
 

@@ -9,11 +9,12 @@ import {
   restoreBannedSellerOrderReviews,
 } from './orderBanReviewAuthority'
 import { getOrderStaffReadClient } from './orderStaffReadDb'
-import { unbanClerkUser } from './clerkUserLifecycle'
+import { clerkUserExists, unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { withDbUserContext } from './dbUserContext'
+import { refreshRatingSummariesForReviewer } from './sellerRatingSummary'
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -317,6 +318,21 @@ export async function undoAdminAction({
         targetId: log.targetId,
       })
     : null
+  if (clerkUnbanTarget) {
+    let hasLogin: boolean
+    try {
+      hasLogin = await clerkUserExists(clerkUnbanTarget.clerkId)
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: 'admin_undo_clerk_lookup' },
+        extra: { logId, adminId },
+      })
+      throw new Error('Clerk could not be reached, so nothing was changed. Try again.')
+    }
+    if (!hasLogin) {
+      throw new Error('This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.')
+    }
+  }
   const banReviewCapability = log.action === 'BAN_USER'
     ? await mintBanReviewCapability(
         adminId,
@@ -462,5 +478,6 @@ export async function undoAdminAction({
       })
       throw new Error('Database undo succeeded, but Clerk could not be unbanned. Retry the undo or contact support.')
     }
+    await refreshRatingSummariesForReviewer(log.targetId)
   }
 }

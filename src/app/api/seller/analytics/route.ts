@@ -21,6 +21,7 @@ import {
 import type { SellerOrderAnalyticsBucket } from "@/lib/orderSellerAnalyticsState";
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { countSellerOrders } from "@/lib/orderParticipantReadAuthority";
 import { sellerStockNotificationRangeCount } from "@/lib/stockNotificationAccess";
 import { sellerFavoriteRangeCount } from "@/lib/favoriteAccess";
 
@@ -135,6 +136,10 @@ function generateMonthBuckets(startDate: Date, endDate: Date): { label: string; 
     buckets.push({ label, timestamp: cur.toISOString() });
     cur.setUTCMonth(cur.getUTCMonth() + 1);
   }
+  // Thirteen months repeat one month name, so the older one carries its year.
+  if (buckets.length > 12) {
+    buckets[0].label += ` '${String(startDate.getUTCFullYear()).slice(-2)}`;
+  }
   return buckets;
 }
 
@@ -166,7 +171,13 @@ export async function GET(req: Request) {
       sellerProfile.sellerProfileId,
     );
     if (!sellerPrivate) return privateJson({ error: "Seller profile not found" }, { status: 404 });
-    if (!sellerPrivate.onboardingComplete) {
+    // The wizard is optional once Stripe can take payments, so follow real
+    // state: payouts on, or orders already taken.
+    if (
+      !sellerPrivate.onboardingComplete
+      && !sellerProfile.chargesEnabled
+      && (await countSellerOrders(me.id)) === 0
+    ) {
       return privateJson(
         {
           error: sellerProfile.chargesEnabled
@@ -223,9 +234,12 @@ export async function GET(req: Request) {
       endDate,
       endExclusive,
     );
-    const dailyViewDataPromise = prisma.listingViewDaily.findMany({
+    // One row per day, summed in the database: the table has one row per
+    // listing per day, which is too many to load for a long range.
+    const dailyViewDataPromise = prisma.listingViewDaily.groupBy({
+      by: ["date"],
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
-      select: { date: true, views: true, clicks: true },
+      _sum: { views: true, clicks: true },
     });
     const chartOrderRowsPromise = readSellerOrderAnalyticsBuckets({
       actorUserId: me.id,
@@ -323,7 +337,10 @@ export async function GET(req: Request) {
     for (const dv of dailyViewData) {
       const key = new Date(dv.date).toISOString().slice(0, 10);
       const existing = dailyMap.get(key) ?? { views: 0, clicks: 0 };
-      dailyMap.set(key, { views: existing.views + dv.views, clicks: existing.clicks + dv.clicks });
+      dailyMap.set(key, {
+        views: existing.views + (dv._sum.views ?? 0),
+        clicks: existing.clicks + (dv._sum.clicks ?? 0),
+      });
     }
 
     let chartData: Array<{
@@ -416,6 +433,14 @@ export async function GET(req: Request) {
       });
     }
 
+    // Archived listing pages 404 even for their owner, so the UI must not link them.
+    const archivedTopListings = topListingRows.length > 0
+      ? await prisma.listing.findMany({
+          where: { id: { in: topListingRows.map((r) => r.id) }, sellerId, archivedAt: { not: null } },
+          select: { id: true },
+        })
+      : [];
+    const archivedTopListingIds = new Set(archivedTopListings.map((l) => l.id));
     const topListings = topListingRows.map((r) => {
       const activeStartMs = Math.max(startDate.getTime(), r.createdAt.getTime());
       const activeDaysInRange = Math.max(
@@ -425,6 +450,7 @@ export async function GET(req: Request) {
       return {
         id: r.id,
         title: r.title,
+        archived: archivedTopListingIds.has(r.id),
         imageUrl: r.imageUrl,
         totalRevenueCents: r.totalRevenueCents,
         unitsSold: r.unitsSold,

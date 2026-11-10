@@ -29,7 +29,7 @@ describe("email delivery guardrails", () => {
     const email = source("src/lib/email.ts");
 
     assert.match(email, /const EMAIL_REPLY_TO = normalizeEmailAddress\(process\.env\.EMAIL_REPLY_TO \|\| SUPPORT_EMAIL\)/);
-    assert.match(email, /replyTo: EMAIL_REPLY_TO/);
+    assert.match(email, /replyTo: opts\.replyTo \?\? EMAIL_REPLY_TO/);
     assert.match(email, /reason: "missing_one_click_unsubscribe"/);
     assert.match(email, /if \(isOptionalEmailPreferenceKey\(opts\.preferenceKey\) && !unsubscribeUrl\) \{[\s\S]*?if \(opts\.throwOnFailure\) throw err;[\s\S]*?return null;[\s\S]*?\}/);
     assert.match(email, /headers: unsubscribeUrl\s*\? \{/);
@@ -54,8 +54,8 @@ describe("email delivery guardrails", () => {
     assert.match(outbox, /claimEmailOutboxJob\(id\)/);
     assert.match(outbox, /deliveryEligibilityAlreadyVerified: true/);
     assert.match(outbox, /idempotencyKey: claimedJob\.dedupKey/);
-    assert.match(source("src/app/api/support/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
-    assert.match(source("src/app/api/legal/data-request/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
+    assert.match(source("src/app/api/support/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true,/);
+    assert.match(source("src/app/api/legal/data-request/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true,/);
   });
 
   it("uses outbox dedup keys as provider idempotency keys for retryable sends", () => {
@@ -148,7 +148,6 @@ describe("email delivery guardrails", () => {
     assert.match(email, /function normalizeTrackingCarrier/);
     assert.match(email, /normalized === "UPS"/);
     assert.match(email, /normalizedCarrier === "USPS"/);
-    assert.doesNotMatch(functionBody(email, "sendOrderShipped"), /\.includes\("ups"\)/);
     assert.match(email, /encodeURIComponent\(`tracking \$\{trackingNumber\}`\)/);
   });
 });

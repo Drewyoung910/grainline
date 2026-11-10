@@ -17,11 +17,12 @@ import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { publicSellerShopPath } from "@/lib/publicPaths";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
-import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerPrivateState, sellerOwnerProfileEditorState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { readWorkshopListingAttention, readWorkshopOrderQueue } from "@/lib/workshopData";
-import { orderRefundedAway, workshopAttentionRows, type WorkshopAttentionRow } from "@/lib/workshopQueue";
+import { orderRefundedAway, workshopAttentionRows, workshopShopStatus, type WorkshopAttentionRow } from "@/lib/workshopQueue";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -68,11 +69,13 @@ async function DashboardPageContent({
   const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
   const forceSetupBanner = params.setup === "required";
 
-  const [dashboardSeller, listingAttention, orderQueue, unreadMessages] = await Promise.all([
+  const [dashboardSeller, listingAttention, orderQueue, unreadMessages, shopEditorState, openCases] = await Promise.all([
     sellerOwnerDashboardState(me.id),
     readOptional("listing_attention", () => readWorkshopListingAttention(seller.id)),
     readOptional("order_queue", () => readWorkshopOrderQueue(me.id)),
     readOptional("unread_messages", () => countActorUnreadMessages(me.id)),
+    readOptional("shop_editor_state", () => sellerOwnerProfileEditorState(seller.id, seller.userId)),
+    readOptional("open_cases", () => getCaseSellerActiveCount(seller.id)),
   ]);
   if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
     throw new Error("Seller dashboard authority returned an unexpected owner");
@@ -91,21 +94,26 @@ async function DashboardPageContent({
     rejected: listingAttention?.rejected ?? 0,
     lowStock: listingAttention?.lowStock ?? [],
     listingCount: listingAttention?.listingCount ?? null,
+    openCases,
+    chargesEnabled,
+    liveListingCount: listingAttention?.liveListingCount ?? null,
+    unpublishedCount: listingAttention?.unpublishedCount ?? null,
   });
   // Never claim there's nothing to do when part of the answer failed to load.
-  const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null;
+  const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null || openCases === null;
 
-  const shopStatus = vacationMode
-    ? { label: "On vacation", className: "bg-amber-100 text-amber-900" }
-    : !chargesEnabled
-      ? { label: "Not visible yet", className: "bg-amber-100 text-amber-900" }
-      : !onboardingComplete
-        ? { label: "Finish setup", className: "bg-amber-100 text-amber-900" }
-        : { label: "Shop open", className: "bg-green-100 text-green-800" };
+  const shopStatus = workshopShopStatus({
+    vacationMode,
+    chargesEnabled,
+    acceptingNewOrders: shopEditorState?.acceptingNewOrders ?? null,
+    liveListingCount: listingAttention?.liveListingCount ?? null,
+  });
 
   return (
     <main className="mx-auto max-w-5xl space-y-7">
-      {!onboardingComplete && (
+      {/* Publishing only needs Stripe, so once charges are on the wizard is
+          optional and this banner would be false ("can't go live"). */}
+      {!onboardingComplete && !chargesEnabled && (
         <DismissibleBanner
           className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 pr-10 text-sm text-amber-950"
           rejectedIds={forceSetupBanner ? [] : [`dashboard-onboarding:${seller.id}:${chargesEnabled ? "setup" : "stripe"}`]}
@@ -142,7 +150,7 @@ async function DashboardPageContent({
         <div className="min-w-0">
           <h1 className="font-display page-title">Workshop</h1>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-neutral-500">
-            <span className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-medium ${shopStatus.className}`}>{shopStatus.label}</span>
+            <span className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-medium ${shopStatus.open ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>{shopStatus.label}</span>
             <span className="min-w-0 truncate">{seller.displayName}</span>
           </p>
         </div>
@@ -171,7 +179,7 @@ async function DashboardPageContent({
 
       {/* Vacation mode active banner */}
       {vacationMode && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-medium text-amber-900 text-sm">Vacation mode is active</p>
             <p className="text-amber-800 text-sm mt-0.5">
@@ -184,7 +192,7 @@ async function DashboardPageContent({
           </div>
           <a
             href="/dashboard/seller"
-            className="shrink-0 text-xs border border-amber-400 bg-white px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors"
+            className="shrink-0 self-start rounded-md text-xs border border-amber-400 bg-white px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors sm:self-auto"
           >
             Turn off vacation mode →
           </a>
@@ -202,24 +210,24 @@ async function DashboardPageContent({
         )}
         {attentionRows.length === 0 ? (
           attentionIncomplete ? null : (
-            <p className="text-sm text-neutral-600">No orders to ship, messages waiting or listings to fix right now.</p>
+            <p className="text-sm text-neutral-600">No orders to fulfill, messages waiting or listings to fix right now.</p>
           )
         ) : (
-          <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
+          <ul className="divide-y divide-neutral-100">
             {attentionRows.map((row) => {
               const Icon = ATTENTION_ICONS[row.icon];
               return (
                 <li key={row.key}>
                   <Link
                     href={row.href}
-                    className="group flex items-center gap-3.5 rounded-2xl bg-[#F7F5F0] px-3.5 py-3 transition-colors duration-150 hover:bg-[#EFEAE0]"
+                    className="group flex items-center gap-3.5 py-3"
                   >
-                    <span className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-white text-[#2C1F1A] ring-1 ring-stone-200/70">
+                    <span className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-[#EFEAE0] text-[#2C1F1A]">
                       <Icon size={18} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium text-neutral-900">{row.title}</span>
-                      <span className="block truncate text-sm text-neutral-500">{row.detail}</span>
+                      <span className="block text-sm text-neutral-500 sm:truncate">{row.detail}</span>
                     </span>
                     <ChevronRight size={18} className="shrink-0 text-neutral-400 transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
                   </Link>
@@ -231,8 +239,9 @@ async function DashboardPageContent({
       </section>
 
       {/* Shops still in setup have nothing to report, and the numbers would
-          only show placeholders and vanish. */}
-      {onboardingComplete && <WorkshopStats />}
+          only show placeholders and vanish. A shop that can take payments or
+          already has orders is not in setup, wizard or not. */}
+      {(onboardingComplete || chargesEnabled || (orderQueue?.recent.length ?? 0) > 0) && <WorkshopStats />}
 
       <section aria-labelledby="workshop-recent-title" className="card-section p-5 sm:p-[22px]">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">

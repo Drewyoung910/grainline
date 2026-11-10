@@ -113,6 +113,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
     assert.match(searchBar, /popularSearchPresentation\(\{/);
     assert.match(searchBar, /popularLoadedRef\.current \|\| popularLoadingRef\.current/);
+    assert.match(searchBar, /onPointerEnter=\{\(\) => void loadPopularTags\(\)\}/);
     assert.match(searchBar, /aria-label="Clear search"/);
     assert.match(searchBar, /params\.delete\("q"\)/);
     assert.match(searchBar, /openDropdown\(\)/);
@@ -145,17 +146,19 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
 
-  it("keeps browse cards at 4:5 while fitting the full listing photo inside the viewport", () => {
+  it("keeps browse and mobile detail photos at 4:5 while showing the full desktop photo", () => {
     assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
     const gallery = source("src/components/ListingGallery.tsx");
     // The frame height is shared with the loading skeleton, so the two can't drift.
     const frame = source("src/lib/photoMotion.ts");
     assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
-    assert.match(gallery, /className="h-full w-full object-contain"/);
-    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
-    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
-    assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
+    assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
+    assert.match(gallery, /touch-pinch-zoom rounded-xl/);
+    assert.match(gallery, /overflow-hidden rounded-xl/);
+    assert.match(frame, /aspect-\[4\/5\] h-auto/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),30rem/);
+    assert.doesNotMatch(gallery, /h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
     // Match the actual UploadButton element — endpoint immediately followed by
@@ -171,17 +174,23 @@ describe("post-launch UI follow-ups", () => {
 
   it("keeps made-to-order variants from exposing stock checkboxes", () => {
     const variant = source("src/components/VariantEditor.tsx");
+    const variantState = source("src/lib/variantEditorState.ts");
     const wrapper = source("src/components/ListingTypeVariantSection.tsx");
     assert.match(wrapper, /onListingTypeChange=\{setType\}/);
     assert.match(variant, /listingType = "MADE_TO_ORDER"/);
     assert.match(variant, /!isMadeToOrder &&/);
-    assert.match(variant, /inStock: isMadeToOrder \? true : o\.inStock/);
+    assert.match(variant, /serializeVariantGroups\(groups, isMadeToOrder\)/);
+    assert.match(variantState, /inStock: isMadeToOrder \? true : option\.inStock/);
   });
 
   it("keeps variant price typing raw until blur", () => {
     const variant = source("src/components/VariantEditor.tsx");
-    assert.match(variant, /priceDrafts/);
+    const variantState = source("src/lib/variantEditorState.ts");
+    assert.match(variantState, /priceDraft\?: string/);
+    assert.match(variant, /updateOption\(gi, oi, "priceDraft", e\.target\.value\)/);
     assert.match(variant, /focusedPriceKey/);
+    assert.match(variant, /focusedPriceKey === key[\s\S]*?toFixed\(2\)/);
+    assert.doesNotMatch(variant, /focusedPriceKey === key[^\n]*String\(opt\.priceAdjustCents \/ 100\)/);
     assert.match(variant, /onBlur=/);
     assert.doesNotMatch(variant, /value=\{opt\.priceAdjustCents === 0 \? "" : \(opt\.priceAdjustCents \/ 100\)\.toFixed\(2\)\}/);
   });
@@ -381,10 +390,9 @@ describe("post-launch UI follow-ups", () => {
     const header = source("src/components/Header.tsx");
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
-    assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // Search grows to a 640px cap, the text nav follows it, and the tools
-    // sit at the far right (motion prototype layout, 2026-10-30).
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    // Search grows to the reviewed 820px cap, the text nav follows it, and
+    // the tools sit at the far right without an oversized avatar gap.
+    assert.match(header, /data-header-search-slot className="flex min-w-\[240px\] max-w-\[820px\] flex-1"/);
     assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 
@@ -577,8 +585,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /followStates\.map\(\(state\) => \[state\.sellerProfileId, state\.followerCount\]\)/);
     assert.match(homepage, /followStates\.filter\(\(state\) => state\.following\)\.map\(\(state\) => state\.sellerProfileId\)/);
     assert.match(homepage, /getCachedPublicSellerStats\(featuredMakers\[0\]\.maker\.id\)/);
-    assert.match(homepage, /<h2 className="text-xl font-semibold font-display">In the Workshop<\/h2>/);
-    assert.match(homepage, /href=\{publicSellerPath\(spotlight\.id, spotlight\.displayName\)\}[\s\S]*absolute bottom-4 left-4/);
+    assert.match(homepage, /<h2 className="font-display text-2xl font-semibold sm:text-3xl">In the Workshop<\/h2>/);
+    assert.match(homepage, /href=\{publicSellerPath\(spotlight\.id, spotlight\.displayName\)\}[\s\S]*Visit the Workshop →/);
     assert.match(homepage, /hover:underline[\s\S]*Visit the Workshop →/);
     assert.match(homepage, /meDbId !== spotlight\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(spotlight\.id\)\}/);
@@ -597,6 +605,26 @@ describe("post-launch UI follow-ups", () => {
     assert.match(docs, /In the Workshop spotlight[\s\S]*getCachedPublicSellerStats\(\)[\s\S]*FollowButton/);
     assert.match(docs, /The homepage stops here; it intentionally does not render `NewsletterSignup`/);
     assert.match(docs, /maker posts show a Follow-the-maker card[\s\S]*staff posts show `NewsletterSignup`/);
+  });
+
+  it("keeps anchored public content clear of the sticky navigation", () => {
+    const blogPost = source("src/app/blog/[slug]/page.tsx");
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+
+    assert.match(blogPost, /id=\{`comment-\$\{c\.id\}`\} data-scroll-anchor/);
+    for (const section of ["shop", "about", "policies"]) {
+      assert.match(
+        sellerPage,
+        new RegExp(`id="${section}"[^>]*data-scroll-anchor[^>]*scroll-mt-\\[calc\\(var\\(--site-header-offset\\)\\+3\\.75rem\\)\\]`),
+      );
+    }
+  });
+
+  it("hides inert blog discovery controls before launch but keeps an active type filter escapable", () => {
+    const blog = source("src/app/blog/page.tsx");
+    assert.match(blog, /const showDiscoveryControls = Boolean\(isSearching \|\| typeFilter \|\| total > 0\)/);
+    assert.match(blog, /\{showDiscoveryControls && \([\s\S]*?<BlogSearchBar/);
+    assert.match(blog, /No posts of this type yet/);
   });
 
   it("keeps the map maker card an overlay pinned to the map container", () => {
@@ -687,7 +715,9 @@ describe("post-launch UI follow-ups", () => {
     // The cart remains public, while the messages control is rendered only
     // through the signed-in MessageIconLink.
     // Native title tooltips were replaced by the styled IconHoverTip labels
-    assert.match(header, /aria-label="Cart"/);
+    // The cart link name carries the badge count for screen readers.
+    assert.match(header, /aria-label=\{cartLabel\}/);
+    assert.match(header, /`Cart, \$\{cartCount\} \$\{cartCount === 1 \? "item" : "items"\}`/);
     assert.doesNotMatch(header, /title="Cart"/);
     assert.match(header, /<IconHoverTip label="Cart" \/>/);
     assert.match(header, /<Show when="signed-in">\s*<MessageIconLink \/>\s*<\/Show>/);

@@ -3,6 +3,7 @@ import { labelClawbackErrorMessage, labelClawbackIdempotencyKey } from "./labelC
 // Matches the existing refund recovery safety margin. A key is not a permanent ledger.
 export const LABEL_CLAWBACK_SAFE_REPLAY_MS = 23 * 60 * 60 * 1000;
 export const LABEL_CLAWBACK_PROVIDER_TIMEOUT_MS = 5_000;
+const LABEL_CLAWBACK_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 export type LabelClawbackIntent = {
   orderId: string; stripeTransferId: string; transactionId: string;
@@ -61,7 +62,7 @@ function validateMatch(reversal: Reversal, intent: LabelClawbackIntent) {
   if (!/^trr_[A-Za-z0-9]+$/.test(reversal.id) || transferId(reversal) !== intent.stripeTransferId
     || reversal.amount !== intent.amountCents || reversal.currency !== intent.currency
     || !Number.isSafeInteger(reversal.created) || reversal.created <= 0
-    || (purchased !== null && reversal.created * 1000 < purchased - 5 * 60 * 1000)
+    || (purchased !== null && reversal.created * 1000 < purchased - LABEL_CLAWBACK_CLOCK_SKEW_MS)
     || reversal.source_refund != null) throw new Error("Label reversal provider evidence is ambiguous");
 }
 
@@ -76,7 +77,10 @@ export async function recoverOrCreateLabelClawback(intent: LabelClawbackIntent, 
   };
   const purchased = purchasedMillis(intent.labelPurchasedAt);
   const age = purchased === null ? null : now() - purchased;
-  if (age === null || !Number.isFinite(age) || age < 0 || age >= LABEL_CLAWBACK_SAFE_REPLAY_MS) {
+  // The purchase time comes from the database clock and "now" from this server,
+  // so a label bought a moment ago can look slightly in the future.
+  if (age === null || !Number.isFinite(age) || age < -LABEL_CLAWBACK_CLOCK_SKEW_MS
+    || age >= LABEL_CLAWBACK_SAFE_REPLAY_MS) {
     throw new Error("Label reversal replay window is unproven or expired; manual reconciliation required");
   }
   // Within retention, this exact POST also recovers the original Stripe result.

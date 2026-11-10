@@ -123,4 +123,28 @@ describe("Order participant read state", () => {
       /summary items are invalid/,
     );
   });
+
+  it("accepts database-valid order snapshot text at Unicode code-point limits", () => {
+    const sellerName = `${"a".repeat(99)}😀`;
+    assert.equal(Array.from(sellerName).length, 100);
+    assert.equal(sellerName.length, 101);
+
+    const page = buyerOrderSummaryPageFromRows([{
+      ...buyerRow,
+      label_carrier: null,
+      label_tracking_number: null,
+      item_count: 1,
+      items: [{
+        id: "item-emoji",
+        listingId: "listing-emoji",
+        priceCents: 500,
+        quantity: 1,
+        title: "Emoji-safe item",
+        imageUrl: null,
+        sellerName,
+      }],
+    }], 5);
+
+    assert.equal(page.rows[0].items[0].sellerName, sellerName);
+  });
 });

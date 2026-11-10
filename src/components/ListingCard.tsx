@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
-import MediaImage from "@/components/MediaImage";
+import CardMediaImage from "@/components/CardMediaImage";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { formatCityState } from "@/lib/locationDisplay";
@@ -39,11 +39,13 @@ type Props = {
   initialSaved?: boolean;
   variant?: "grid" | "scroll";
   href?: string | null;
+  // On the maker's own pages every card is theirs, so the maker row repeats.
+  hideMaker?: boolean;
 };
 
 type PhotoState = "idle" | "pending" | "revealed";
 
-export default function ListingCard({ listing: l, initialSaved = false, href }: Props) {
+export default function ListingCard({ listing: l, initialSaved = false, href, hideMaker = false }: Props) {
   const photoRef = useRef<HTMLDivElement>(null);
   const photoPendingRef = useRef(false);
   const [photoState, setPhotoState] = useState<PhotoState>("idle");
@@ -82,26 +84,30 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
 
   const photo = (
     <>
-      <MediaImage
-        alt={l.photoAltText || l.title}
-        src={img}
-        fallbackSrc={l.secondPhotoUrl}
-        loading="lazy"
-        data-card-photo=""
-        data-photo-state={photoState}
-        onLoad={() => finishPhoto(true)}
-        onError={() => finishPhoto(false)}
-        className="w-full aspect-[4/5] object-cover listing-photo backface-hidden transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
-        fallbackClassName="w-full aspect-[4/5] bg-gradient-to-br from-amber-50 to-stone-100"
-      />
+      <span className="relative block aspect-[4/5] w-full">
+        <CardMediaImage
+          alt={l.photoAltText || l.title}
+          src={img}
+          fallbackSrc={l.secondPhotoUrl}
+          sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, 25vw"
+          loading="lazy"
+          dataCardPhoto
+          dataPhotoState={photoState}
+          onLoad={() => finishPhoto(true)}
+          onError={() => finishPhoto(false)}
+          className="h-full w-full object-cover listing-photo backface-hidden transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
+          fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
+        />
+      </span>
       {/* Second photo: requested on first hover, then swaps in quickly
           (a short fade, not a slow dissolve) while hovered. */}
       {altRequested && altSrc && (
-        <MediaImage
+        <CardMediaImage
           alt=""
-          aria-hidden="true"
+          ariaHidden
           src={altSrc}
-          data-ready={altReady ? "true" : "false"}
+          sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, 25vw"
+          dataReady={altReady}
           onLoad={() => setAltReady(true)}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden motion-safe:[transition:opacity_150ms_ease-out,scale_600ms_cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035] group-hover/photo:data-[ready=true]:opacity-100"
           fallbackClassName="hidden"
@@ -111,11 +117,11 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
   );
 
   return (
-    <div className="card-rise">
+    <div>
       {/* Photo */}
       <div
         ref={photoRef}
-        className="listing-card-photo group/photo relative isolate overflow-hidden rounded-2xl bg-[#EFEAE0] shadow-[0_1px_0_rgba(44,31,26,0.08)] ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]"
+        className="listing-card-photo group/photo relative isolate overflow-hidden rounded-xl bg-[#EFEAE0] shadow-[0_1px_0_rgba(44,31,26,0.08)] ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_16px_34px_-18px_rgba(44,31,26,0.58)]"
         data-photo-state={photoState}
         onPointerEnter={(event) => {
           // Touch devices never show the hover photo, so don't download it.
@@ -163,25 +169,27 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
             the location moves under the maker so the name stays readable;
             on wider cards it shares the row, and the grid gives the name its
             full width before the location gets any. */}
-        <div className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug text-stone-600 @max-[15rem]:grid-cols-1">
-          <span className="flex min-w-0 max-w-full items-center gap-1.5">
-            <Link
-              href={publicSellerPath(l.seller.id, sellerName)}
-              className="min-w-0 truncate font-medium text-stone-700 transition-colors hover:text-neutral-900 hover:underline"
-            >
-              {sellerName}
-            </Link>
-            {hasGuildBadge && (
-              // Invisible 36 px tap area around the 20 px badge; layout unchanged.
-              <span className="inline-flex flex-none [&>button]:relative [&>button]:before:absolute [&>button]:before:-inset-2">
-                <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={20} />
-              </span>
+        {!hideMaker && (
+          <div className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug text-stone-600 @max-[15rem]:grid-cols-1">
+            <span className="flex min-h-5 min-w-0 max-w-full items-center gap-1.5">
+              <Link
+                href={publicSellerPath(l.seller.id, sellerName)}
+                className="min-w-0 truncate font-medium text-stone-700 transition-colors hover:text-neutral-900 hover:underline"
+              >
+                {sellerName}
+              </Link>
+              {hasGuildBadge && (
+                // Invisible 36 px tap area around the 20 px badge; layout unchanged.
+                <span className="inline-flex flex-none [&>button]:relative [&>button]:before:absolute [&>button]:before:-inset-2">
+                  <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={20} />
+                </span>
+              )}
+            </span>
+            {location && (
+              <MetaSeparatorText>{location}</MetaSeparatorText>
             )}
-          </span>
-          {location && (
-            <MetaSeparatorText>{location}</MetaSeparatorText>
-          )}
-        </div>
+          </div>
+        )}
 
         {l.seller.acceptingNewOrders === false && (
           <span className="mt-0.5 inline-block rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">

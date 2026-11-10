@@ -13,7 +13,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
-import { containsProfanity } from "@/lib/profanity";
+import { containsProfanity, containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
@@ -31,6 +31,7 @@ import {
 import { z } from "zod";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { sellerActorReviewListingTarget } from "@/lib/sellerProfilePublicAccess";
+import { reviewPhotoSelectionIsComplete } from "@/lib/reviewPhotoState";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
   (u) => isFirstPartyMediaUrl(u),
@@ -75,7 +76,11 @@ export async function POST(req: NextRequest) {
   const { listingId, ratingX2, comment } = parsed;
   const photoUrls = parsed.photoUrls ?? parsed.photos ?? [];
 
-  // Profanity check (log-only — does not block submission)
+  if (containsSlur(comment)) {
+    return privateJson({ error: SHOP_TEXT_SLUR_MESSAGE }, { status: 400 });
+  }
+
+  // Mild words are log-only and do not block submission
   if (comment) {
     const profanityResult = containsProfanity(comment);
     if (profanityResult.flagged) {
@@ -95,6 +100,11 @@ export async function POST(req: NextRequest) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
     throw err;
+  }
+
+  // Buyers read these as independent. Staff and admin accounts run the site.
+  if (me.role !== "USER") {
+    return privateJson({ error: "Staff accounts cannot leave reviews." }, { status: 403 });
   }
 
   // Prevent reviewing own listing
@@ -134,6 +144,12 @@ export async function POST(req: NextRequest) {
     accountUserId: me.id,
     allowedEndpoints: ["reviewPhoto"],
   });
+  if (!reviewPhotoSelectionIsComplete(photoUrls, urls)) {
+    return privateJson(
+      { error: "Use uploaded Grainline images only." },
+      { status: 400 },
+    );
+  }
 
   let created;
   try {

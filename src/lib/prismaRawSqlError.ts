@@ -29,9 +29,15 @@ function getPostgresAdapterSqlState(meta: Record<string, unknown>): string | nul
   if (!isRecord(driverAdapterError)
     || driverAdapterError.name !== "DriverAdapterError"
     || !isRecord(driverAdapterError.cause)
-    || driverAdapterError.cause.kind !== "postgres") {
+    || driverAdapterError.cause.kind === "mysql"
+    || driverAdapterError.cause.kind === "sqlite"
+    || driverAdapterError.cause.kind === "mssql") {
     return null;
   }
+
+  // The adapter renames common failures (23503 ForeignKeyConstraintViolation,
+  // 23505 UniqueConstraintViolation, 40001 TransactionWriteConflict) and keeps
+  // the real code in originalCode, so only another database's `kind` is refused.
 
   const sqlState = driverAdapterError.cause.originalCode;
   return isSqlState(sqlState) ? sqlState : null;

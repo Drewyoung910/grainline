@@ -10,7 +10,8 @@ describe("follower listing notification guardrails", () => {
   it("filters blocked follower pairs before in-app and email fanout", () => {
     const fanout = source("src/lib/followerListingNotifications.ts");
 
-    assert.match(fanout, /import \{ sellerPublicFollowerListingTarget \} from "@\/lib\/sellerProfilePublicAccess"/);
+    assert.match(fanout, /sellerPublicFollowerListingTarget/);
+    assert.match(fanout, /sellerPublicRecentlyViewedListings/);
     assert.match(fanout, /const publicListing = await sellerPublicFollowerListingTarget\(/);
     assert.match(fanout, /listing\.id,\s*sellerProfileId,/s);
     assert.doesNotMatch(fanout, /prisma\.listing\./);
@@ -38,6 +39,7 @@ describe("follower listing notification guardrails", () => {
       "fixed reciprocal-block follower filtering must happen before email fanout",
     );
     assert.match(fanout, /preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING"/);
+    assert.match(fanout, /listingImageUrl: listingImageUrl \?\? undefined/);
     assert.match(fanout, /await mapWithConcurrency\(emailRecipients, 5/);
   });
 

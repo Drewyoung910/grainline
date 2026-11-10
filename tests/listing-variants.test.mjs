@@ -145,7 +145,7 @@ describe("listing variant selection", () => {
       checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") > checkoutSeller.indexOf("const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("await updateOwnerCartItemPrice"),
+      checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("const priceReview = cartPriceReviewState"),
     );
     assert.ok(
       checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("stripe.checkout.sessions.create"),

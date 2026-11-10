@@ -5,6 +5,7 @@ import {
   IMAGE_UPLOAD_TYPES,
   type UploadEndpoint,
   validateUploadFile,
+  validateUploadSelection,
 } from "@/lib/uploadRules";
 
 type Endpoint = UploadEndpoint;
@@ -75,7 +76,9 @@ function xhrUpload<T = unknown>(url: string, options: XhrUploadOptions): Promise
 
 const routeBodyRiskThreshold = 4 * 1024 * 1024;
 
-async function shrinkLargeImageForRouteUpload(file: File) {
+// Vercel rejects a request body over 4.5 MB before the upload route runs, so every
+// image sent to a route must go through this first.
+export async function shrinkLargeImageForRouteUpload(file: File) {
   if (!PROCESSED_IMAGE_TYPES.has(file.type) || file.size <= routeBodyRiskThreshold) return file;
 
   const imageUrl = URL.createObjectURL(file);
@@ -157,7 +160,7 @@ export function useR2Upload({
     try {
       for (let i = 0; i < files.length; i++) {
         const originalFile = files[i];
-        validateUploadFile(endpoint, originalFile, i);
+        validateUploadSelection(endpoint, originalFile, i);
         onUploadBegin?.(originalFile.name);
         let file = originalFile;
         if (PROCESSED_IMAGE_TYPES.has(file.type) && IMAGE_ENDPOINTS.has(endpoint)) {

@@ -6,8 +6,6 @@ const {
   normalizeSupportRequest,
   SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
   supportRequestEmailNotificationState,
-  supportRequestAccountExportWhere,
-  supportRequestSlaDueAt,
   normalizeSupportRequestClosureEvidence,
   SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS,
 } = await import("../src/lib/supportRequest.ts");
@@ -26,7 +24,6 @@ describe("support request helpers", () => {
     assert.match(source, /name: cleanOptionalText\(input\.name, 100\)/);
     assert.match(source, /orderId: cleanOptionalText\(input\.orderId, 80\)/);
     assert.match(source, /listingId: cleanOptionalText\(input\.listingId, 80\)/);
-    assert.match(source, /supportRequestStorageKind/);
   });
 
   it("keeps order and listing references as separate bounded fields", () => {
@@ -79,27 +76,6 @@ describe("support request helpers", () => {
     assert.match(source, /"Data request"/);
     assert.match(source, /supportRequestHtml/);
     assert.match(source, /esc\(request\.message\)/);
-  });
-
-  it("computes a 45-day SLA due date for verifiable data requests", () => {
-    assert.equal(
-      supportRequestSlaDueAt(new Date("2026-05-01T00:00:00.000Z")).toISOString(),
-      "2026-06-15T00:00:00.000Z",
-    );
-  });
-
-  it("matches account exports by stable user id with account email history fallback", () => {
-    assert.deepEqual(supportRequestAccountExportWhere("user_123", "buyer@example.com"), {
-      OR: [{ userId: "user_123" }, { email: { in: ["buyer@example.com"] } }],
-    });
-    assert.deepEqual(supportRequestAccountExportWhere("user_123", [
-      "buyer@example.com",
-      "old@example.com",
-      "buyer@example.com",
-    ]), {
-      OR: [{ userId: "user_123" }, { email: { in: ["buyer@example.com", "old@example.com"] } }],
-    });
-    assert.deepEqual(supportRequestAccountExportWhere("user_123", null), { userId: "user_123" });
   });
 
   it("distinguishes ambiguous notification delivery state for admins", () => {

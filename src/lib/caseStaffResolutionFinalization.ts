@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { renderCaseResolvedEmail } from "@/lib/email";
+import { renderCaseResolvedEmail, renderCaseUpdateEmail } from "@/lib/email";
 import {
   enqueueEmailOutboxOnce,
   processEmailOutboxJobById,
@@ -15,6 +15,12 @@ import {
 import { createNotificationOrThrow } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import { getVisibleCaseById } from "@/lib/caseReadAuthority";
+
+// The Case the Stripe dispute webhook opens has reason OTHER and the fixed
+// description "Stripe payment dispute <dispute id>[: <reason>]" (see
+// grainline_case_stripe_dispute_apply). The buyer never opened it.
+const CHARGEBACK_CASE_DESCRIPTION = /^Stripe payment dispute [A-Za-z0-9_]+(?::|$)/;
 
 /**
  * Commits the Case transition and every durable participant-delivery record in
@@ -26,6 +32,14 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
   actorUserId: string,
   prepared: PreparedCaseStaffResolution,
 ) {
+  // Dismissing a chargeback Case tells the buyer nothing: "your case was
+  // dismissed" about a Case they never opened, mid-chargeback, misleads them.
+  let notifyBuyer = true;
+  if (prepared.resolution === "DISMISSED") {
+    const caseRow = await getVisibleCaseById({ actorUserId, caseId: prepared.caseId });
+    notifyBuyer = !(caseRow?.reason === "OTHER"
+      && CHARGEBACK_CASE_DESCRIPTION.test(caseRow.description));
+  }
   const committed = await prisma.$transaction(async (tx) => {
     const result = await finalizeCaseStaffResolution(
       actorUserId,
@@ -39,7 +53,7 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
       result.currency,
     );
 
-    if (result.buyerUserId) {
+    if (result.buyerUserId && notifyBuyer) {
       await createNotificationOrThrow({
         userId: result.buyerUserId,
         type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
@@ -65,8 +79,8 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
       relatedUserId: actorUserId,
     }, tx);
 
-    let emailOutboxId: string | null = null;
-    if (result.buyerUserId) {
+    const emailOutboxIds: string[] = [];
+    if (result.buyerUserId && notifyBuyer) {
       const buyer = await userEmailDeliveryRecipient(tx, {
         userId: result.buyerUserId,
       });
@@ -92,17 +106,47 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
           },
           tx,
         );
-        emailOutboxId = enqueued.job?.id ?? null;
+        if (enqueued.job?.id) emailOutboxIds.push(enqueued.job.id);
       }
     }
 
-    return { result, emailOutboxId };
+    const seller = await userEmailDeliveryRecipient(tx, {
+      userId: result.sellerUserId,
+      preferenceKey: "EMAIL_CASE_RESOLVED",
+    });
+    if (seller?.email) {
+      const email = renderCaseUpdateEmail({
+        to: seller.email,
+        recipientName: seller.name,
+        orderId: result.orderId,
+        side: "SELLER",
+        heading: "Grainline decided your case",
+        message: caseResolutionSellerMessage(
+          result.resolution,
+          result.refundAmountCents,
+          result.currency,
+        ),
+      });
+      const enqueued = await enqueueEmailOutboxOnce(
+        {
+          ...email,
+          dedupKey: `case-resolution-seller:${result.claimId}`,
+          templateName: "case_resolved",
+          userId: result.sellerUserId,
+          preferenceKey: "EMAIL_CASE_RESOLVED",
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
+          sourceId: result.claimId,
+        },
+        tx,
+      );
+      if (enqueued.job?.id) emailOutboxIds.push(enqueued.job.id);
+    }
+
+    return { result, emailOutboxIds };
   });
 
-  if (committed.emailOutboxId) {
-    await processEmailOutboxJobById(
-      committed.emailOutboxId,
-    );
+  for (const emailOutboxId of committed.emailOutboxIds) {
+    await processEmailOutboxJobById(emailOutboxId);
   }
 
   return committed.result;

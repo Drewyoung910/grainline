@@ -24,6 +24,8 @@ type Props = {
   selectedVariantOptionIds?: string[];
   variantSelectionComplete?: boolean;
   autoOpen?: boolean;
+  // Opened to finish a checkout the page saw. If it has ended, refresh instead.
+  resumeOnly?: boolean;
   signedIn: boolean;
   className?: string;
   children?: React.ReactNode;
@@ -43,6 +45,7 @@ export default function BuyNowButton({
   selectedVariantOptionIds = [],
   variantSelectionComplete = true,
   autoOpen = false,
+  resumeOnly = false,
   signedIn,
   className = "",
   children,
@@ -102,6 +105,7 @@ export default function BuyNowButton({
           isOpen={isOpen}
           onClose={() => setIsOpen(false)}
           isSignedIn={signedInNow}
+          resumeOnly={resumeOnly}
         />
       )}
     </>

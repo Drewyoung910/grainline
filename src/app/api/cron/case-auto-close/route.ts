@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
+import { sendCaseUpdateEmail } from "@/lib/caseEmail";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import {
@@ -23,10 +24,40 @@ const CASE_AUTO_CLOSE_BATCH_SIZE = 100;
 const CASE_AUTO_CLOSE_MAX_BATCHES = 5;
 const CASE_AUTO_CLOSE_REPLAY_CONCURRENCY = 5;
 
+// Queued rather than sent here: the outbox worker delivers them, so a large batch
+// stays inside this cron's time budget.
+function queueCaseCronEmails(
+  row: CaseCronTransitionResult,
+  templateName: "case_message" | "case_resolved",
+  heading: string,
+  messages: { buyer: string; seller: string },
+) {
+  return [
+    ...(row.buyerUserId ? [{ userId: row.buyerUserId, side: "BUYER" as const, message: messages.buyer }] : []),
+    { userId: row.sellerUserId, side: "SELLER" as const, message: messages.seller },
+  ].map(({ userId, side, message }) => () => sendCaseUpdateEmail({
+    caseId: row.caseId,
+    orderId: row.orderId,
+    userId,
+    side,
+    dedupKey: `case-cron:${row.auditLogId}:${userId}`,
+    templateName,
+    heading,
+    message,
+    sendNow: false,
+  }));
+}
+
 async function replayPendingCloseNotifications(
   row: CaseCronTransitionResult,
 ) {
-  const notifications: Array<() => Promise<unknown>> = [];
+  const closedMessage = "This case was closed automatically after the resolution window expired.";
+  const notifications: Array<() => Promise<unknown>> = queueCaseCronEmails(
+    row,
+    "case_resolved",
+    "Your case is closed",
+    { buyer: closedMessage, seller: closedMessage },
+  );
   if (row.buyerUserId) {
     notifications.push(() => createNotification({
       userId: row.buyerUserId!,
@@ -51,13 +82,21 @@ async function replayPendingCloseNotifications(
     sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
     sourceId: row.auditLogId,
   }));
-  await mapWithConcurrency(notifications, 2, (send) => send());
+  await mapWithConcurrency(notifications, 4, (send) => send());
 }
 
 async function replayOpenEscalationNotifications(
   row: CaseCronTransitionResult,
 ) {
-  const notifications: Array<() => Promise<unknown>> = [];
+  const notifications: Array<() => Promise<unknown>> = queueCaseCronEmails(
+    row,
+    "case_message",
+    "Grainline staff are reviewing your case",
+    {
+      buyer: "The maker did not respond in time, so Grainline staff will review this case. We'll email you with the decision.",
+      seller: "This case went to Grainline staff because the 48-hour response window ended. We'll email you with the decision.",
+    },
+  );
   if (row.buyerUserId) {
     notifications.push(() => createNotification({
       userId: row.buyerUserId!,
@@ -82,13 +121,19 @@ async function replayOpenEscalationNotifications(
     sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
     sourceId: row.auditLogId,
   }));
-  await mapWithConcurrency(notifications, 2, (send) => send());
+  await mapWithConcurrency(notifications, 4, (send) => send());
 }
 
 async function replayStaleDiscussionNotifications(
   row: CaseCronTransitionResult,
 ) {
-  const notifications: Array<() => Promise<unknown>> = [];
+  const staleMessage = "This case has been inactive, so Grainline staff will review it. We'll email you with the decision.";
+  const notifications: Array<() => Promise<unknown>> = queueCaseCronEmails(
+    row,
+    "case_message",
+    "Grainline staff are reviewing your case",
+    { buyer: staleMessage, seller: staleMessage },
+  );
   if (row.buyerUserId) {
     notifications.push(() => createNotification({
       userId: row.buyerUserId!,
@@ -112,7 +157,7 @@ async function replayStaleDiscussionNotifications(
     sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
     sourceId: row.auditLogId,
   }));
-  await mapWithConcurrency(notifications, 2, (send) => send());
+  await mapWithConcurrency(notifications, 4, (send) => send());
 }
 
 export async function GET(req: Request) {

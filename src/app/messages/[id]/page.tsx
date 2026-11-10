@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewMessageEmail } from "@/lib/email";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import MarkReadClient from "@/components/MarkReadClient";
 import ThreadMessages from "@/components/ThreadMessages";
@@ -50,6 +51,7 @@ import {
   sellerActorConversationContextListing,
   sellerParticipantConversationListingTarget,
 } from "@/lib/sellerProfilePublicAccess";
+import { messageRouteId } from "@/lib/messageInputState";
 
 export default async function ThreadPage({
   params,
@@ -103,8 +105,8 @@ export default async function ThreadPage({
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
   const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
 
-  const requestedListingId = requestedListingParam?.trim();
-  const composerContextListing = other && requestedListingId && requestedListingId.length <= 191
+  const requestedListingId = messageRouteId(requestedListingParam?.trim());
+  const composerContextListing = other && requestedListingId
     ? await sellerParticipantConversationListingTarget(
         me.id,
         other.id,
@@ -349,10 +351,13 @@ export default async function ThreadPage({
             committedNotificationMessageId,
           );
           if (emailClaim) {
+            // The thread shows a maker's shop name, so the email should not expose
+            // their personal one.
+            const senderShop = await sellerOwnerCore(me.id);
             await sendNewMessageEmail({
               recipientEmail: recipientUser.email,
               recipientName: recipientUser.name ?? "there",
-              senderName: me.name ?? "Someone",
+              senderName: senderShop?.displayName ?? me.name ?? "Someone",
               messagePreview: body ? truncateText(body, 200) : "Sent an attachment",
               conversationUrl: new URL(`/messages/${id}`, EMAIL_APP_URL).toString(),
             });
@@ -601,6 +606,20 @@ export default async function ThreadPage({
             refreshEventFormId={messageComposerFormId}
             liveUpdates={!isStaffReviewMode}
             canCreateCustomListings={isParticipant && !otherUnavailableReason}
+            reviewParticipants={isStaffReviewMode ? [
+              {
+                id: convo.userA.id,
+                authorLabel: `${convo.userA.name || "User"} · Participant A`,
+                imageUrl: convo.userA.imageUrl,
+                align: "left",
+              },
+              {
+                id: convo.userB.id,
+                authorLabel: `${convo.userB.name || "User"} · Participant B`,
+                imageUrl: convo.userB.imageUrl,
+                align: "right",
+              },
+            ] : undefined}
           />
         </div>
 

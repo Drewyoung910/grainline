@@ -73,9 +73,10 @@ describe("motion stability guardrails", () => {
     const header = source("src/components/Header.tsx");
     const map = source("src/components/AllSellersMap.tsx");
     const mapSection = source("src/components/MakersMapSection.tsx");
-    assert.match(header, /inline-flex min-w-\[76px\] justify-end/);
+    assert.match(header, /inline-flex w-\[84px\] shrink-0 justify-end/);
     assert.match(header, /fallback=\{[\s\S]*isLoaded \? \(/);
-    assert.match(map, /cooperativeGestures: true/);
+    assert.match(map, /cooperativeGestures: embedded/);
+    assert.match(mapSection, /<AllSellersMap embedded/);
     assert.match(mapSection, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(mapSection, /w-full min-w-0 flex-1/);
   });
@@ -250,11 +251,20 @@ describe("motion stability guardrails", () => {
     assert.doesNotMatch(categoryRow, /flex-wrap/);
   });
 
+  it("lets wheel-mouse visitors reach hidden cards without visible scrollbars", () => {
+    const row = source("src/components/ScrollFadeRow.tsx");
+    assert.match(row, /onWheel=\{handleWheel\}/);
+    assert.match(row, /el\.scrollLeft \+= event\.deltaY/);
+    assert.match(row, /if \(!canMove\) return/);
+    assert.match(row, /scrollbar-hidden/);
+    assert.doesNotMatch(row, /Scroll forward|card-row-scroll/);
+  });
+
   it("composes listing story and facts side by side without dropping policy content", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
     const composition = listing.slice(
       listing.indexOf("{/* ── Story and details"),
-      listing.indexOf("{/* ── Pickup area map"),
+      listing.indexOf("<ReviewsSection"),
     );
 
     assert.match(

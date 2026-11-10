@@ -97,12 +97,13 @@ export default function SellerRefundPanel({
 
   return (
     <div className="card-section space-y-3 p-4">
-      <div className="font-medium text-neutral-800">Cancel &amp; Refund Order</div>
+      <div className="font-medium text-neutral-800">Refund order</div>
 
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-        This cancels and refunds the entire order through Stripe. Eligible in-stock items are
-        returned to inventory automatically before handoff. This action cannot be undone.
-      </div>
+      <p className="text-xs text-neutral-600">
+        This refunds the entire order through Stripe. Eligible in-stock items are
+        returned to inventory automatically before handoff. If you have not shipped it yet,
+        do not ship it after refunding. This action cannot be undone.
+      </p>
 
       <p className="text-xs text-neutral-500">
         Partial refunds require Grainline staff review so the remaining items, tax, shipping,
@@ -121,15 +122,15 @@ export default function SellerRefundPanel({
             setConfirming(true);
             setError(null);
           }}
-          className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm justify-center"
         >
-          Cancel &amp; Refund ({fmtMoney(orderTotalCents, currency)})
+          Refund in full ({fmtMoney(orderTotalCents, currency)})
         </button>
       ) : (
         <div className="space-y-2">
           <p className="text-sm text-neutral-700">
             Refund <span className="font-medium">{fmtMoney(orderTotalCents, currency)}</span> to
-            the buyer and cancel the order?
+            the buyer?
           </p>
           <div className="flex gap-2">
             <button
@@ -137,14 +138,14 @@ export default function SellerRefundPanel({
               disabled={loading}
               className="btn btn-danger-solid btn-sm justify-center"
             >
-              {loading ? "Processing…" : "Confirm Full Refund"}
+              {loading ? "Processing…" : "Confirm full refund"}
             </button>
             <button
               onClick={() => setConfirming(false)}
               disabled={loading}
-              className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+              className="btn btn-secondary btn-sm justify-center"
             >
-              Keep Order
+              Go back
             </button>
           </div>
         </div>

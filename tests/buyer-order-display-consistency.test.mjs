@@ -180,6 +180,47 @@ describe("My Account long email wrapping (#1260)", () => {
   });
 });
 
+describe("buyer order detail early Case access (#1224)", () => {
+  const sf = parse(BUYER_ORDER_PAGE);
+  const statement = smallest(
+    sf,
+    (node) => ts.isVariableStatement(node) && node.getText(sf).startsWith("const canOpenCase"),
+    "canOpenCase",
+  );
+  const canOpenCase = (order, overrides = {}) => run(
+    `${statement}\nconst __result = canOpenCase;`,
+    {
+      order,
+      deliveryPassed: false,
+      caseWindowClosed: false,
+      activeCase: null,
+      hasRefund: false,
+      ...overrides,
+    },
+  );
+  const activeMaker = {
+    sellerUserId: "maker",
+    deauthorizedCaseAccess: false,
+    caseOpenLabelBlocked: false,
+  };
+
+  it("offers the Case the database accepts once the maker is banned or deleted", () => {
+    assert.equal(canOpenCase({ ...activeMaker, sellerUserId: null }), true);
+  });
+
+  it("still makes the buyer of an active maker wait for the estimated date", () => {
+    assert.equal(canOpenCase(activeMaker), false);
+    assert.equal(canOpenCase(activeMaker, { deliveryPassed: true }), true);
+  });
+
+  it("keeps the refusals the database also applies", () => {
+    const banned = { ...activeMaker, sellerUserId: null };
+    assert.equal(canOpenCase({ ...banned, caseOpenLabelBlocked: true }), false);
+    assert.equal(canOpenCase(banned, { caseWindowClosed: true }), false);
+    assert.equal(canOpenCase(banned, { hasRefund: true }), false);
+  });
+});
+
 describe("buyer order detail refund presentation (#1257)", () => {
   const sf = parse(BUYER_ORDER_PAGE);
   const receiptSummary = smallest(

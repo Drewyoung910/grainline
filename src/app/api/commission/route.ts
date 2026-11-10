@@ -8,6 +8,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import {
+  commissionAttemptRatelimit,
   commissionCreateRatelimit,
   commissionReferenceImageIpRatelimit,
   getIP,
@@ -15,8 +16,8 @@ import {
   safeRateLimit,
   searchRatelimit,
 } from "@/lib/ratelimit";
-import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
-import { containsProfanity } from "@/lib/profanity";
+import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
+import { containsProfanity, containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
@@ -117,9 +118,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
-
-  const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
-  if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
+  const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `post:${userId}`);
+  if (!attemptOk) return privateResponse(rateLimitResponse(attemptReset, "Too many attempts."));
 
   const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });
@@ -141,17 +141,12 @@ export async function POST(req: NextRequest) {
     throw e;
   }
   const { title, description, category, budgetMin, budgetMax, timeline, referenceImageUrls, isNational } = parsed;
-  if ((referenceImageUrls?.length ?? 0) > 0) {
-    const { success: imageIpOk, reset: imageIpReset } = await safeRateLimit(
-      commissionReferenceImageIpRatelimit,
-      getIP(req),
-    );
-    if (!imageIpOk) {
-      return privateResponse(rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network."));
-    }
+
+  if (containsSlur([title, description, timeline].join("\n"))) {
+    return privateJson({ error: SHOP_TEXT_SLUR_MESSAGE }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
-  // Profanity check (log-only — does not block submission)
+  // Mild words are log-only and do not block submission
   {
     const profanityResult = containsProfanity(`${title} ${description}`);
     if (profanityResult.flagged) {
@@ -164,18 +159,14 @@ export async function POST(req: NextRequest) {
   }
 
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
-  const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
-  const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
-  const images = await filterVerifiedFirstPartyMediaUrlsForUser({
-    urls: referenceImageUrls ?? [],
-    max: 3,
-    clerkUserId: userId,
-    accountUserId: me.id,
-    allowedEndpoints: ["messageImage"],
-  });
+  const parsedBudgetMin = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
+  const parsedBudgetMax = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
+  // A zero budget says nothing, so it is the same as leaving the field blank.
+  const budgetMinCents = parsedBudgetMin === 0 ? null : parsedBudgetMin;
+  const budgetMaxCents = parsedBudgetMax === 0 ? null : parsedBudgetMax;
 
-  if (budgetMin != null && budgetMinCents === null) return privateJson({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
-  if (budgetMax != null && budgetMaxCents === null) return privateJson({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMin != null && parsedBudgetMin === null) return privateJson({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMax != null && parsedBudgetMax === null) return privateJson({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMinCents !== null && budgetMinCents > 10_000_000) return privateJson({ error: "Minimum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMaxCents !== null && budgetMaxCents > 10_000_000) return privateJson({ error: "Maximum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return privateJson({ error: "Maximum budget must be greater than minimum." }, { status: HTTP_STATUS.BAD_REQUEST });
@@ -219,16 +210,39 @@ export async function POST(req: NextRequest) {
     reqIsNational = false;
   }
 
+  // Spend the daily quota only once the request is known to be acceptable, so
+  // rejected attempts cannot lock a buyer out for a day. Check it before the
+  // shared network image limit, so a user over quota cannot use that up.
+  const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
+  if ((referenceImageUrls?.length ?? 0) > 0) {
+    const { success: imageIpOk, reset: imageIpReset } = await safeRateLimit(
+      commissionReferenceImageIpRatelimit,
+      getIP(req),
+    );
+    if (!imageIpOk) {
+      return privateResponse(rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network."));
+    }
+  }
+
+  const images = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: referenceImageUrls ?? [],
+    max: 3,
+    clerkUserId: userId,
+    accountUserId: me.id,
+    allowedEndpoints: ["messageImage"],
+  });
+
   const request = await prisma.$transaction(async (tx) => {
     const created = await tx.commissionRequest.create({
       data: {
         buyerId: me.id,
-        title: sanitizeText(title.trim()),
-        description: sanitizeRichText(description.trim()),
+        title: truncateText(sanitizeText(title.trim()), 150),
+        description: truncateText(sanitizeRichText(description.trim()), 5000),
         category: categoryValid ? (category as Category) : null,
         budgetMinCents,
         budgetMaxCents,
-        timeline: timeline ? sanitizeText(timeline.trim()) || null : null,
+        timeline: timeline ? truncateText(sanitizeText(timeline.trim()), 200) || null : null,
         referenceImageUrls: images,
         expiresAt: commissionExpiresAt(),
         isNational: reqIsNational,

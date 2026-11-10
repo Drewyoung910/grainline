@@ -25,7 +25,6 @@ export default function SellerShipFromAddressFields({
   const [city, setCity] = useState(defaults.shipFromCity ?? "");
   const [state, setState] = useState(defaults.shipFromState ?? "");
   const [postal, setPostal] = useState(defaults.shipFromPostal ?? "");
-  const [country, setCountry] = useState(defaults.shipFromCountry ?? "US");
 
   return (
     <div className="space-y-3">
@@ -38,7 +37,6 @@ export default function SellerShipFromAddressFields({
           setCity(address.city);
           setState(address.state);
           setPostal(address.postalCode);
-          setCountry(address.country || "US");
         }}
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -89,14 +87,16 @@ export default function SellerShipFromAddressFields({
           onChange={(event) => setPostal(event.target.value)}
           className={inputClass}
         />
-        <input
-          name="shipFromCountry"
-          autoComplete="country"
-          placeholder="Country *"
-          value={country}
-          onChange={(event) => setCountry(event.target.value.toUpperCase().slice(0, 2))}
-          className={inputClass}
-        />
+        <div>
+          <input type="hidden" name="shipFromCountry" value="US" />
+          <input
+            aria-label="Ship-from country"
+            autoComplete="country-name"
+            value="United States"
+            readOnly
+            className={inputClass}
+          />
+        </div>
         <div>
           <input
             name="shipFromPhone"

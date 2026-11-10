@@ -20,7 +20,9 @@ import {
 } from "@/lib/orderLabelAuthority";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import {
+  labelDownloadRatelimit,
   labelPurchaseRatelimit,
+  labelRequestRatelimit,
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
@@ -172,8 +174,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (isAccountAccessError(actor)) {
       return privateJson({ error: actor.message, code: actor.code }, { status: actor.status });
     }
-    const { success, reset } = await safeRateLimit(labelPurchaseRatelimit, actor.id);
-    if (!success) return privateResponse(rateLimitResponse(reset, "Too many label purchase attempts."));
+    // Every request, including ones the preflight refuses. A purchase also
+    // spends a token from the purchase limit just before the claim.
+    const requestLimit = await safeRateLimit(labelRequestRatelimit, actor.id);
+    if (!requestLimit.success) {
+      return privateResponse(rateLimitResponse(requestLimit.reset, "Too many label requests."));
+    }
 
     const { id: orderId } = await params;
     let payload: z.infer<typeof LabelSchema>;
@@ -247,6 +253,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return privateJson({ requiresRateSelection: true, rates: fixedRates }, { status: 202 });
     }
 
+    const purchaseLimit = await safeRateLimit(labelPurchaseRatelimit, actor.id);
+    if (!purchaseLimit.success) {
+      return privateResponse(rateLimitResponse(purchaseLimit.reset, "Too many label purchase attempts."));
+    }
     const claim = await claimSellerLabelPurchase({
       actorUserId: actor.id, orderId, rateObjectId: selectedRateId,
     });
@@ -395,6 +405,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (isAccountAccessError(actor)) {
       return privateJson({ error: actor.message, code: actor.code }, { status: actor.status });
     }
+    const { success, reset } = await safeRateLimit(labelDownloadRatelimit, actor.id);
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many label downloads."));
+
     const { id: orderId } = await params;
     const proof = await sellerLabelDownload({ actorUserId: actor.id, orderId });
     if (proof.outcome === "unauthorized") return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });

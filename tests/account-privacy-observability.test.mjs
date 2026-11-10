@@ -182,7 +182,7 @@ describe("account and privacy route observability guardrails", () => {
 
     assert.match(
       route,
-      /import \{ isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS \}/,
+      /isValidEmailPreferenceKey,\s*VALID_PREFERENCE_KEYS/,
     );
     assert.match(route, /updateUserOwnerNotificationPreference\(tx, \{/);
     assert.match(route, /clearOneClickEmailSuppression\(me\.email, tx\)/);
@@ -241,15 +241,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(suppression, /"reason"::text = \$\{EmailSuppressionReason\.MANUAL\} AND "source" <> 'one_click_unsubscribe'/);
     assert.match(
       adminEmailRoute,
-      /isEmailSuppressed\(normalizedRecipientEmail\)/,
-    );
-    assert.match(
-      adminEmailRoute,
-      /Recipient email is suppressed or unsubscribed/,
-    );
-    assert.doesNotMatch(
-      adminEmailRoute,
-      /Recipient email is suppressed after a bounce or complaint/,
+      /isEmailDeliverySuppressed\(normalizedRecipientEmail\)/,
     );
   });
 
@@ -377,9 +369,7 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(unsubscribe, /emailSuppressionAddressKeys\(normalized\)/);
     assert.match(unsubscribe, /emailSuppressionLookupForEmails\(emails\)/);
-    assert.match(unsubscribe, /function emailSuppressionMatchWhereSql/);
-    assert.match(unsubscribe, /split_part\(\$\{emailColumn\}, '@', 2\) IN \('gmail\.com', 'googlemail\.com'\)/);
-    assert.match(unsubscribe, /replace\(split_part\(split_part\(\$\{emailColumn\}, '@', 1\), '\+', 1\), '\.', ''\) IN/);
+    assert.match(unsubscribe, /emailSuppressionMatchWhereSql\(lookup\)/);
     assert.match(unsubscribe, /userSignedUnsubscribeTokenSuperseded\(prisma, \{/);
     assert.match(unsubscribe, /suppressionKeys: emails/);
     assert.match(unsubscribe, /issuedAt: new Date\(issuedAt\)/);
@@ -551,15 +541,19 @@ describe("account and privacy route observability guardrails", () => {
       route.indexOf('if (event.type !== "user.created"', userDeletedStart),
     );
 
-    assert.match(userDeletedBlock, /const anonymized = await anonymizeUserAccountByClerkId\(event\.data\.id\)/);
+    assert.match(userDeletedBlock, /await getCurrentClerkUserIdentity\(clerkId\)/);
+    assert.match(userDeletedBlock, /if \(!isClerkUserNotFoundError\(error\)\) throw error/);
+    assert.match(userDeletedBlock, /const anonymized = await anonymizeUserAccountByClerkId\(clerkId\)/);
     assert.match(userDeletedBlock, /"inProgress" in anonymized && anonymized\.inProgress/);
     assert.match(userDeletedBlock, /markClerkWebhookFailed\(svixId, claimGeneration, retryError\)/);
     assert.match(userDeletedBlock, /source: "clerk_webhook_user_deleted_in_progress"/);
     assert.match(userDeletedBlock, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(userDeletedBlock, /"Retry-After": String\(CLERK_WEBHOOK_RETRY_AFTER_SECONDS\)/);
+    const inProgressStart = userDeletedBlock.indexOf('"inProgress" in anonymized');
+    const inProgressBlock = userDeletedBlock.slice(inProgressStart);
     assert.ok(
-      userDeletedBlock.indexOf("markClerkWebhookFailed(svixId, claimGeneration, retryError)") <
-        userDeletedBlock.indexOf("return NextResponse.json"),
+      inProgressBlock.indexOf("markClerkWebhookFailed(svixId, claimGeneration, retryError)") <
+        inProgressBlock.indexOf("return NextResponse.json"),
       "in-progress local anonymization should leave the Clerk event retryable before returning 503",
     );
     assert.doesNotMatch(userDeletedBlock, /await markClerkWebhookProcessed\(svixId\);\s*return NextResponse\.json\(\s*\{ ok: true \}\s*\);[\s\S]*inProgress/);

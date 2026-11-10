@@ -208,7 +208,8 @@ export async function DELETE(req: NextRequest) {
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const id = req.nextUrl.searchParams.get("id");
-  if (!id) return privateJson({ error: "Missing id" }, { status: 400 });
+  // A NUL cannot reach PostgreSQL text without a 500.
+  if (!id || id.includes("\u0000")) return privateJson({ error: "Missing id" }, { status: 400 });
 
   await deleteOwnerSavedSearch(me.id, id, prisma);
   return privateJson({ ok: true });

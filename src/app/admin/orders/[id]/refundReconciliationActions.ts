@@ -151,7 +151,7 @@ export async function reconcileAmbiguousOrderRefund(
     );
     if (!decision.action) {
       const waitUntil = decision.waitUntilSeconds
-        ? new Date(decision.waitUntilSeconds * 1000).toLocaleString("en-US")
+        ? new Date(decision.waitUntilSeconds * 1000).toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" })
         : "the provider safety window closes";
       return {
         ok: false,

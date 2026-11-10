@@ -11,6 +11,7 @@ export type WorkspaceNavItem = Readonly<{
   label: string;
   icon: WorkspaceIcon;
   count?: number;
+  countCapped?: boolean;
   // Only this exact path counts as current (the overview pages).
   exact?: boolean;
   // A link into part of another page; never shown as the current page.
@@ -24,6 +25,7 @@ export type WorkspaceNavGroup = Readonly<{ label: string; items: readonly Worksp
 export type WorkspaceCounts = Readonly<{
   listings?: number | null;
   ordersToShip?: number | null;
+  ordersToShipCapped?: boolean;
   messages?: number | null;
   notifications?: number | null;
 }>;
@@ -63,7 +65,13 @@ export function workshopNavGroups(input: { counts?: WorkspaceCounts; guildLabel?
       items: [
         { href: "/dashboard", label: "Overview", icon: "grid", exact: true },
         { href: "/dashboard/listings", label: "Listings", icon: "tag", also: ["/dashboard/inventory"] },
-        { href: "/dashboard/sales", label: "Orders", icon: "package", count: counts.ordersToShip ?? undefined },
+        {
+          href: "/dashboard/sales",
+          label: "Orders",
+          icon: "package",
+          count: counts.ordersToShip ?? undefined,
+          countCapped: counts.ordersToShipCapped,
+        },
         { href: "/messages", label: "Messages", icon: "message", count: counts.messages ?? undefined },
       ],
     },

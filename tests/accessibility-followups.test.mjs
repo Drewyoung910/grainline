@@ -62,7 +62,7 @@ describe("accessibility follow-ups", () => {
 
   it("keeps the image crop modal a real dialog with focus and scroll management", () => {
     const modal = source("src/components/ImageCropModal.tsx");
-    assert.match(modal, /useDialogFocus\(mounted, dialogRef, onCancel\)/);
+    assert.match(modal, /useDialogFocus\(mounted, dialogRef, \(\) => \{\s*if \(!processing\) onCancel\(\);\s*\}\)/);
     assert.match(modal, /useBodyScrollLock\(mounted\)/);
     assert.match(modal, /role="dialog"/);
     assert.match(modal, /aria-modal="true"/);
@@ -300,10 +300,10 @@ describe("accessibility follow-ups", () => {
     assert.match(thread, /aria-label=\{`Open \$\{file\.name \?\? "file attachment"\} in a new tab`\}/);
     assert.doesNotMatch(thread, /⬇️/);
     assert.match(favorite, /h-11 w-11/);
-    assert.match(favorite, /h-9 w-9 rounded-full/);
+    assert.match(favorite, /h-8 w-8 rounded-full/);
     assert.match(saveBlog, /h-11 w-11/);
-    assert.match(saveBlog, /h-9 w-9 rounded-full/);
-    assert.match(saveBlog, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
+    assert.match(saveBlog, /h-8 w-8 rounded-full/);
+    assert.match(saveBlog, /0_0_0_1px_rgba\(44,31,26,0\.16\)/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.doesNotMatch(home, /<span aria-hidden="true">★<\/span>/);
@@ -462,7 +462,7 @@ describe("accessibility follow-ups", () => {
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
-    assert.match(globals, /\.animate-slide-in-right,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
+    assert.match(globals, /\.animate-slide-up \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);
   });
 
@@ -477,6 +477,8 @@ describe("accessibility follow-ups", () => {
     assert.match(hook, /return \{ ref, hasObserved, inView \}/);
     assert.match(section, /const \{ ref, hasObserved, inView \} = useInView/);
     assert.match(section, /const shouldReveal = !hasObserved \|\| inView/);
+    assert.match(section, /if \(hasObserved && !inView\) setWasHidden\(true\)/);
+    assert.match(section, /wasHidden \? "true" : "settled"/);
     assert.match(section, /shouldReveal \? "opacity-100 translate-y-0" : "motion-safe:opacity-0 motion-safe:translate-y-6"/);
   });
 });

@@ -5,13 +5,15 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { sendCaseOpened } from "@/lib/email";
+import { renderCaseOpenedEmail } from "@/lib/email";
+import { queueCaseEmail, sendCaseUpdateEmail } from "@/lib/caseEmail";
 import {
   caseCreateRatelimit,
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import { sanitizeRichText, truncateText } from "@/lib/sanitize";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
+import { normalizeCaseDescriptionBody } from "@/lib/caseMessageBody";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -36,7 +38,7 @@ const CaseCreateSchema = z.object({
     "WRONG_ITEM",
     "OTHER",
   ]),
-  description: z.string().min(1).max(2000),
+  description: z.string(),
 });
 const CASE_CREATE_BODY_MAX_BYTES = 24 * 1024;
 
@@ -84,7 +86,7 @@ export async function POST(req: Request) {
     const { success, reset } = await safeRateLimit(caseCreateRatelimit, userId);
     if (!success)
       return privateResponse(
-        rateLimitResponse(reset, "Too many case submissions. Try again later."),
+        rateLimitResponse(reset, "Too many case submissions."),
       );
 
     const me = await ensureUserByClerkId(userId);
@@ -113,13 +115,18 @@ export async function POST(req: Request) {
       throw e;
     }
     const { orderId, reason } = parsed;
-    const description = sanitizeRichText(parsed.description.trim());
-    if (description.length < 20) {
+    const normalizedDescription = normalizeCaseDescriptionBody(parsed.description);
+    if (!normalizedDescription.ok) {
       return privateJson(
-        { error: "Description must be at least 20 characters." },
+        {
+          error: normalizedDescription.reason === "too_long"
+            ? "Description must be at most 2,000 characters."
+            : "Description must be at least 20 characters.",
+        },
         { status: 400 },
       );
     }
+    const description = normalizedDescription.body;
 
     let result;
     try {
@@ -146,7 +153,7 @@ export async function POST(req: Request) {
         userId: result.sellerUserId,
         type: "CASE_OPENED",
         title: `${me.name ?? "A buyer"} opened a case`,
-        body: truncateText(description, 60),
+        body: truncateTextWithEllipsis(description, 80),
         link: `/dashboard/sales/${result.orderId}`,
         relatedUserId: result.buyerUserId,
         sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
@@ -170,11 +177,18 @@ export async function POST(req: Request) {
         preferenceKey: "EMAIL_CASE_OPENED",
       });
       if (sellerRecipient) {
-        await sendCaseOpened({
-          orderId: result.orderId,
-          seller: { name: sellerRecipient.name, email: sellerRecipient.email },
-          buyer: { name: me.name },
-          caseDescription: description,
+        await queueCaseEmail({
+          email: renderCaseOpenedEmail({
+            orderId: result.orderId,
+            seller: { name: sellerRecipient.name, email: sellerRecipient.email },
+            buyer: { name: me.name },
+            caseDescription: description,
+          }),
+          caseId: result.caseId,
+          dedupKey: `case-opened:${result.caseId}`,
+          templateName: "case_opened",
+          userId: result.sellerUserId,
+          preferenceKey: "EMAIL_CASE_OPENED",
         });
       }
     } catch (emailError) {
@@ -188,6 +202,18 @@ export async function POST(req: Request) {
         },
       });
     }
+
+    await sendCaseUpdateEmail({
+      caseId: result.caseId,
+      orderId: result.orderId,
+      userId: result.buyerUserId,
+      side: "BUYER",
+      dedupKey: `case-opened-buyer:${result.caseId}`,
+      heading: "Your case is open",
+      message:
+        "We've told the maker. They have 48 hours to respond. If they don't, Grainline staff will step in.",
+      templateName: "case_opened",
+    });
 
     return privateJson(
       {

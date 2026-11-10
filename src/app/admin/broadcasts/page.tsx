@@ -9,7 +9,9 @@ import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
-import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { adminActionRatelimit, broadcastRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { resetRateLimitTokens } from "@/lib/ratelimitPolicy";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { truncateText } from "@/lib/sanitize";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
@@ -33,7 +35,7 @@ async function deleteBroadcast(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   if (id) {
-    await withDbUserContext(user.id, async (tx) => {
+    const deletedSellerProfileId = await withDbUserContext(user.id, async (tx) => {
       const broadcast = await tx.sellerBroadcast.findUnique({
         where: { id },
         select: {
@@ -42,9 +44,9 @@ async function deleteBroadcast(formData: FormData) {
           recipientCount: true,
         },
       });
-      if (!broadcast) return;
+      if (!broadcast) return null;
       const deleted = await tx.sellerBroadcast.deleteMany({ where: { id } });
-      if (deleted.count !== 1) return;
+      if (deleted.count !== 1) return null;
       await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
       await tx.emailOutbox.deleteMany({
         where: sellerBroadcastOutboxCancellationWhere(broadcast.id),
@@ -60,7 +62,17 @@ async function deleteBroadcast(formData: FormData) {
           recipientCount: broadcast.recipientCount,
         },
       });
+      return broadcast.sellerProfileId;
     });
+    // A removed broadcast should not cost the maker their weekly send. The
+    // database 7-day check on their latest remaining broadcast still applies.
+    if (deletedSellerProfileId) {
+      await resetRateLimitTokens(broadcastRatelimit, deletedSellerProfileId).catch((error) =>
+        logServerError(error, {
+          source: "admin_broadcast_delete_token_refund",
+          extra: { sellerProfileId: deletedSellerProfileId },
+        }));
+    }
   }
   revalidatePath("/admin/broadcasts");
 }
@@ -165,7 +177,7 @@ export default async function AdminBroadcastsPage({
               <div key={b.id} className="card-section p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
                       {sellerTarget && sellerShopLinkable ? (
                         <Link
                           href={publicSellerPath(sellerTarget.sellerProfileId, sellerTarget.sellerDisplayName)}
@@ -198,7 +210,7 @@ export default async function AdminBroadcastsPage({
                         {b.recipientCount} recipient{b.recipientCount !== 1 ? "s" : ""}
                       </span>
                     </div>
-                    <p className="text-sm text-neutral-700 whitespace-pre-line">{b.message}</p>
+                    <p className="text-sm text-neutral-700 whitespace-pre-line break-words">{b.message}</p>
                     {b.imageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img

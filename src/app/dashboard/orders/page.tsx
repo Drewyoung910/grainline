@@ -84,8 +84,6 @@ async function OrdersContent() {
               o.itemsSubtotalCents && o.itemsSubtotalCents > 0
                 ? o.itemsSubtotalCents
                 : o.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
-            const shipping = o.shippingAmountCents ?? 0;
-            const tax = o.taxAmountCents ?? 0;
             const total = orderTotalCents(o, { itemsSubtotalCents: itemsSubtotal });
             const refundOutcome = refundOutcomes.get(o.id) ?? null;
             const refundAmountCents =
@@ -138,10 +136,10 @@ async function OrdersContent() {
                           <img
                             src={img}
                             alt=""
-                            className="h-16 w-16 shrink-0 rounded-lg border border-neutral-200 object-cover"
+                            className="h-16 w-16 shrink-0 rounded-lg object-cover"
                           />
                         ) : (
-                          <div className="h-16 w-16 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
+                          <div className="h-16 w-16 shrink-0 rounded-lg bg-neutral-100" />
                         )}
                         <div className="min-w-0 flex-1">
                           <Link
@@ -170,34 +168,14 @@ async function OrdersContent() {
                   )}
                 </ul>
 
-                <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-600">Items subtotal</span>
-                    <span className="font-medium">{fmtMoney(itemsSubtotal, currency)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-600">
-                      Shipping{o.shippingTitle ? ` · ${o.shippingTitle}` : ""}
+                {(refundAmountCents ?? 0) > 0 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100 text-sm">
+                    <span className="text-red-600">Refund</span>
+                    <span className="text-red-600">
+                      -{fmtMoney(refundAmountCents!, currency)}
                     </span>
-                    <span className="font-medium">{fmtMoney(shipping, currency)}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-600">Tax</span>
-                    <span className="font-medium">{fmtMoney(tax, currency)}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
-                    <span className="text-neutral-800">Total</span>
-                    <span className="text-base font-semibold">{fmtMoney(total, currency)}</span>
-                  </div>
-                  {(refundAmountCents ?? 0) > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-red-600">Refund</span>
-                      <span className="text-sm text-red-600">
-                        -{fmtMoney(refundAmountCents!, currency)}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                )}
               </li>
             );
           })}

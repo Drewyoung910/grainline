@@ -149,7 +149,7 @@ async function AccountPageContent() {
         <section aria-labelledby="account-active-order-title" className="card-section p-5 sm:p-[22px]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-neutral-500">On its way</p>
+              <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-neutral-500">In progress</p>
               <h2 id="account-active-order-title" className="mt-1.5 font-display text-[26px] leading-tight">
                 {onItsWay.items[0]?.title ?? "Your order"}
               </h2>
@@ -212,7 +212,7 @@ async function AccountPageContent() {
         </div>
 
         {recentOrders.length === 0 ? (
-          <div className="card-section p-6 text-neutral-600 text-sm space-y-2">
+          <div className="py-1 text-neutral-600 text-sm space-y-2">
             <p>No orders yet.</p>
             <Link href="/browse" className="underline hover:text-neutral-900">
               Start browsing →
@@ -245,9 +245,9 @@ async function AccountPageContent() {
                   >
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={thumb} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-neutral-200 object-cover" />
+                      <img src={thumb} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
                     ) : (
-                      <div className="h-14 w-14 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
+                      <div className="h-14 w-14 shrink-0 rounded-lg bg-neutral-100" />
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
@@ -288,7 +288,7 @@ async function AccountPageContent() {
         </div>
 
         {savedItems.length === 0 ? (
-          <div className="card-section p-6 text-neutral-600 text-sm">
+          <div className="py-1 text-neutral-600 text-sm">
             No saved items yet. Heart pieces while browsing to save them here.
           </div>
         ) : (
@@ -308,7 +308,7 @@ async function AccountPageContent() {
                           <img
                             src={thumb}
                             alt={listing.title}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
+                            className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                           />
                         ) : null}
                       </div>
@@ -337,7 +337,7 @@ async function AccountPageContent() {
           </Link>
         </div>
         {savedSearches.length === 0 ? (
-          <div className="card-section p-6 text-sm text-neutral-600">
+          <div className="py-1 text-sm text-neutral-600">
             No saved searches yet. Save useful filters from Browse to come back to them quickly.
           </div>
         ) : (
@@ -373,7 +373,7 @@ async function AccountPageContent() {
             <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
-        <div className="card-section flex items-center justify-between p-5">
+        <div className="flex items-center justify-between py-1">
           <p className="text-sm text-neutral-600">
             <span className="mr-1.5 text-2xl font-medium tabular-nums text-neutral-900">{followCount}</span>
             maker{followCount !== 1 ? "s" : ""} followed

@@ -4,7 +4,8 @@ import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
 import { AccountExportButton } from "@/components/AccountExportButton";
-import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { isEmailDeliverySuppressed } from "@/lib/emailSuppression";
+import { isAlwaysOnInAppPreferenceKey, normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import type { Metadata } from "next";
 import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
 
@@ -12,14 +13,6 @@ export const metadata: Metadata = {
   title: "Notification Preferences",
   robots: { index: false, follow: false },
 };
-
-const DEFAULT_OFF: NotificationPreferenceKey[] = [
-  "SELLER_BROADCAST",
-  "NEW_FAVORITE",
-  "NEW_BLOG_COMMENT",
-  "BLOG_COMMENT_REPLY",
-  "EMAIL_SELLER_BROADCAST",
-];
 
 const DEFAULT_OFF_EMAIL: NotificationPreferenceKey[] = ["EMAIL_SELLER_BROADCAST"];
 
@@ -30,9 +23,10 @@ export default async function AccountSettingsPage() {
 
   const prefs = normalizeNotificationPreferences(me.notificationPreferences);
   const hasSeller = !!sellerProfile;
+  const emailBlocked = await isEmailDeliverySuppressed(me.email);
 
+  // Matches delivery: an in-app notice is sent unless it was explicitly turned off.
   function isEnabled(type: NotificationPreferenceKey) {
-    if (DEFAULT_OFF.includes(type)) return prefs[type] === true;
     return prefs[type] !== false;
   }
 
@@ -48,7 +42,11 @@ export default async function AccountSettingsPage() {
           <p className="text-sm font-medium text-neutral-800">{label}</p>
           <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
         </div>
-        <NotificationToggle type={type} enabled={isEnabled(type)} />
+        {isAlwaysOnInAppPreferenceKey(type) && isEnabled(type) ? (
+          <span className="shrink-0 text-xs text-neutral-500">Always on</span>
+        ) : (
+          <NotificationToggle type={type} enabled={isEnabled(type)} label={label} />
+        )}
       </div>
     );
   }
@@ -60,24 +58,26 @@ export default async function AccountSettingsPage() {
           <p className="text-sm font-medium text-neutral-800">{label}</p>
           <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
         </div>
-        <NotificationToggle type={type} enabled={getEmailPrefInitial(type)} />
+        <NotificationToggle type={type} enabled={getEmailPrefInitial(type)} label={label} />
       </div>
     );
   }
 
   return (
     <main className="max-w-2xl mx-auto p-6 md:p-8 space-y-8">
-      <div>
-        <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 inline-flex items-center gap-1">
-          ← My Account
-        </Link>
-      </div>
       <header>
         <h1 className="font-display page-title">Notification Preferences</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Choose which notifications you receive from Grainline.
         </p>
       </header>
+
+      {emailBlocked && (
+        <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          We can&apos;t reach {me.email}. A past email bounced or was marked as spam, so order, case and refund
+          emails are not arriving. Contact <a className="underline" href="mailto:support@thegrainline.com">support@thegrainline.com</a> to fix this.
+        </p>
+      )}
 
       {/* ── Your notifications (all users) ───────────────────── */}
       <div>
@@ -101,7 +101,7 @@ export default async function AccountSettingsPage() {
           <Row
             type="SELLER_BROADCAST"
             label="Shop updates"
-            description="Broadcasts and announcements from makers you follow (off by default)"
+            description="Broadcasts and announcements from makers you follow"
           />
         </section>
 
@@ -176,7 +176,7 @@ export default async function AccountSettingsPage() {
             description="Email when a piece you asked about is available again"
           />
           <p className="pt-3 text-xs text-neutral-500">
-            Order confirmations, shipping updates, case activity, and refund notices are always sent.
+            We always try to send order confirmations, shipping updates, case activity, and refund notices. You can&apos;t turn them off.
           </p>
         </section>
 

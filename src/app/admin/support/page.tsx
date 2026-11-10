@@ -218,7 +218,7 @@ export default async function AdminSupportPage({
   const recentlyClosed = recentlyClosedRows.map(attachClosureLabel);
 
   return (
-    <main className="mx-auto max-w-7xl p-6">
+    <main className="mx-auto max-w-7xl md:p-6">
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-semibold">Support Requests ({activeCount} open)</h1>

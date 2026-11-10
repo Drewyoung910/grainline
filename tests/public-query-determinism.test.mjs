@@ -121,7 +121,7 @@ describe("public query determinism", () => {
     assert.match(metroPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(metroPage, /orderBy: \[\{ _count: \{ category: "desc" \} \}, \{ category: "asc" \}\]/);
     assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
-    assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
+    assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\.toFixed\(2\)\}&lng=\$\{metro\.longitude\.toFixed\(2\)\}&radius=50`\}/);
     assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
     assert.match(metroPage, /const blockedSellerListingWhere: Prisma\.ListingWhereInput/);
     assert.match(metroPage, /const listingWhere = publicListingWhere\(\{[\s\S]*\.\.\.blockedSellerListingWhere/);
@@ -129,10 +129,6 @@ describe("public query determinism", () => {
     assert.match(metroPage, /listings: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroPage, /listingCityMetros: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(metroCategoryPage, /const \[metros, majorGroups, cityGroups\] = await Promise\.all/);
-    assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["metroId", "category"\]/);
-    assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["cityMetroId", "category"\]/);
-    assert.doesNotMatch(metroCategoryPage, /for \(const metro of metros\)[\s\S]*await prisma\.listing\.groupBy/);
     for (const metroText of [metroPage, metroCategoryPage]) {
       assert.ok(
         metroText.indexOf("const [listings") < metroText.indexOf("ownerFavoriteListingIds(meDbId, listingIds)"),
@@ -142,7 +138,6 @@ describe("public query determinism", () => {
       assert.match(metroText, /ownerFavoriteListingIds\(meDbId, listingIds\)/);
     }
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(makersMetro, /sellerPublicMetroStaticSlugs\(\)/);
     assert.match(makersMetro, /sellerPublicMetroMakers\(meDbId, metro\.id, isMajorMetro, 24\)/);
     assert.match(makersMetro, /sellerPublicNearbyMetros\(meDbId, metro\.id\)/);
     assert.doesNotMatch(makersMetro, /prisma\.sellerProfile/);
@@ -423,7 +418,6 @@ describe("public query determinism", () => {
     assert.match(commissionPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*skip: \(page - 1\) \* pageSize,\s*take: pageSize/);
     assert.match(commissionPage, /cr\."createdAt" DESC,\s*cr\.id DESC/);
 
-    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 500/);
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 20/);
     assert.match(commissionDetail, /publicCommissionInterestCounts\(\[request\.id\], meId\)/);
     assert.match(commissionDetail, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);

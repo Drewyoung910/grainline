@@ -184,8 +184,10 @@ export default async function BuyerOrderDetailPage({
     !deauthorizedPendingCaseAccess && isOrderCaseWindowClosed(order, now);
   const deliveryPassed =
     isTerminal || (order.estimatedDeliveryDate != null && order.estimatedDeliveryDate < now);
+  // The database opens a Case early when the maker can no longer act. The order
+  // detail reports no maker user id exactly when that account is banned or deleted.
   const canOpenCase =
-    (deliveryPassed || order.deauthorizedCaseAccess) &&
+    (deliveryPassed || order.deauthorizedCaseAccess || order.sellerUserId === null) &&
     !order.caseOpenLabelBlocked &&
     !caseWindowClosed &&
     !activeCase &&
@@ -252,18 +254,18 @@ export default async function BuyerOrderDetailPage({
     order.estimatedDeliveryDate != null && order.estimatedDeliveryDate >= now;
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
-      <Link href="/dashboard/orders" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+      <Link href="/account/orders" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
         <ArrowLeft size={14} /> Back to Orders
       </Link>
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">
-          Order <span className="font-mono">#{order.id.slice(-8)}</span>
+        <h1 className="font-display page-title">
+          Order <span className="text-neutral-500">#{order.id.slice(-8)}</span>
         </h1>
-        <div className="flex items-center gap-2 text-sm text-neutral-600">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-600">
           <span>
             Placed <LocalDate date={order.createdAt} /> · {orderPaymentPresentationLabel(paymentState)}
           </span>
-          <Badge>{method}</Badge>
+          <Badge>{method === "PICKUP" ? "Local pickup" : "Shipping"}</Badge>
           <Badge>
             {suppressActiveFulfillment
               ? orderPaymentPresentationLabel(paymentState)
@@ -272,9 +274,11 @@ export default async function BuyerOrderDetailPage({
         </div>
       </header>
 
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
+      <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-700 font-medium">
         {suppressActiveFulfillment ? (
           "Fully refunded — no fulfillment is required."
+        ) : activeCase && activeCase.status !== "RESOLVED" && activeCase.status !== "CLOSED" ? (
+          `${fulfillmentStatusLabel(status)}. This order has an open case.`
         ) : (
           <>
             {status === "PENDING" && "Your maker is preparing your piece"}
@@ -621,7 +625,7 @@ export default async function BuyerOrderDetailPage({
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
               {activeCase.buyerMarkedResolved && !activeCase.sellerMarkedResolved ? (
                 <p className="text-sm text-neutral-500">
-                  Waiting for seller to confirm resolution.
+                  Waiting for maker to confirm resolution.
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -651,13 +655,13 @@ export default async function BuyerOrderDetailPage({
           <OpenCaseForm orderId={order.id} allowNotReceived={!isTerminal} />
         </section>
       ) : caseWindowClosed ? (
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+        <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
           {caseWindowClosedMessage(caseWindowClosedAt)}
         </div>
       ) : !isTerminal ? (
         // Any refund blocks a new case, so don't promise one after delivery.
         deliveryInFuture && !hasRefund ? (
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
             You can open a case if there&apos;s an issue with your order after the estimated
             delivery date of{" "}
             <span className="font-medium">
@@ -666,7 +670,7 @@ export default async function BuyerOrderDetailPage({
             .
           </div>
         ) : messageHref ? (
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
             If you have an issue with your order, please{" "}
             <Link href={messageHref} className="underline hover:text-neutral-900">
               contact the maker directly via messages
@@ -674,7 +678,7 @@ export default async function BuyerOrderDetailPage({
             .
           </div>
         ) : (
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
             The maker&apos;s account is not available for messages. Please{" "}
             <Link href="/support" className="underline hover:text-neutral-900">
               contact Grainline support
@@ -686,7 +690,7 @@ export default async function BuyerOrderDetailPage({
 
       <div className="flex gap-3">
         <Link
-          href="/dashboard/orders"
+          href="/account/orders"
           className="btn btn-secondary btn-sm"
         >
           Back to orders

@@ -27,12 +27,20 @@ export function sanitizeText(input: string): string {
     .trim();
 }
 
+// Something a reader can see: not whitespace, not an invisible format
+// character (variation selectors, tag characters and the like) and not a
+// lone combining mark. Selectors and tags stay when they follow an emoji.
+const VISIBLE_CHARACTER = /[^\p{White_Space}\p{Default_Ignorable_Code_Point}\p{M}]/u;
+
 export function sanitizeUserName(input: string, maxLength = 100): string {
-  return truncateText(sanitizeText(input).replace(/\s+/g, " "), maxLength).trim();
+  const name = truncateText(sanitizeText(input).replace(/\s+/g, " "), maxLength).trim();
+  return VISIBLE_CHARACTER.test(name) ? name : "";
 }
 
+// A lookup key, not display text: drop the joiners that names keep, so two
+// names that look the same share a key (and match keys stored before).
 export function normalizeDisplayNameForLookup(input: string): string {
-  return sanitizeUserName(input);
+  return sanitizeUserName(input).replace(/[\u200C\u200D]/g, "");
 }
 
 export function truncateText(input: string, maxLength: number): string {

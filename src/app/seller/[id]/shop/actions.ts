@@ -19,6 +19,7 @@ import {
 } from "@/lib/listingActionState";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
+import { sendFirstListingCongratsIfFirst } from "@/lib/firstListingEmail";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
@@ -29,8 +30,6 @@ import {
   sellerOwnerCore,
   sellerOwnerListingPublishReview,
 } from "@/lib/sellerProfileOwnerAccess";
-
-const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function findOwnedListing(
   listingId: string,
@@ -91,18 +90,14 @@ function queueCheckoutSessionExpiryForListing(listingId: string, sellerId: strin
   );
 }
 
-function shouldNotifyFollowersOnActivation(listing: { status: ListingStatus; updatedAt: Date }) {
-  if (
+// Only a live listing can be hidden, so a HIDDEN one was already announced. Unhiding
+// it is not news, however long it was away.
+function shouldNotifyFollowersOnActivation(listing: { status: ListingStatus }) {
+  return (
     listing.status === ListingStatus.DRAFT ||
     listing.status === ListingStatus.PENDING_REVIEW ||
     listing.status === ListingStatus.REJECTED
-  ) {
-    return true;
-  }
-  if (listing.status === ListingStatus.HIDDEN) {
-    return Date.now() - listing.updatedAt.getTime() >= REPUBLISH_NOTIFY_AFTER_MS;
-  }
-  return false;
+  );
 }
 
 function queueFollowerFanoutForActiveListing(listing: {
@@ -115,12 +110,10 @@ function queueFollowerFanoutForActiveListing(listing: {
 }) {
   after(async () => {
     try {
-      const emailBucket = new Date().toISOString().slice(0, 10);
       await fanOutListingToFollowers({
         sellerProfileId: listing.sellerId,
         sellerDisplayName: listing.seller.displayName,
         listing,
-        emailDedupKey: (followerId) => `followed-listing-active:${listing.id}:${followerId}:${emailBucket}`,
       });
     } catch (error) {
       // Non-fatal: listing activation should not roll back if follower fan-out fails.
@@ -285,13 +278,16 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     const listingCount = sellerReview.publishReviewListingCount;
 
     const { reviewListingWithAI } = await import("@/lib/ai-review");
-    const { logAdminAction } = await import("@/lib/audit");
 
     const photos = await prisma.photo.findMany({
       where: { listingId: listing.id },
-      select: { url: true },
+      select: { url: true, altText: true },
       orderBy: { sortOrder: "asc" },
       take: 10,
+    });
+    const variantGroups = await prisma.listingVariantGroup.findMany({
+      where: { listingId: listing.id },
+      select: { name: true, options: { select: { label: true } } },
     });
 
     const aiResult = await reviewListingWithAI({
@@ -306,6 +302,10 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       sellerName: sellerReview.displayName,
       listingCount,
       imageUrls: photos.map((p) => p.url),
+      metaDescription: listing.metaDescription,
+      materials: listing.materials,
+      variantLabels: variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+      photoAltTexts: photos.map((p) => p.altText),
     }).catch((error) => {
       logServerError(error, {
         source: "listing_publish_ai_review",
@@ -316,7 +316,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         approved: false,
         flags: ["AI review error"],
         confidence: 0,
-        reason: "AI error — sending to admin review",
+        reason: "AI error, sending to staff review",
         altTexts: [] as string[],
       };
     });
@@ -335,26 +335,18 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: listing.status,
           updatedAt: listing.updatedAt,
           ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+          OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
         },
         data: {
           status: "PENDING_REVIEW",
           aiReviewFlags: aiResult.flags,
           aiReviewScore: aiResult.confidence,
-          rejectionReason: null,
+          rejectionReason: aiResult.reason,
         },
       });
       if (updateResult.count === 0) {
         return { error: "Listing state changed; refresh and try again." };
       }
-      await logAdminAction({
-        adminId: listing.seller.userId,
-        action: "AI_HOLD_LISTING",
-        targetType: "LISTING",
-        targetId: listingId,
-        reason: aiResult.reason,
-        metadata: { flags: aiResult.flags, confidence: aiResult.confidence },
-      });
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_ai_hold");
       revalidateListingSurfaces(listingId, listing.sellerId);
       return { status: "PENDING_REVIEW" };
@@ -367,7 +359,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: listing.status,
           updatedAt: listing.updatedAt,
           ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+          OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
         },
         data: {
           status: "ACTIVE",
@@ -397,6 +389,14 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       await syncThreshold(listing.sellerId);
       // First active listing for this seller might earn the Founding Maker badge.
       await maybeGrantFoundingMaker(listing.sellerId);
+      if (!listing.isPrivate) {
+        await sendFirstListingCongratsIfFirst({
+          sellerProfileId: listing.sellerId,
+          sellerUserId: listing.seller.userId,
+          sellerDisplayName: listing.seller.displayName,
+          listing,
+        });
+      }
       if (shouldNotifyFollowers) {
         queueFollowerFanoutForActiveListing(listing);
       }
@@ -416,13 +416,13 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         sellerId: listing.sellerId,
         status: listing.status,
         updatedAt: listing.updatedAt,
-        OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+        OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
       },
       data: {
         status: "PENDING_REVIEW",
         aiReviewFlags: ["AI review error"],
         aiReviewScore: 0,
-        rejectionReason: null,
+        rejectionReason: "AI error, sending to staff review",
       },
     }).catch((updateError) => {
       logServerError(updateError, {

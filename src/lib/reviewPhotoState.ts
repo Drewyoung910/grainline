@@ -2,6 +2,13 @@ export const MAX_REVIEW_PHOTOS = 6;
 
 export type AppendReviewPhotoStatus = "added" | "duplicate" | "limit" | "empty";
 
+export function reviewPhotoSelectionIsComplete(
+  requestedUrls: readonly string[],
+  verifiedUrls: readonly string[],
+): boolean {
+  return requestedUrls.length === verifiedUrls.length;
+}
+
 export function normalizeReviewPhotoUrls(urls: string[], maxPhotos = MAX_REVIEW_PHOTOS): string[] {
   const normalized: string[] = [];
   for (const rawUrl of urls) {

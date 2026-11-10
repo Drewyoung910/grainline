@@ -33,7 +33,7 @@ export async function POST(
   if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
   const pinResponse = await requireStaffAdminPinForApi(request, userId, sessionId)
   if (pinResponse) return pinResponse
-  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, userId)
   if (!success) return privateResponse(rateLimitResponse(reset, 'Too many admin actions.'))
   const { id } = await params
   let body
@@ -74,7 +74,7 @@ export async function DELETE(
   if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
   const pinResponse = await requireStaffAdminPinForApi(request, userId, sessionId)
   if (pinResponse) return pinResponse
-  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, userId)
   if (!success) return privateResponse(rateLimitResponse(reset, 'Too many admin actions.'))
   const { id } = await params
   let unbanBody

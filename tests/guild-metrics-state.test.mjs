@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const {
   GUILD_MASTER_REQUIREMENTS,
+  floorMetric,
   meetsGuildMasterRequirements,
   metricsPeriodStart,
 } = await import("../src/lib/metricsState.ts");
@@ -96,7 +97,7 @@ describe("Guild metrics state", () => {
     );
     const verificationPage = readFileSync(new URL("../src/app/admin/verification/page.tsx", import.meta.url), "utf8");
 
-    assert.match(metricsSource, /db\.review\.aggregate\(\{[\s\S]*where: \{ listing: \{ sellerId: sellerProfileId \} \}/);
+    assert.match(metricsSource, /db\.review\.aggregate\(\{[\s\S]*where: \{ listing: \{ sellerId: sellerProfileId \}, reviewerAccountActive: true \}/);
     assert.match(metricsSource, /readOrderSellerMetricsFacts\(sellerProfileId, periodStart, db\)/);
     assert.match(orderAuthority, /source_order\."sellerProfileId" = p_seller_profile_id/);
     assert.match(orderAuthority, /source_item\."sellerProfileId" = p_seller_profile_id/);
@@ -104,5 +105,18 @@ describe("Guild metrics state", () => {
     assert.doesNotMatch(orderAuthority, /JOIN public\."Listing"/);
 
     assert.match(verificationPage, /prisma\.listing\.count\(\{[\s\S]*sellerId: verification\.sellerProfileId[\s\S]*status: "ACTIVE"[\s\S]*isPrivate: false/);
+  });
+});
+
+describe("failing Guild metrics are not rounded up to the threshold", () => {
+  it("shows 94.6 percent as 94.6, not 95", () => {
+    assert.equal(floorMetric(0.946 * 100), 94.6);
+    assert.equal(floorMetric(0.96 * 100), 96);
+    assert.equal(floorMetric(0.29 * 100), 29);
+  });
+
+  it("shows a 4.46 rating as 4.4, not 4.5", () => {
+    assert.equal(floorMetric(4.46), 4.4);
+    assert.equal(floorMetric(4.5), 4.5);
   });
 });

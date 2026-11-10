@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCustomOrderRequest } from "@/lib/email";
-import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { commissionAttemptRatelimit, customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -42,9 +42,10 @@ export async function POST(req: Request) {
 
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
-
-  const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
-  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests. Try again later."));
+  const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `custom-order:${userId}`);
+  if (!attemptOk) {
+    return privateResponse(rateLimitResponse(attemptReset, "Too many attempts."));
+  }
 
   const me = await userClerkActor(prisma, userId);
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
@@ -131,6 +132,11 @@ export async function POST(req: Request) {
     return privateJson({ error: "Budget cannot exceed $100,000." }, { status: 400 });
   }
   const timelineStr = timeline ?? null;
+
+  // Spend the daily quota only once the request is known to be acceptable.
+  const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests."));
+
   const requestMessage = await createCustomOrderRequestMessage({
     buyerUserId: me.id,
     sellerUserId,

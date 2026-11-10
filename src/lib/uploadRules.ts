@@ -145,6 +145,31 @@ export function validateUploadFile(
   throw new Error(uploadTypeMessage(endpoint, file.type));
 }
 
+// A large photo is shrunk in the browser before it is sent, so an endpoint's cap
+// applies to the shrunk file. This only bounds what a browser is asked to decode.
+export const IMAGE_ORIGINAL_MAX_BYTES = 50 * 1024 * 1024;
+
+// For a file the person just picked, before any shrinking.
+export function validateUploadSelection(
+  endpoint: UploadEndpoint,
+  file: { size: number; type: string },
+  fileIndex = 0,
+) {
+  const shrinksInBrowser =
+    IMAGE_UPLOAD_ENDPOINTS.includes(endpoint as (typeof IMAGE_UPLOAD_ENDPOINTS)[number])
+    && IMAGE_UPLOAD_TYPES.includes(file.type as (typeof IMAGE_UPLOAD_TYPES)[number]);
+  if (!shrinksInBrowser) {
+    validateUploadFile(endpoint, file, fileIndex);
+    return;
+  }
+  if (file.size > IMAGE_ORIGINAL_MAX_BYTES) {
+    throw new Error(
+      `${capitalize(UPLOAD_ENDPOINT_LABELS[endpoint])} must be under ${formatUploadMegabytes(IMAGE_ORIGINAL_MAX_BYTES)} MB. Your file is ${formatUploadMegabytes(file.size)} MB. Try resizing or use a different file.`,
+    );
+  }
+  validateUploadFile(endpoint, { size: 0, type: file.type }, fileIndex);
+}
+
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }

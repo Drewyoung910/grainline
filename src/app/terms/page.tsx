@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Terms of Service",
   description: "Grainline Terms of Service — the rules and conditions governing your use of the Grainline handmade woodworking marketplace.",
   robots: { index: true, follow: true },
+  alternates: { canonical: "https://thegrainline.com/terms" },
 };
 
 export const revalidate = 86400;

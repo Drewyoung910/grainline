@@ -39,9 +39,12 @@ describe("server action hardening guardrails", () => {
   it("keeps listing action follower fanout and AI-review failures observable without rolling back primary work", () => {
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const createPage = source("src/app/dashboard/listings/new/page.tsx");
+    const creationReview = source("src/lib/listingCreationAIReview.ts");
 
     assert.match(shopActions, /source: "listing_activation_follower_fanout"/);
     assert.match(shopActions, /sellerProfileId: listing\.sellerId/);
+    assert.match(shopActions, /if \(!listing\.isPrivate\) \{\s*await sendFirstListingCongratsIfFirst\(\{/);
+    assert.match(shopActions, /sellerUserId: listing\.seller\.userId/);
     assert.match(shopActions, /source: "listing_publish_ai_review"/);
     assert.match(shopActions, /source: "listing_publish_ai_review_followup"/);
     assert.match(shopActions, /source: "listing_publish_ai_error_mark_failed"/);
@@ -74,7 +77,13 @@ describe("server action hardening guardrails", () => {
     assert.match(createPage, /logServerError\(updateError, \{/);
     assert.match(createPage, /logServerError\(e, \{/);
     assert.doesNotMatch(createPage, /console\.error\("\[listing-create\]/);
-    assert.match(createPage, /updateMany\(\{\s*where: \{ id: created\.id, status: ListingStatus\.PENDING_REVIEW \}/s);
+    assert.match(createPage, /applyListingCreationAIReviewResult\(prisma, \{/);
+    assert.match(createPage, /reviewedUpdatedAt,/);
+    assert.match(createPage, /title: reviewTarget\.title,/);
+    assert.match(createPage, /if \(transition\.applied\) \{\s*await backfillEmptyAltTexts/s);
+    assert.match(creationReview, /sellerId: input\.sellerId,/);
+    assert.match(creationReview, /status: "PENDING_REVIEW",/);
+    assert.match(creationReview, /updatedAt: input\.reviewedUpdatedAt,/);
     const createFanoutBlock = createPage.slice(createPage.lastIndexOf("fanOutListingToFollowers"));
     assert.doesNotMatch(createFanoutBlock, /catch \{ \/\* non-fatal \*\/ \}/);
   });

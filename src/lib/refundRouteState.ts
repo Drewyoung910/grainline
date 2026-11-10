@@ -135,7 +135,7 @@ export function sellerRefundPreflightConflictResponse(
       return {
         status: HTTP_STATUS.CONFLICT,
         error:
-          "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+          "This order has a shipping label, so it can't be refunded from here. Contact support and we'll sort out the label and the refund.",
       };
     case "NO_PAYMENT":
       return {
@@ -214,7 +214,7 @@ export function refundLockAcquisitionConflictResponse(order: {
   if (order && orderHasBlockingLabelOperation(order)) {
     return {
       status: HTTP_STATUS.CONFLICT,
-      error: "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+      error: "This order has a shipping label, so it can't be refunded from here. Contact support and we'll sort out the label and the refund.",
     };
   }
 

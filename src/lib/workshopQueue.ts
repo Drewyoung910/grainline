@@ -51,6 +51,22 @@ export function orderRefundedAway(order: QueueOrder, refundOutcome: RefundOutcom
   return suppressActiveFulfillmentForPaymentState(paymentState, status);
 }
 
+// The Workshop header pill. Null means that read failed, which must not change it.
+// Each closed label names what is missing. The setup wizard is not one of them:
+// publishing needs only Stripe.
+export function workshopShopStatus(input: Readonly<{
+  vacationMode: boolean;
+  chargesEnabled: boolean;
+  acceptingNewOrders: boolean | null;
+  liveListingCount: number | null;
+}>): { label: string; open: boolean } {
+  if (input.vacationMode) return { label: "On vacation", open: false };
+  if (!input.chargesEnabled) return { label: "Payouts not connected", open: false };
+  if (input.acceptingNewOrders === false) return { label: "Not taking orders", open: false };
+  if (input.liveListingCount === 0) return { label: "No live listings", open: false };
+  return { label: "Shop open", open: true };
+}
+
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }
@@ -66,6 +82,14 @@ export type WorkshopAttentionInput = Readonly<{
   lowStock: ReadonlyArray<Readonly<{ title: string; stockQuantity: number }>>;
   // Null when unknown, so a failed read isn't taken for an empty shop.
   listingCount?: number | null;
+  // Unresolved Cases on this maker's orders (open, in discussion, pending close,
+  // or with staff, which includes Cases a bank chargeback opened).
+  openCases?: number | null;
+  // Shop state. Undefined or null means unknown, which adds no row.
+  chargesEnabled?: boolean | null;
+  liveListingCount?: number | null;
+  // Drafts and hidden listings, the ones Publish or Unhide can put on sale.
+  unpublishedCount?: number | null;
 }>;
 
 export type WorkshopAttentionRow = Readonly<{
@@ -79,13 +103,22 @@ export type WorkshopAttentionRow = Readonly<{
 // Most urgent first: money already paid, then people waiting, then shop state.
 export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAttentionRow[] {
   const rows: WorkshopAttentionRow[] = [];
+  if (input.openCases && input.openCases > 0) {
+    rows.push({
+      key: "cases",
+      icon: "alert",
+      title: plural(input.openCases, "open case"),
+      detail: "Open the order to see the case and any reply deadline",
+      href: "/dashboard/sales",
+    });
+  }
   if (input.ordersToShip > 0) {
     const count = input.ordersToShipCapped ? `${input.ordersToShip}+ orders` : plural(input.ordersToShip, "order");
     rows.push({
       key: "orders",
       icon: "truck",
-      title: `${count} to ship`,
-      detail: input.orderNames.slice(0, 3).join(" · ") || "Paid and waiting on you",
+      title: `${count} to fulfill`,
+      detail: [...new Set(input.orderNames)].slice(0, 3).join(" · ") || "Paid and waiting on you",
       href: "/dashboard/sales",
     });
   } else if (input.ordersToShipCapped) {
@@ -135,6 +168,31 @@ export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAt
       title: "Running low",
       detail: input.lowStock.map((item) => `${item.title}: ${item.stockQuantity} left`).join(" · "),
       href: "/dashboard/listings?status=stock",
+    });
+  }
+  if (input.chargesEnabled === false) {
+    rows.push({
+      key: "payouts",
+      icon: "alert",
+      title: "Connect payouts to go live",
+      detail: "Buyers can't see or buy your pieces until Stripe payouts are set up",
+      href: "/dashboard/seller",
+    });
+  }
+  // Only when publishing is possible and there is something to publish: not
+  // without payouts, and not for a shop that is only sold out, sold, in review
+  // or private custom pieces.
+  if (
+    input.chargesEnabled !== false
+    && input.liveListingCount === 0
+    && (input.unpublishedCount ?? 0) > 0
+  ) {
+    rows.push({
+      key: "nothing-live",
+      icon: "tag",
+      title: "Nothing is live",
+      detail: "Publish a draft or unhide a listing so buyers can order",
+      href: "/dashboard/listings",
     });
   }
   if (input.listingCount === 0) {

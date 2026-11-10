@@ -56,7 +56,7 @@ export async function GET(
   const sinceRaw = url.searchParams.get("since");
   const sinceIdRaw = url.searchParams.get("sinceId");
   const sinceMode = !historyMode && (sinceRaw !== null || sinceIdRaw !== null);
-  const sinceCursor = historyMode ? null : parseMessageCursor(sinceRaw, sinceIdRaw);
+  const sinceCursor = historyMode ? null : parseMessageCursor(sinceRaw, sinceIdRaw, { requireId: true });
   if (sinceMode && !sinceCursor) {
     return privateJson({ error: "Invalid message cursor" }, { status: 400 });
   }

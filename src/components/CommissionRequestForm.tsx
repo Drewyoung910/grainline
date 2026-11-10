@@ -105,11 +105,12 @@ export default function CommissionRequestForm({
             autoComplete="off"
             onChange={(e) => setTitle(e.target.value)}
             maxLength={100}
+            aria-describedby={`${titleId}-count`}
             placeholder="e.g. Custom walnut dining table for 8"
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
             required
           />
-          <p className="text-xs text-neutral-500 mt-1">{title.length}/100</p>
+          <p id={`${titleId}-count`} aria-live="polite" className="text-xs text-neutral-500 mt-1">{title.length}/100</p>
         </div>
 
         {/* Description */}
@@ -123,12 +124,13 @@ export default function CommissionRequestForm({
             autoComplete="off"
             onChange={(e) => setDescription(e.target.value)}
             maxLength={1000}
+            aria-describedby={`${descriptionId}-count`}
             rows={5}
             placeholder="Describe dimensions, wood type preferences, style, finish, any special requirements..."
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-y"
             required
           />
-          <p className="text-xs text-neutral-500 mt-1">{description.length}/1000</p>
+          <p id={`${descriptionId}-count`} aria-live="polite" className="text-xs text-neutral-500 mt-1">{description.length}/1000</p>
         </div>
 
         {/* Category */}

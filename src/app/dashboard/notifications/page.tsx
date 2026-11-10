@@ -118,7 +118,7 @@ export default async function NotificationsPage({
         </div>
         {unreadCount > 0 && (
           <form action={markAllRead}>
-            <button className="text-sm text-blue-600 hover:underline">
+            <button className="text-sm font-medium text-neutral-800 underline-offset-4 hover:underline">
               Mark all as read
             </button>
           </form>
@@ -137,7 +137,7 @@ export default async function NotificationsPage({
             const row = (
               <li
                 key={n.id}
-                className={`flex items-start gap-4 px-5 py-4 ${!n.read ? "bg-amber-50" : "bg-white"}`}
+                className={`flex items-start gap-4 px-5 py-4 ${!n.read ? "bg-[#EFEAE0]/50" : "bg-white"}`}
               >
                 {!n.read && (
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />

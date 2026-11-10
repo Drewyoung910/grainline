@@ -1,4 +1,5 @@
 import { readHistoricalOrderItemSnapshot } from "./orderItemSnapshot.ts";
+import { codePointLength } from "./textLength.ts";
 
 export type OrderCheckoutPostpaymentItem = Readonly<{
   id: string;
@@ -70,7 +71,11 @@ function exactRecord(value: unknown, keys: readonly string[], label: string) {
 }
 
 function requiredString(value: unknown, field: string, maxLength: number) {
-  if (typeof value !== "string" || value.length === 0 || value.length > maxLength) {
+  if (typeof value !== "string") {
+    throw new TypeError(`checkout post-payment authority returned invalid ${field}`);
+  }
+  const length = codePointLength(value);
+  if (length === 0 || length > maxLength) {
     throw new TypeError(`checkout post-payment authority returned invalid ${field}`);
   }
   return value;

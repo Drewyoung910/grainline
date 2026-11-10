@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ResolveReportButton } from "@/components/admin/ResolveReportButton";
+import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
+import { STAFF_REMOVAL_REJECTION_REASON } from "@/lib/listingActionState";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { userStaffAdminLabels, userStaffReportLabels } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
@@ -74,6 +76,7 @@ export default async function AdminReportsPage() {
   const reviewListingMap = new Map<string, { id: string; title: string }>();
   const blogCommentSlugMap = new Map<string, string>();
   const listingPathMap = new Map<string, string>();
+  const removableListingIds = new Set<string>();
   const sellerPathMap = new Map<string, string>();
 
   if (reviewTargetIds.length > 0) {
@@ -89,10 +92,11 @@ export default async function AdminReportsPage() {
   if (listingTargetIds.length > 0) {
     const listings = await prisma.listing.findMany({
       where: { id: { in: listingTargetIds } },
-      select: { id: true, title: true },
+      select: { id: true, title: true, rejectionReason: true },
     });
     for (const listing of listings) {
       listingPathMap.set(listing.id, publicListingPath(listing.id, listing.title));
+      if (!listing.rejectionReason?.startsWith(STAFF_REMOVAL_REJECTION_REASON)) removableListingIds.add(listing.id);
     }
   }
 
@@ -133,7 +137,7 @@ export default async function AdminReportsPage() {
   const reporterMap = new Map(reporterUsers.map((u) => [u.id, u]));
 
   return (
-    <main className="p-6 max-w-7xl mx-auto">
+    <main className="md:p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-semibold font-display mb-6">User Reports ({reports.length} open)</h1>
 
       {/* Top reporters — abuse detection */}
@@ -179,7 +183,7 @@ export default async function AdminReportsPage() {
                   <p className="text-sm text-neutral-600">{r.details}</p>
                 )}
                 {r.targetType && r.targetId && (
-                  <div>
+                  <div className="space-y-1">
                     {/* Listing links use the staff preview so hidden, held or rejected
                         listings still open; targets known to be gone render as text. */}
                     {r.targetType === "LISTING" && (
@@ -188,6 +192,9 @@ export default async function AdminReportsPage() {
                       ) : (
                         <span className="text-xs text-neutral-500">Listing no longer exists</span>
                       )
+                    )}
+                    {r.targetType === "LISTING" && staff.role === "ADMIN" && removableListingIds.has(r.targetId) && (
+                      <div><DeleteListingButton listingId={r.targetId} /></div>
                     )}
                     {isSellerProfileReportTarget(r.targetType) && (
                       reportUserById.get(r.reportedId)?.deletedAt ? (

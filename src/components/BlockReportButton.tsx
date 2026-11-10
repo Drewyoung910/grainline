@@ -27,6 +27,7 @@ const REPORT_REASONS = [
 
 const MENU_WIDTH = 224; // matches w-56
 const MENU_MARGIN = 8;
+const MENU_MIN_SPACE = 240;
 
 export default function BlockReportButton({ targetUserId, targetName, initialBlocked = false, targetType, targetId, afterBlockHref }: Props) {
   const router = useRouter();
@@ -39,7 +40,12 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -57,8 +63,21 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
     // Prefer right-aligning under the trigger, then clamp to viewport.
     let left = rect.right - MENU_WIDTH;
     left = Math.max(MENU_MARGIN, Math.min(left, viewportW - MENU_WIDTH - MENU_MARGIN));
-    const top = rect.bottom + MENU_MARGIN;
-    setMenuPos({ top, left });
+    const below = window.innerHeight - rect.bottom - MENU_MARGIN * 2;
+    const above = rect.top - MENU_MARGIN * 2;
+    setMenuPos(
+      below < MENU_MIN_SPACE && above > below
+        ? {
+            bottom: window.innerHeight - rect.top + MENU_MARGIN,
+            left,
+            maxHeight: Math.max(0, above),
+          }
+        : {
+            top: rect.bottom + MENU_MARGIN,
+            left,
+            maxHeight: Math.max(0, below),
+          },
+    );
   }
 
   function handleOpen() {
@@ -169,10 +188,11 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
             aria-label="Report and block options"
             style={{
               position: "fixed",
-              top: menuPos?.top ?? 0,
+              top: menuPos?.top ?? (menuPos?.bottom === undefined ? 0 : undefined),
+              bottom: menuPos?.bottom,
               left: menuPos?.left ?? 0,
               width: MENU_WIDTH,
-              maxHeight: `calc(100vh - ${(menuPos?.top ?? 0) + MENU_MARGIN}px)`,
+              maxHeight: menuPos?.maxHeight,
               transform: menuPos ? undefined : "translate(-200vw,-200vw)",
             }}
             className="scrollbar-hidden z-[9999] overflow-y-auto rounded-2xl bg-white p-1.5 popover-shadow"

@@ -7,10 +7,11 @@ import {
   RELEASE_PREPARING_CHECKOUT_LOCK_SCRIPT,
   RELEASE_CHECKOUT_LOCK_SCRIPT,
   checkoutSessionCreateIdempotencyKey,
+  stripeRefusedCheckoutSessionCreate,
   type CheckoutLock,
 } from "@/lib/checkoutLockState";
 
-export { checkoutSessionCreateIdempotencyKey };
+export { checkoutSessionCreateIdempotencyKey, stripeRefusedCheckoutSessionCreate };
 
 const markCheckoutLockReadyScript = redis.createScript<number>(MARK_CHECKOUT_LOCK_READY_SCRIPT);
 const releaseCheckoutLockScript = redis.createScript<number>(RELEASE_CHECKOUT_LOCK_SCRIPT);

@@ -93,7 +93,7 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
           )
           AND l.title % ${q}
           AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
-          AND l.title NOT ILIKE ${`%${q}%`}
+          AND strpos(lower(l.title), lower(${q})) = 0
           ${blockedSellerPredicate}
         ORDER BY l.title, l."createdAt" DESC, l.id DESC
       ) ranked

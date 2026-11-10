@@ -20,8 +20,10 @@ function broadcastErrorMessage(data: { error?: string; nextAvailableAt?: string 
 
 function broadcastSentMessage(data: { recipientCount?: unknown } | null) {
   const count = data?.recipientCount;
-  if (typeof count !== "number" || !Number.isInteger(count) || count < 0) return "Update sent.";
-  return `Update sent to ${count} follower${count === 1 ? "" : "s"}.`;
+  // Only followers with shop-update alerts on are counted, and sending happens
+  // after this response, so this is not the follower total or a delivery count.
+  if (typeof count !== "number" || !Number.isInteger(count) || count <= 0) return "Update posted.";
+  return `Update posted. Up to ${count} follower${count === 1 ? "" : "s"} will get a notification.`;
 }
 
 export default function BroadcastComposer({
@@ -41,18 +43,24 @@ export default function BroadcastComposer({
   const [sellersOnly, setSellersOnly] = React.useState(false);
   const [broadcasts, setBroadcasts] = React.useState<Broadcast[] | null>(null);
   const [loadingHistory, setLoadingHistory] = React.useState(false);
+  const [historyFailed, setHistoryFailed] = React.useState(false);
 
   React.useEffect(() => {
     const controller = new AbortController();
     setLoadingHistory(true);
     fetch("/api/seller/broadcast", { signal: controller.signal })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Broadcast history request failed");
+        return r.json();
+      })
       .then((data: { broadcasts: Broadcast[] }) => {
-        if (!controller.signal.aborted) setBroadcasts(data.broadcasts ?? []);
+        if (controller.signal.aborted) return;
+        setHistoryFailed(false);
+        setBroadcasts(data.broadcasts ?? []);
       })
       .catch((error) => {
         if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
-          setBroadcasts([]);
+          setHistoryFailed(true);
         }
       })
       .finally(() => {
@@ -108,7 +116,10 @@ export default function BroadcastComposer({
               placeholder="Share a shop update, new project, or announcement…"
               className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm resize-none"
             />
-            <p className="text-xs text-neutral-500 text-right mt-0.5">{message.length}/500</p>
+            <div className="mt-0.5 flex justify-between gap-3 text-xs text-neutral-500">
+              <span>You can send one update per week.</span>
+              <span>{message.length}/500</span>
+            </div>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-neutral-600">Send to:</span>
@@ -151,6 +162,8 @@ export default function BroadcastComposer({
       {/* History */}
       {loadingHistory ? (
         <p className="text-sm text-neutral-500">Loading history…</p>
+      ) : historyFailed ? (
+        <p className="text-sm text-neutral-500">Past updates could not be loaded. Refresh to try again.</p>
       ) : broadcasts && broadcasts.length > 0 ? (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-neutral-700">Past updates</h3>

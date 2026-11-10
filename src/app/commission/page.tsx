@@ -13,10 +13,9 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import CommissionInterestButton from "./CommissionInterestButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { MapPin } from "@/components/icons";
-import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { firstSearchParams, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { Suspense } from "react";
 import { CommissionRoomSkeleton } from "@/components/RouteSkeletons";
@@ -25,6 +24,7 @@ import { commissionDistanceBucket } from "@/lib/locationPrivacy";
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker",
   description: "Post a custom woodworking commission request and get matched with skilled local and national makers. Describe your vision, set your budget, and let makers come to you.",
+  alternates: { canonical: "https://thegrainline.com/commission" },
 };
 
 function timeAgo(dateStr: Date | string): string {
@@ -53,7 +53,7 @@ export default function CommissionPage(props: CommissionPageProps) {
 async function CommissionPageContent({
   searchParams,
 }: CommissionPageProps) {
-  const sp = await searchParams;
+  const sp = firstSearchParams(await searchParams);
   const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   let page = requestedPage;
   const categoryFilter = sp.category ?? "";
@@ -209,7 +209,7 @@ async function CommissionPageContent({
     })());
 
     const interestCounts = rawResults.length > 0
-      ? await publicCommissionInterestCounts(rawResults.map(({ id }) => id), null)
+      ? await publicCommissionInterestCounts(rawResults.map(({ id }) => id), meId)
       : new Map<string, number>();
     requests = rawResults.map((r) => ({
       id: r.id,
@@ -250,7 +250,7 @@ async function CommissionPageContent({
       },
     });
     const interestCounts = found.length > 0
-      ? await publicCommissionInterestCounts(found.map(({ id }) => id), null)
+      ? await publicCommissionInterestCounts(found.map(({ id }) => id), meId)
       : new Map<string, number>();
     requests = found.map(({ buyerName, buyerImageUrl, ...request }) => ({
       ...request,
@@ -286,49 +286,11 @@ async function CommissionPageContent({
     return `/commission${qs ? `?${qs}` : ""}`;
   }
 
-  const faqLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: "How do custom woodworking commissions work on Grainline?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Post a request describing the custom piece you want, including details like dimensions, wood type, and budget. Skilled makers browse requests and express interest. You review their profiles, past work, and ratings, then connect directly via messages to discuss your project and finalize details.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "How much does a custom woodworking commission cost?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Pricing varies based on the complexity, size, wood species, and maker experience. You set your own budget range when posting a request, and makers who can work within that range will express interest. Most custom pieces range from $100 for small items to several thousand dollars for large furniture.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "How long does a custom commission take?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Timelines depend on the maker's schedule and the complexity of your piece. Simple items may take 1-2 weeks, while complex furniture can take 2-3 months. You can specify your preferred timeline when posting a request, and makers will let you know if they can meet it.",
-        },
-      },
-    ],
-  };
-
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
-      {/* FAQ JSON-LD */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(faqLd) }}
-      />
-
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-8">
       {/* Header */}
-      <div className="mb-8 flex items-start justify-between gap-4 sm:items-end">
+      <div className="mb-8 flex items-start justify-between gap-4 max-[359px]:flex-wrap sm:items-end">
         <div className="min-w-0">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Made together</p>
           <h1 className="font-display text-[clamp(2.25rem,5vw,4.5rem)] font-normal leading-[0.95] tracking-[-0.025em] text-neutral-900">
             Commission Room
           </h1>
@@ -343,13 +305,13 @@ async function CommissionPageContent({
       </div>
 
       {/* How it works explainer */}
-      <ol className="mb-8 grid list-none gap-3 p-0 sm:grid-cols-3" aria-label="How the Commission Room works">
+      <ol className="mb-8 grid list-none gap-4 p-0 sm:grid-cols-3 sm:gap-6" aria-label="How the Commission Room works">
         {[
           ["1", "Post what you want", "Share the size, material, budget, timing, and a reference photo if you have one."],
           ["2", "Makers reach out", "Interested makers introduce themselves through Grainline Messages."],
           ["3", "Buy securely", "Choose a maker, agree on the details, and pay through a private Grainline listing."],
         ].map(([number, title, description]) => (
-          <li key={number} className="flex gap-3 rounded-lg border border-stone-200/80 bg-white p-4 shadow-[0_12px_30px_-28px_rgba(44,31,26,0.6)]">
+          <li key={number} className="flex gap-3">
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#2C1F1A] text-xs font-semibold text-[#FBF8F3]">{number}</span>
             <span className="min-w-0 text-sm leading-5 text-neutral-600">
               <strong className="mb-0.5 block font-medium text-neutral-900">{title}</strong>
@@ -432,7 +394,7 @@ async function CommissionPageContent({
                       src={r.referenceImageUrls[0]}
                       alt="Reference"
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-500 ease-out motion-reduce:transition-none group-hover:scale-[1.025]"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.025]"
                     />
                   </Link>
                 )}
@@ -473,7 +435,7 @@ async function CommissionPageContent({
                       </span>
                     )}
                     {r.isNational && (
-                      <span className="rounded-full border border-stone-200 bg-[#FAF8F4] px-3 py-1 text-xs text-neutral-700">Ships nationwide</span>
+                      <span className="rounded-full border border-stone-200 bg-[#FAF8F4] px-3 py-1 text-xs text-neutral-700">Open to all makers</span>
                     )}
                   </div>
 
@@ -494,7 +456,6 @@ async function CommissionPageContent({
                     {sellerProfileId && (
                       <CommissionInterestButton
                         requestId={r.id}
-                        sellerProfileId={sellerProfileId}
                         initialInterested={interestedSet.has(r.id)}
                       />
                     )}

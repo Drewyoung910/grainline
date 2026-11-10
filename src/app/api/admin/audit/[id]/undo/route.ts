@@ -30,7 +30,7 @@ export async function POST(
   if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
   const pinResponse = await requireStaffAdminPinForApi(request, userId, sessionId)
   if (pinResponse) return pinResponse
-  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, userId)
   if (!success) return privateResponse(rateLimitResponse(reset, 'Too many admin actions.'))
   const { id } = await params
   let body
@@ -60,6 +60,12 @@ export async function POST(
       'Already undone (concurrent request)',
       'Undo window expired (24 hours)',
       'Admins cannot undo their own actions',
+      'Cannot automatically undo this ban because its audit metadata is incomplete. Use the manual unban workflow.',
+      'User ban state changed before undo could be applied',
+      'Seller profile changed before undo could be applied',
+      'Listing changed before undo could be applied',
+      'This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.',
+      'Clerk could not be reached, so nothing was changed. Try again.',
     ])
     const safeMessage = safeMessages.has(message) || message.endsWith('cannot be undone')
       ? message

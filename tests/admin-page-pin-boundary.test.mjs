@@ -111,11 +111,16 @@ test("support status actions repeat the PIN boundary before any mutation", async
       transitionSupportRequest: async () => { transitionCalls++; return "updated"; },
     },
     "@/lib/serverErrorLogger": { logServerError: () => {} },
+    "@/lib/adminPinApi": {
+      adminPinExpiredActionState: (error) => (
+        error.message === "Admin PIN required" ? { ok: false, error: "PIN expired" } : null
+      ),
+    },
     "next/cache": { revalidatePath: () => { revalidations++; } },
   });
   assert.deepEqual(
     await action.setSupportRequestStatus("request-1", "CLOSED"),
-    { ok: false, error: "Could not update this request." },
+    { ok: false, error: "PIN expired" },
   );
   assert.equal(transitionCalls, 0);
   assert.equal(revalidations, 0);

@@ -4,14 +4,24 @@ import { logServerError } from "./serverErrorLogger.ts";
 export type RateLimitResult = {
   success: boolean;
   reset: number;
+  /** The limiter could not be reached, so this answer says nothing about the caller. */
+  unavailable?: true;
 };
 
 export type RateLimitLike = {
-  limit(key: string): Promise<RateLimitResult>;
+  limit(key: string): Promise<RateLimitResult & { reason?: string }>;
 };
 
 export function providerRateLimitKey(key: string): string {
   return `sha256:${createHash("sha256").update(key).digest("hex")}`;
+}
+
+// Gives back what a limiter spent for this key (same hashing as the limit call).
+export async function resetRateLimitTokens(
+  limiter: { resetUsedTokens(key: string): Promise<void> },
+  key: string,
+): Promise<void> {
+  await limiter.resetUsedTokens(providerRateLimitKey(key));
 }
 
 export async function limitWithFailurePolicy(
@@ -22,6 +32,9 @@ export async function limitWithFailurePolicy(
 ): Promise<RateLimitResult> {
   try {
     const result = await limiter.limit(providerRateLimitKey(key));
+    // Upstash answers success when its own timeout wins the race. That is a Redis
+    // failure, not an allowed request, so it follows the same policy as an error.
+    if (result.reason === "timeout") throw new Error("Rate limiter timed out");
     return { success: result.success, reset: result.reset };
   } catch (error) {
     logServerError(error, {
@@ -32,6 +45,6 @@ export async function limitWithFailurePolicy(
       },
       extra: { keyLength: key.length, message: logMessage },
     });
-    return { success: failOpen, reset: Date.now() + 60000 };
+    return { success: failOpen, reset: Date.now() + 60000, unavailable: true };
   }
 }

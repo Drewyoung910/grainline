@@ -48,9 +48,6 @@ export default async function FollowingPage({
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
-      <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
-        ← My Account
-      </Link>
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display page-title">Makers You Follow</h1>
         <Link

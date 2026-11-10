@@ -4,12 +4,12 @@
 import * as React from "react";
 import { Suspense } from "react";
 import { flushSync } from "react-dom";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import GiftNoteSection from "@/components/GiftNoteSection";
 import ShippingAddressForm from "@/components/ShippingAddressForm";
 import ShippingRateSelector from "@/components/ShippingRateSelector";
-import EmbeddedCheckoutPanel from "@/components/EmbeddedCheckoutPanel";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
 import {
   clearAnonymousCart,
@@ -19,7 +19,11 @@ import {
   type AnonymousCartItem,
 } from "@/lib/anonymousCart";
 import {
+  CART_GIFTS_KEY,
+  clearCartGiftNotes,
   clearCartSessionStorage,
+  readCartSessionJson,
+  writeCartSessionJson,
 } from "@/lib/cartSessionStorage";
 import { LOCAL_ACCOUNT_STATE_CLEARED_EVENT } from "@/lib/localAccountState";
 import { mergeAnonymousCartItemsToAccount } from "@/lib/anonymousCartMerge";
@@ -27,11 +31,24 @@ import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { heldCheckoutFromResume, type HeldCheckout } from "@/lib/cartCheckoutHold";
+import { effectiveCartGiftSelection, type CartGiftSelection } from "@/lib/cartGiftSelection";
 import { ShoppingBag } from "@/components/icons";
 import RollingAmount from "@/components/RollingAmount";
 import RollingNumber from "@/components/RollingNumber";
 import { useToast } from "@/components/Toast";
 import { useQuantitySteps } from "@/lib/useQuantitySteps";
+
+// Keep Stripe.js out of ordinary browsing and cart-prefetch traffic. The
+// payment integration is fetched only after the buyer reaches payment.
+const EmbeddedCheckoutPanel = dynamic(() => import("@/components/EmbeddedCheckoutPanel"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-md border border-neutral-200 bg-[#F7F5F0] p-4 text-sm text-neutral-600">
+      Loading secure checkout...
+    </div>
+  ),
+});
 
 const QUANTITY_STEP_CLASS =
   "inline-flex size-9 touch-manipulation items-center justify-center text-base text-neutral-700 transition-colors hover:bg-[#EFEAE0] aria-disabled:cursor-not-allowed aria-disabled:text-neutral-300 aria-disabled:hover:bg-transparent [@media(pointer:coarse)]:size-11";
@@ -96,7 +113,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
         <p className="text-sm text-neutral-500 max-w-sm mx-auto mb-6">
-          Pieces you save will appear here.
+          Pieces you add to your cart will appear here.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {children}
@@ -150,11 +167,6 @@ type Group = {
   currency: string;
   items: CartItem[];
   subtotalCents: number;
-};
-
-type GiftForm = {
-  giftNote: string;
-  giftWrapping: boolean;
 };
 
 type CheckoutStep = "review" | "address" | "shipping" | "payment";
@@ -251,16 +263,20 @@ async function mergeAnonymousCartIntoAccount(items: AnonymousCartItem[]): Promis
 
 async function rollbackCheckoutSessions(sessionIds: string[]) {
   const uniqueSessionIds = [...new Set(sessionIds.filter(Boolean))];
-  if (uniqueSessionIds.length === 0) return;
+  if (uniqueSessionIds.length === 0) return true;
   try {
-    await fetch("/api/cart/checkout/rollback", {
+    const response = await fetch("/api/cart/checkout/rollback", {
       method: "POST",
       keepalive: true,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionIds: uniqueSessionIds }),
     });
+    if (!response.ok) return false;
+    const result = await response.json().catch(() => null);
+    return result?.ok === true;
   } catch {
     // Best effort; the Stripe expiration webhook is still a fallback.
+    return false;
   }
 }
 
@@ -285,8 +301,24 @@ function CartPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
 
+  // A checkout this buyer left open, which still holds their pieces. Looked up
+  // before the first paint so a held piece never flashes as out of stock.
+  const [heldCheckout, setHeldCheckout] = React.useState<HeldCheckout | null>(null);
+  const [checkingHeldCheckout, setCheckingHeldCheckout] = React.useState(
+    () => searchParams.get("step") !== "payment",
+  );
+  const [cancellingHeldCheckout, setCancellingHeldCheckout] = React.useState(false);
+
   // per-seller gift state
-  const [giftBySeller, setGiftBySeller] = React.useState<Record<string, GiftForm>>({});
+  const [giftBySeller, setGiftBySeller] = React.useState<Record<string, CartGiftSelection>>({});
+  const [giftStorageLoaded, setGiftStorageLoaded] = React.useState(false);
+  React.useEffect(() => {
+    setGiftBySeller(readCartSessionJson<Record<string, CartGiftSelection>>(CART_GIFTS_KEY, {}));
+    setGiftStorageLoaded(true);
+  }, []);
+  React.useEffect(() => {
+    if (giftStorageLoaded) writeCartSessionJson(CART_GIFTS_KEY, giftBySeller);
+  }, [giftBySeller, giftStorageLoaded]);
 
   // Checkout step state
   const [step, setStep] = React.useState<CheckoutStep>("review");
@@ -303,28 +335,17 @@ function CartPage() {
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
-  // The step entrance plays briefly when the step changes, not whenever the
-  // cart re-renders after a reload.
-  const [animateStep, setAnimateStep] = React.useState(false);
-  const previousStepRef = React.useRef(step);
+  // The step entrance plays when the step changes, not on a reload. The main
+  // element is keyed by step, so the entrance is part of that step's first
+  // paint and never restarts over content already on screen.
+  const [loadedStep] = React.useState(step);
+  const [stepChanged, setStepChanged] = React.useState(false);
+  if (step !== loadedStep && !stepChanged) setStepChanged(true);
   React.useEffect(() => {
-    if (previousStepRef.current === step) return;
-    previousStepRef.current = step;
-    setAnimateStep(false);
-    const frame = window.requestAnimationFrame(() => setAnimateStep(true));
-    return () => window.cancelAnimationFrame(frame);
-  }, [step]);
-  React.useEffect(() => {
-    if (!animateStep) return;
-    const main = document.querySelector<HTMLElement>("main[data-cart-steps]");
-    if (main) {
-      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      const top = Math.max(0, main.getBoundingClientRect().top + window.scrollY - 12);
-      window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
-    }
-    const timer = window.setTimeout(() => setAnimateStep(false), 700);
-    return () => window.clearTimeout(timer);
-  }, [animateStep]);
+    if (!stepChanged) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    document.querySelector("main[data-cart-steps]")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+  }, [stepChanged, step]);
 
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
@@ -367,11 +388,13 @@ function CartPage() {
       const resumedCompletedIds = Array.isArray(data.completedSessionIds) ? data.completedSessionIds : [];
       if (data.shippingAddress && resumedSecrets.length === 0 && resumedCompletedIds.length > 0) {
         clearCartSessionStorage({ includeAddress: true });
+        clearCartGiftNotes();
         const params = new URLSearchParams({
           session_id: resumedCompletedIds[resumedCompletedIds.length - 1],
           session_ids: resumedCompletedIds.join(","),
         });
-        router.push(`/checkout/success?${params.toString()}`);
+        // Replace, or Back from the receipt lands here and bounces straight back.
+        router.replace(`/checkout/success?${params.toString()}`);
         return true;
       }
       if (!data.shippingAddress || resumedSecrets.length === 0) return false;
@@ -388,6 +411,46 @@ function CartPage() {
       return false;
     } finally {
       if (!signal.aborted) setResumingCheckout(false);
+    }
+  }
+
+  async function findHeldCheckout(signal: AbortSignal) {
+    try {
+      const res = await fetch("/api/cart/checkout/resume?open=1", { cache: "no-store", signal });
+      if (!res.ok) return;
+      const held = heldCheckoutFromResume(await res.json());
+      if (!held) return;
+      setHeldCheckout(held);
+      setStep("review");
+      router.replace("/cart", { scroll: false });
+    } catch {
+      // The cart still works without this; a second checkout is refused anyway.
+    } finally {
+      if (!signal.aborted) setCheckingHeldCheckout(false);
+    }
+  }
+
+  async function continueHeldCheckout() {
+    const resumed = await resumeOpenCartCheckout(new AbortController().signal);
+    setHeldCheckout(null);
+    if (!resumed) await load();
+  }
+
+  async function cancelHeldCheckout() {
+    if (!heldCheckout || cancellingHeldCheckout) return;
+    setCancellingHeldCheckout(true);
+    setError(null);
+    try {
+      const released = await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+      if (!released) {
+        setError("We couldn't cancel that checkout yet. Your pieces are still held; try again shortly.");
+        return;
+      }
+      setHeldCheckout(null);
+      await load();
+      notifyCartUpdated();
+    } finally {
+      setCancellingHeldCheckout(false);
     }
   }
 
@@ -410,6 +473,7 @@ function CartPage() {
         }
       });
     }
+    if (urlStep !== "payment") void findHeldCheckout(controller.signal);
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -421,12 +485,34 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
+      setHeldCheckout(null);
+      setGiftBySeller({});
       setStep("review");
     }
 
     window.addEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, handleLocalAccountStateCleared);
     return () => window.removeEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, handleLocalAccountStateCleared);
   }, [clearCompletedCheckoutSessions]);
+
+  // Back and Forward change the URL without remounting, so the step follows it.
+  const urlStep = searchParams.get("step");
+  const lastUrlStepRef = React.useRef(urlStep);
+  React.useEffect(() => {
+    if (lastUrlStepRef.current === urlStep) return;
+    lastUrlStepRef.current = urlStep;
+    const stepFromUrl: CheckoutStep =
+      urlStep === "address" || urlStep === "shipping" || urlStep === "payment" ? urlStep : "review";
+    if (stepFromUrl === step) return;
+    if (step === "payment") {
+      // Leaving payment must release the hold, as "Back to shipping" does. Once a
+      // payment has gone through, that button refuses, so stay put.
+      if (completedSessionIds.size > 0) router.replace("/cart?step=payment", { scroll: false });
+      void handleReturnToShippingFromPayment();
+      return;
+    }
+    setStep(stepFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlStep]);
 
   // Safety guards
   React.useEffect(() => {
@@ -526,6 +612,15 @@ function CartPage() {
 
     setPendingQuantities((current) => new Map(current).set(cartItemId, quantity));
     try {
+      // Changing the cart ends the checkout built from it. Release its hold
+      // first, or the update is judged against stock this buyer is holding.
+      if (heldCheckout) {
+        const released = await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        if (!released) {
+          throw new Error("We couldn't update this cart while its checkout is still open. Try again shortly.");
+        }
+        setHeldCheckout(null);
+      }
       const res = await fetch("/api/cart/update", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -601,6 +696,14 @@ function CartPage() {
     if (changedItems.length === 0) return;
     setError(null);
     try {
+      // The open checkout has the old price, and it holds the stock this is judged against.
+      if (heldCheckout) {
+        const released = await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        if (!released) {
+          throw new Error("We couldn't update prices while this checkout is still open. Try again shortly.");
+        }
+        setHeldCheckout(null);
+      }
       for (const item of changedItems) {
         const res = await fetch("/api/cart/update", {
           method: "POST",
@@ -622,7 +725,7 @@ function CartPage() {
     }
   }
 
-  if (loading && !hasLoadedCart) return <CartLoadingSkeleton />;
+  if ((loading && !hasLoadedCart) || checkingHeldCheckout) return <CartLoadingSkeleton />;
 
   // While a reload, a quantity change or a removal is in flight, quantity
   // and Remove controls wait, so two updates (and their reloads) cannot race.
@@ -723,7 +826,8 @@ function CartPage() {
   );
   const hasPriceChanged = items.some((i) => i.priceChanged && !i.variantUnavailable);
   const hasVariantUnavailable = items.some((i) => i.variantUnavailable);
-  const hasStockExceeded = items.some((i) => i.stockExceeded);
+  const heldSellerIds = new Set(heldCheckout?.sellerIds ?? []);
+  const hasStockExceeded = items.some((i) => i.stockExceeded && !heldSellerIds.has(i.listing.sellerId));
   const hasMixedCurrencies = new Set(items.map((i) => (i.listing.currency || DEFAULT_CURRENCY).toLowerCase())).size > 1;
   const cartCurrency = items[0]?.listing.currency || DEFAULT_CURRENCY;
   const hasBlockingCartChange = hasUnavailable || hasPriceChanged || hasVariantUnavailable || hasStockExceeded || hasMixedCurrencies;
@@ -736,9 +840,13 @@ function CartPage() {
             <span className="text-neutral-500">Maker:</span>{" "}
             <span className="font-medium">{g.sellerName}</span>
           </div>
-          <div className="text-sm">
-            Subtotal: <RollingAmount cents={g.subtotalCents} currency={g.currency} className="font-semibold" />
-          </div>
+          {/* With one maker this is the order subtotal below, so show it only
+              when the cart is split across makers. */}
+          {groups.length > 1 && (
+            <div className="text-sm">
+              Subtotal: <RollingAmount cents={g.subtotalCents} currency={g.currency} className="font-semibold" />
+            </div>
+          )}
         </header>
 
         <ul className="divide-y divide-neutral-200/60">
@@ -779,21 +887,25 @@ function CartPage() {
                   {!listingIsActive && (
                     <div className="text-xs text-red-600 mt-0.5">This item is no longer available</div>
                   )}
-                  {i.listing.sellerVacationMode && (
+                  {listingIsActive && i.listing.sellerVacationMode && (
                     <div className="text-xs text-amber-700 mt-0.5">Maker is on vacation</div>
                   )}
-                  {i.listing.sellerUnavailable && !i.listing.sellerVacationMode && (
+                  {listingIsActive && i.listing.sellerUnavailable && !i.listing.sellerVacationMode && (
                     <div className="text-xs text-red-600 mt-0.5">This maker is not currently accepting orders</div>
                   )}
                   {i.variantUnavailable && (
                     <div className="text-xs text-red-600 mt-0.5">Selected options are no longer available</div>
                   )}
                   {i.stockExceeded && !i.variantUnavailable && (
-                    <div className="text-xs text-red-600 mt-0.5">
-                      {i.listing.maxQuantity && i.listing.maxQuantity > 0
-                        ? `Only ${i.listing.maxQuantity} currently available`
-                        : "This item is currently out of stock"}
-                    </div>
+                    heldSellerIds.has(i.listing.sellerId) ? (
+                      <div className="text-xs text-neutral-600 mt-0.5">Held for you in your checkout</div>
+                    ) : (
+                      <div className="text-xs text-red-600 mt-0.5">
+                        {i.listing.maxQuantity && i.listing.maxQuantity > 0
+                          ? `Only ${i.listing.maxQuantity} currently available`
+                          : "This item is currently out of stock"}
+                      </div>
+                    )
                   )}
 
                     <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
@@ -868,7 +980,7 @@ function CartPage() {
 
                     <button
                       type="button"
-                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50 disabled:opacity-50"
+                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-neutral-500 underline underline-offset-2 hover:bg-[#EFEAE0] hover:text-neutral-800 disabled:opacity-50"
                       disabled={cartBusy}
                       onClick={() => removeItem(i.id)}
                     >
@@ -891,8 +1003,14 @@ function CartPage() {
           <GiftNoteSection
             offersGiftWrapping={!!(g.items[0]?.listing.offersGiftWrapping)}
             giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
-            giftNote={giftBySeller[g.sellerId]?.giftNote ?? ""}
-            giftWrapping={giftBySeller[g.sellerId]?.giftWrapping ?? false}
+            giftNote={effectiveCartGiftSelection(
+              giftBySeller[g.sellerId],
+              !!g.items[0]?.listing.offersGiftWrapping,
+            ).giftNote}
+            giftWrapping={effectiveCartGiftSelection(
+              giftBySeller[g.sellerId],
+              !!g.items[0]?.listing.offersGiftWrapping,
+            ).giftWrapping}
             currency={g.currency}
             onChange={(note, wrapping) =>
               setGiftBySeller((prev) => ({
@@ -911,7 +1029,11 @@ function CartPage() {
     return sum + (rate ? rate.amountCents : 0);
   }, 0);
   const totalGiftWrappingCents = groups.reduce((sum, g) => {
-    if (!giftBySeller[g.sellerId]?.giftWrapping) return sum;
+    const gift = effectiveCartGiftSelection(
+      giftBySeller[g.sellerId],
+      !!g.items[0]?.listing.offersGiftWrapping,
+    );
+    if (!gift.giftWrapping) return sum;
     return sum + (g.items[0]?.listing.giftWrappingPriceCents ?? 0);
   }, 0);
 
@@ -938,7 +1060,10 @@ function CartPage() {
         const rate = selectedRates[g.sellerId];
         if (!rate) throw new Error(`No shipping rate selected for ${g.sellerName}`);
 
-        const gift = giftBySeller[g.sellerId];
+        const gift = effectiveCartGiftSelection(
+          giftBySeller[g.sellerId],
+          !!g.items[0]?.listing.offersGiftWrapping,
+        );
 
         const res = await fetch("/api/cart/checkout-seller", {
           method: "POST",
@@ -948,8 +1073,8 @@ function CartPage() {
             checkoutGroupId,
             shippingAddress,
             selectedRate: rate,
-            giftNote: gift?.giftNote ?? "",
-            giftWrapping: gift?.giftWrapping ?? false,
+            giftNote: gift.giftNote,
+            giftWrapping: gift.giftWrapping,
           }),
         });
         const data = await res.json();
@@ -1029,7 +1154,7 @@ function CartPage() {
   const currentStepIndex = Math.max(0, checkoutSteps.findIndex((entry) => entry.key === step));
 
   return (
-    <main data-cart-steps={animateStep ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+    <main key={step} data-scroll-anchor data-cart-steps={stepChanged ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
       {/* A restrained underline moves between steps. It keeps the progress
@@ -1063,6 +1188,30 @@ function CartPage() {
       {/* Step 1: Review */}
       {step === "review" && (
         <>
+          {heldCheckout && (
+            <div className="flex flex-col gap-3 rounded-md bg-[#EFEAE0] p-4 text-sm text-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+              <span>You have a checkout in progress. Your pieces are held for you until it finishes or expires.</span>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void continueHeldCheckout()}
+                  disabled={resumingCheckout || cancellingHeldCheckout}
+                  className="btn btn-primary btn-sm"
+                >
+                  Continue to payment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void cancelHeldCheckout()}
+                  disabled={resumingCheckout || cancellingHeldCheckout}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {cancellingHeldCheckout ? "Cancelling..." : "Cancel checkout"}
+                </button>
+              </div>
+            </div>
+          )}
+
           {sellerSections}
 
           <div className="flex items-center justify-end gap-4">
@@ -1106,27 +1255,21 @@ function CartPage() {
             </div>
           )}
 
-          {needsSignIn && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Sign in to keep these items and checkout.
-            </div>
-          )}
-
           {needsSignIn ? (
             <Link
               href={signInPathForRedirect("/cart")}
               className="btn btn-primary w-full sm:w-auto"
             >
-              Sign in to checkout →
+              Sign in to check out
             </Link>
-          ) : (
+          ) : heldCheckout ? null : (
             <button
               onClick={() => {
                 // Waits for a running save without dimming, so the button
                 // doesn't blink on every quantity press.
                 if (cartBusy) return;
                 setStep("address");
-                router.replace("/cart?step=address", { scroll: false });
+                router.push("/cart?step=address", { scroll: false });
               }}
               disabled={items.length === 0 || hasBlockingCartChange}
               aria-busy={cartBusy || undefined}
@@ -1148,7 +1291,7 @@ function CartPage() {
             isSignedIn={!needsSignIn}
             onBack={() => {
               setStep("review");
-              router.replace("/cart", { scroll: false });
+              router.push("/cart", { scroll: false });
             }}
             onConfirm={(address) => {
               setShippingAddress(address);
@@ -1158,7 +1301,7 @@ function CartPage() {
               setCurrentPaymentIndex(0);
               clearCompletedCheckoutSessions();
               setStep("shipping");
-              router.replace("/cart?step=shipping", { scroll: false });
+              router.push("/cart?step=shipping", { scroll: false });
             }}
           />
         </div>
@@ -1181,7 +1324,7 @@ function CartPage() {
                 setSelectedRates({});
                 clearCartSessionStorage();
                 setStep("address");
-                router.replace("/cart?step=address", { scroll: false });
+                router.push("/cart?step=address", { scroll: false });
               }}
               className="text-sm text-neutral-500 hover:text-neutral-700 whitespace-nowrap flex-shrink-0"
             >
@@ -1220,7 +1363,10 @@ function CartPage() {
                   <span className="text-neutral-600">Items</span>
                   <span className="font-medium">{formatCurrencyCents(grandTotal, cartCurrency)}</span>
                 </div>
-                {groups.some((g) => giftBySeller[g.sellerId]?.giftWrapping) && (
+                {groups.some((g) => effectiveCartGiftSelection(
+                  giftBySeller[g.sellerId],
+                  !!g.items[0]?.listing.offersGiftWrapping,
+                ).giftWrapping) && (
                   <div className="flex justify-between text-sm text-neutral-600">
                     <span>Gift wrapping</span>
                     <RollingAmount cents={totalGiftWrappingCents} currency={cartCurrency} />
@@ -1262,7 +1408,7 @@ function CartPage() {
                   setSelectedRates({});
                   clearCartSessionStorage();
                   setStep("address");
-                  router.replace("/cart?step=address", { scroll: false });
+                  router.push("/cart?step=address", { scroll: false });
                 }}
                 className="w-full text-sm text-neutral-500 hover:text-neutral-700"
               >
@@ -1309,6 +1455,7 @@ function CartPage() {
                 } else {
                   // All payments complete — clean up and redirect
                   clearCartSessionStorage({ includeAddress: true });
+                  clearCartGiftNotes();
                   const sessionIds = [
                     ...Array.from(completedSessionIds),
                     ...clientSecrets.map((entry) => entry.sessionId),
@@ -1317,7 +1464,7 @@ function CartPage() {
                     session_id: sessionIds[sessionIds.length - 1],
                     session_ids: sessionIds.join(","),
                   });
-                  router.push(`/checkout/success?${params.toString()}`);
+                  router.replace(`/checkout/success?${params.toString()}`);
                 }
               }}
             />

@@ -233,7 +233,12 @@ export async function POST(
         { status: 400 },
       );
     }
-  } catch {
+  } catch (error) {
+    logServerError(error, {
+      source: "case_evidence_processing",
+      level: "warning",
+      extra: { contentType: file.type, size: file.size },
+    });
     return privateJson({ error: "Image processing failed" }, { status: 400 });
   }
 

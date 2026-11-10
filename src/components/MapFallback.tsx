@@ -34,6 +34,7 @@ export default function MapFallback({
         {osmHref && (
           <a href={osmHref} target="_blank" rel="noopener noreferrer" className="font-medium text-neutral-900 underline underline-offset-2 hover:text-neutral-600">
             Open in OpenStreetMap
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         )}
         {links.map((link) => (

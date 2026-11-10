@@ -73,7 +73,7 @@ export function publishListingBlockReason(listing: ListingActionState) {
   if (listing.archivedAt) {
     return "Archived listings cannot be republished.";
   }
-  if (listing.rejectionReason === STAFF_REMOVAL_REJECTION_REASON) {
+  if (listing.rejectionReason?.startsWith(STAFF_REMOVAL_REJECTION_REASON)) {
     return "This listing was removed by Grainline staff and cannot be resubmitted.";
   }
   if (listing.listingType === ListingType.IN_STOCK && (listing.stockQuantity ?? 0) <= 0) {

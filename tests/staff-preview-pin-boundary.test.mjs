@@ -15,6 +15,12 @@ test("listing staff preview requires the session-bound admin PIN", () => {
   assert.match(page, /userId,\s*sessionId,/s);
   assert.match(page, /staffPreview,\s*role: me\?\.role,/s);
   assert.doesNotMatch(page, /staffPreview: staffPreviewRequested/);
+  assert.match(page, /!isOwnListing && !staffPreview && sellerUserId/);
+  assert.match(page, /staffPreview=\{staffPreview\}/);
+
+  const reviews = source("src/components/ReviewsSection.tsx");
+  assert.match(reviews, /staffPreview = false/);
+  assert.match(reviews, /!viewerIsSeller &&\s*!staffPreview &&\s*meId !== r\.reviewerId/s);
 });
 
 test("reported-thread page checks the PIN before querying users or messages", () => {

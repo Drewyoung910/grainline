@@ -118,9 +118,13 @@ function refundClaimMetadata(
   };
 }
 
+// Stripe answered, and the refund did not happen. Unlike a dropped connection,
+// retrying the same request cannot change that.
+export class StripeRefundTerminalStatusError extends Error {}
+
 function assertCreatedRefundUsable(refund: CreatedRefund) {
   if (refund.status === "failed" || refund.status === "canceled") {
-    throw new Error(
+    throw new StripeRefundTerminalStatusError(
       `Stripe refund ${refund.id} returned ${refund.status} status.`,
     );
   }

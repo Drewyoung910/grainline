@@ -25,9 +25,15 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
+import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
-import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import {
+  firstSearchParams,
+  normalizeSearchQueryParameter,
+  parseBoundedDecimalParam,
+  parseBoundedPositiveIntParam,
+} from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
 import {
@@ -36,6 +42,8 @@ import {
   type SellerPublicListingCard,
 } from "@/lib/sellerProfilePublicAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
+import { listingSearchWordConditions, searchWordForms } from "@/lib/searchWordForms";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -140,12 +148,13 @@ function scoreListings(listings: ListingRow[], query?: string) {
 
       // Per-word scoring
       for (const term of searchTerms) {
+        const forms = searchWordForms(term);
         // Title matches (highest weight)
-        if (titleLower.includes(term)) textScore += 0.2;
+        if (forms.some((form) => titleLower.includes(form))) textScore += 0.2;
         // Tag matches (medium weight)
-        if (tagsLower.includes(term)) textScore += 0.25;
-        else if (tagsLower.some((t) => t.includes(term))) textScore += 0.1;
-        // Description matches (low weight)
+        if (forms.some((form) => tagsLower.includes(form))) textScore += 0.25;
+        else if (tagsLower.some((t) => forms.some((form) => t.includes(form)))) textScore += 0.1;
+        // Description matches (low weight); the typed word only, as in the query
         if (descLower.includes(term)) textScore += 0.05;
       }
 
@@ -168,12 +177,12 @@ export async function generateMetadata({
 }: {
   searchParams: Promise<Search>;
 }): Promise<Metadata> {
-  const sp = await searchParams;
-  const q = sp.q?.trim() ?? "";
+  const sp = firstSearchParams(await searchParams);
+  const q = normalizeSearchQueryParameter(sp.q, 200);
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
-  const hasTags = Array.isArray(sp.tag) ? sp.tag.length > 0 : Boolean(sp.tag);
+  let page = parseBoundedPositiveIntParam(sp.page, 1, 500);
+  const hasTags = Boolean(sp.tag);
   const hasIndexBlockingFilters = Boolean(
     q ||
     sp.min ||
@@ -188,6 +197,13 @@ export async function generateMetadata({
     (sp.view && sp.view !== "grid") ||
     hasTags,
   );
+  if (!hasIndexBlockingFilters && page > 1) {
+    // A page past the end shows the last page, so it must not claim its own URL.
+    const total = await prisma.listing.count({
+      where: publicListingWhere(categoryFilter ? { category: categoryFilter as Category } : {}),
+    });
+    page = Math.min(page, Math.max(1, Math.ceil(total / PAGE_SIZE)));
+  }
   const canonicalParams = new URLSearchParams();
   if (categoryFilter) canonicalParams.set("category", categoryFilter.toLowerCase());
   if (!hasIndexBlockingFilters && page > 1) canonicalParams.set("page", String(page));
@@ -198,14 +214,14 @@ export async function generateMetadata({
   if (q) {
     const title = `${q} — Handmade Woodworking | Grainline`;
     const description = `Find handmade woodworking items matching "${q}" on Grainline`;
-    return { title, description, robots, openGraph: { title, description, url: canonical }, alternates: { canonical } };
+    return { title: { absolute: title }, description, robots, openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() }, alternates: { canonical } };
   }
   if (categoryFilter) {
     const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
     const pageSuffix = !hasIndexBlockingFilters && page > 1 ? ` - Page ${page}` : "";
     const title = `Handmade ${label}${pageSuffix} | Grainline`;
     const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
-    return { title, description, robots, openGraph: { title, description, url: canonical }, alternates: { canonical } };
+    return { title: { absolute: title }, description, robots, openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() }, alternates: { canonical } };
   }
   const pageSuffix = !hasIndexBlockingFilters && page > 1 ? ` - Page ${page}` : "";
   return {
@@ -215,6 +231,7 @@ export async function generateMetadata({
       title: "Browse Handmade Woodworking",
       description: "Browse thousands of unique handmade woodworking pieces from local artisans",
       url: canonical,
+      images: defaultOpenGraphImages(),
     },
     robots,
     alternates: { canonical },
@@ -236,7 +253,8 @@ async function BrowseContent({
 }: {
   searchParams: Promise<Search>;
 }) {
-  const sp = await searchParams;
+  const rawParams = await searchParams;
+  const sp = firstSearchParams(rawParams);
 
   // Resolve user early for block filtering
   const { userId } = await auth();
@@ -247,7 +265,7 @@ async function BrowseContent({
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const q = truncateText(sp.q ?? "", 200);
+  const q = normalizeSearchQueryParameter(sp.q, 200);
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
   const min = sp.min ?? "";
   const max = sp.max ?? "";
@@ -255,7 +273,7 @@ async function BrowseContent({
   const sort = sortRaw || (q ? "relevant" : "newest");
   const view = sp.view === "list" ? "list" : "grid";
 
-  const rawTag = sp.tag;
+  const rawTag = rawParams.tag;
   const selectedTags = normalizeTags(
     rawTag == null ? [] : Array.isArray(rawTag) ? rawTag : [rawTag],
     10,
@@ -304,7 +322,7 @@ async function BrowseContent({
   if (q) {
     const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
     if (searchWords.length > 0) {
-      const lowerWords = searchWords.map((word) => word.toLowerCase());
+      const lowerWords = searchWords.flatMap((word) => searchWordForms(word));
       partialTagMatches = popularTags
         .filter((tag) => lowerWords.some((word) => tag.toLowerCase().includes(word)))
         .slice(0, 20);
@@ -320,15 +338,10 @@ async function BrowseContent({
     // Split query into individual words for broad matching.
     // "walnut dining table" matches listings with ANY of those words
     // in title, tags, description, or seller name — not just exact phrase.
+    // Each word also matches its likely singular in titles and tags, so "tables"
+    // finds "table".
     const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
-    const wordConditions: Prisma.ListingWhereInput[] = searchWords.flatMap((word) => [
-      { title: { contains: word, mode: "insensitive" as const } },
-      { description: { contains: word, mode: "insensitive" as const } },
-    ]);
-    // Tag matching: check each word against tags individually
-    const tagWordConditions: Prisma.ListingWhereInput[] = searchWords.map((word) => ({
-      tags: { has: word.toLowerCase() },
-    }));
+    const wordConditions: Prisma.ListingWhereInput[] = listingSearchWordConditions(searchWords);
     const sellerNameCondition: Prisma.ListingWhereInput = {
       OR: normalizedDisplayNameQuery
         ? [
@@ -346,10 +359,8 @@ async function BrowseContent({
     where.OR = [
       // Full phrase match (highest relevance, scored in JS)
       { title: { contains: q, mode: "insensitive" as const } },
-      // Individual word matches in title and description
+      // Individual word matches in title, description and tags
       ...wordConditions,
-      // Individual word matches in tags
-      ...tagWordConditions,
       // Partial tag matches (existing logic)
       ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
       // Seller name match
@@ -473,6 +484,95 @@ async function BrowseContent({
     return `/browse?${p.toString()}`;
   }
 
+  // Build removable filters before the empty-results return too; otherwise a
+  // visitor can see that filters caused zero results but cannot remove them.
+  function currentBrowseParams() {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (min) p.set("min", min);
+    if (max) p.set("max", max);
+    if (sort !== (q ? "relevant" : "newest")) p.set("sort", sort);
+    if (categoryFilter) p.set("category", categoryFilter);
+    if (typeFilter) p.set("type", typeFilter);
+    if (shipsFilter) p.set("ships", String(shipsFilter));
+    if (ratingFilter) p.set("rating", String(ratingFilter));
+    if (hasLocationFilter) {
+      p.set("lat", String(latFilter));
+      p.set("lng", String(lngFilter));
+      p.set("radius", String(radiusFilter));
+    }
+    for (const t of selectedTags) p.append("tag", t);
+    if (view !== "grid") p.set("view", view);
+    return p;
+  }
+  function browseHrefWithout(keys: string[], tag?: string) {
+    const p = currentBrowseParams();
+    for (const key of keys) p.delete(key);
+    if (tag !== undefined) {
+      const remaining = p.getAll("tag").filter((t) => t !== tag);
+      p.delete("tag");
+      for (const t of remaining) p.append("tag", t);
+    }
+    const query = p.toString();
+    return query ? `/browse?${query}` : "/browse";
+  }
+  const appliedMinLabel = priceFilter.gte !== undefined
+    ? formatCurrencyCents(priceFilter.gte, DEFAULT_CURRENCY)
+    : null;
+  const appliedMaxLabel = priceFilter.lte !== undefined
+    ? formatCurrencyCents(priceFilter.lte, DEFAULT_CURRENCY)
+    : null;
+  const priceChipLabel = appliedMinLabel && appliedMaxLabel
+    ? `${appliedMinLabel}–${appliedMaxLabel}`
+    : appliedMinLabel
+      ? `${appliedMinLabel} and up`
+      : appliedMaxLabel
+        ? `Under ${appliedMaxLabel}`
+        : "";
+  const activeFilterChips: Array<{ key: string; label: string; href: string }> = [
+    ...(categoryFilter
+      ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]
+      : []),
+    ...(typeFilter
+      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In stock" : "Made to order", href: browseHrefWithout(["type"]) }]
+      : []),
+    ...(shipsFilter
+      ? [{ key: "ships", label: `Ships within ${shipsFilter} days`, href: browseHrefWithout(["ships"]) }]
+      : []),
+    ...(ratingFilter
+      ? [{ key: "rating", label: `${ratingFilter}+ stars`, href: browseHrefWithout(["rating"]) }]
+      : []),
+    ...(hasLocationFilter
+      ? [{ key: "location", label: `Within ${radiusFilter} mi`, href: browseHrefWithout(["lat", "lng", "radius"]) }]
+      : []),
+    ...(priceChipLabel
+      ? [{ key: "price", label: priceChipLabel, href: browseHrefWithout(["min", "max"]) }]
+      : []),
+    ...selectedTags.map((tag) => ({
+      key: `tag:${tag}`,
+      label: humanizeSearchTag(tag),
+      href: browseHrefWithout([], tag),
+    })),
+  ];
+  const clearFiltersHref = browseHrefWithout(
+    ["category", "type", "ships", "rating", "lat", "lng", "radius", "min", "max", "tag"],
+  );
+  const activeFiltersRow = activeFilterChips.length > 0 && (
+    <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
+      {activeFilterChips.map((chip) => (
+        <FilterChipLink key={chip.key} href={chip.href} label={chip.label} />
+      ))}
+      {activeFilterChips.length > 1 && (
+        <Link
+          href={clearFiltersHref}
+          className="text-[13.5px] text-neutral-600 underline underline-offset-[3px] hover:text-neutral-900"
+        >
+          Clear all
+        </Link>
+      )}
+    </div>
+  );
+
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
     const featuredRows = await fetchListings(
@@ -511,6 +611,8 @@ async function BrowseContent({
               </p>
             </div>
 
+            {activeFiltersRow}
+
             {visiblePopularTags.length > 0 && (
               <div>
                 <div className="font-medium mb-2">Try searching for:</div>
@@ -521,7 +623,7 @@ async function BrowseContent({
                       href={`/browse?q=${encodeURIComponent(t)}`}
                       className="rounded-full bg-[#EFEAE0] px-3 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                     >
-                      #{t}
+                      {humanizeSearchTag(t)}
                     </Link>
                   ))}
                 </div>
@@ -531,7 +633,7 @@ async function BrowseContent({
             {featured.length > 0 && (
               <div>
                 <div className="font-medium mb-3">Featured listings</div>
-                <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-8">
+                <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
                   {featured.map((listing) => (
                     <GridCard key={listing.id} l={listing} />
                   ))}
@@ -616,23 +718,23 @@ async function BrowseContent({
 
     return (
       <div className="relative flex">
-        <div className="photo-save-surface relative shrink-0 w-36 sm:w-44 aspect-[4/5] overflow-hidden bg-neutral-100">
+        <div className="photo-save-surface relative shrink-0 w-28 sm:w-40 aspect-[4/5] overflow-hidden rounded-xl bg-neutral-100">
           <Link href={publicListingPath(l.id, l.title)} className="block h-full w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img alt={l.photos[0]?.altText ?? l.title} src={img} loading="lazy" width={176} height={220} className="h-full w-full object-cover" />
           </Link>
           <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
         </div>
-        <div className="flex-1 min-w-0 p-4 pr-12">
-          <div className="flex items-start justify-between gap-3">
-            <Link href={publicListingPath(l.id, l.title)} className="font-medium hover:underline leading-snug">
+        <div className="flex-1 min-w-0 pl-4 pt-1">
+          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+            <Link href={publicListingPath(l.id, l.title)} className="min-w-0 break-words font-medium hover:underline leading-snug">
               {l.title}
             </Link>
             <div className="shrink-0 font-medium">{formatCurrencyCents(l.priceCents, l.currency)}</div>
           </div>
 
           <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-            <Link href={publicSellerPath(l.sellerId, l.seller.displayName)} className="text-xs text-neutral-500 hover:underline">
+            <Link href={publicSellerPath(l.sellerId, l.seller.displayName)} className="text-[13px] text-neutral-500 hover:underline">
               {sellerName}
             </Link>
             <GuildBadge level={l.seller.guildLevel} showLabel={false} size={22} />
@@ -651,7 +753,7 @@ async function BrowseContent({
             </div>
           )}
 
-          <div className="mt-1.5 text-xs text-neutral-500">
+          <div className="mt-1.5 text-[13px] text-neutral-500">
             {isInStock ? (
               outOfStock ? (
                 <span className="text-red-600">Out of Stock</span>
@@ -675,78 +777,6 @@ async function BrowseContent({
     );
   }
 
-  // Active filters as removable chips (motion prototype): each chip links to
-  // the same results without that filter; new chips pop in.
-  function currentBrowseParams() {
-    const p = new URLSearchParams();
-    if (q) p.set("q", q);
-    if (min) p.set("min", min);
-    if (max) p.set("max", max);
-    if (sort !== (q ? "relevant" : "newest")) p.set("sort", sort);
-    if (categoryFilter) p.set("category", categoryFilter);
-    if (typeFilter) p.set("type", typeFilter);
-    if (shipsFilter) p.set("ships", String(shipsFilter));
-    if (ratingFilter) p.set("rating", String(ratingFilter));
-    if (hasLocationFilter) {
-      p.set("lat", String(latFilter));
-      p.set("lng", String(lngFilter));
-      p.set("radius", String(radiusFilter));
-    }
-    for (const t of selectedTags) p.append("tag", t);
-    if (view !== "grid") p.set("view", view);
-    return p;
-  }
-  function browseHrefWithout(keys: string[], tag?: string) {
-    const p = currentBrowseParams();
-    for (const key of keys) p.delete(key);
-    if (tag !== undefined) {
-      const remaining = p.getAll("tag").filter((t) => t !== tag);
-      p.delete("tag");
-      for (const t of remaining) p.append("tag", t);
-    }
-    const query = p.toString();
-    return query ? `/browse?${query}` : "/browse";
-  }
-  // Label the price chip from the amounts actually applied, not the raw URL
-  // text (?min=abc applies nothing and shows no chip).
-  const appliedMinLabel = priceFilter.gte !== undefined ? formatCurrencyCents(priceFilter.gte, DEFAULT_CURRENCY) : null;
-  const appliedMaxLabel = priceFilter.lte !== undefined ? formatCurrencyCents(priceFilter.lte, DEFAULT_CURRENCY) : null;
-  const priceChipLabel = appliedMinLabel && appliedMaxLabel
-    ? `${appliedMinLabel}–${appliedMaxLabel}`
-    : appliedMinLabel
-      ? `${appliedMinLabel} and up`
-      : appliedMaxLabel
-        ? `Under ${appliedMaxLabel}`
-        : "";
-  const activeFilterChips: Array<{ key: string; label: string; href: string }> = [
-    ...(categoryFilter
-      ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]
-      : []),
-    ...(typeFilter
-      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In stock" : "Made to order", href: browseHrefWithout(["type"]) }]
-      : []),
-    ...(shipsFilter
-      ? [{ key: "ships", label: `Ships within ${shipsFilter} days`, href: browseHrefWithout(["ships"]) }]
-      : []),
-    ...(ratingFilter
-      ? [{ key: "rating", label: `${ratingFilter}+ stars`, href: browseHrefWithout(["rating"]) }]
-      : []),
-    ...(hasLocationFilter
-      ? [{ key: "location", label: `Within ${radiusFilter} mi`, href: browseHrefWithout(["lat", "lng", "radius"]) }]
-      : []),
-    ...(priceChipLabel
-      ? [{ key: "price", label: priceChipLabel, href: browseHrefWithout(["min", "max"]) }]
-      : []),
-    ...selectedTags.map((tag) => ({
-      key: `tag:${tag}`,
-      label: tag.replace(/[-_]/g, " "),
-      href: browseHrefWithout([], tag),
-    })),
-  ];
-  const clearFiltersHref = browseHrefWithout(
-    ["category", "type", "ships", "rating", "lat", "lng", "radius", "min", "max", "tag"],
-  );
-
   // ── Page render ────────────────────────────────────────────────────────────
   const activeFilterCount = [
     categoryFilter, typeFilter, shipsFilter, ratingFilter, hasLocationFilter ? "loc" : null,
@@ -768,7 +798,7 @@ async function BrowseContent({
           {/* Top bar: result count, view toggle, save search, pager */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-xl font-semibold font-display">
+              <h1 className="font-display text-3xl font-semibold [overflow-wrap:anywhere]">
                 {q ? (
                   <>Results for <span className="italic">&quot;{q}&quot;</span></>
                 ) : categoryFilter ? (
@@ -806,38 +836,27 @@ async function BrowseContent({
                     { value: "list", label: "List", href: viewToggleHref("list") },
                   ]}
                 />
-                <Pager />
+                {/* Phones use the bottom pager, so the first products stay high on the screen. */}
+                <div className="hidden md:block">
+                  <Pager />
+                </div>
               </div>
             </div>
           </div>
 
-          {activeFilterChips.length > 0 && (
-            <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
-              {activeFilterChips.map((chip) => (
-                <FilterChipLink key={chip.key} href={chip.href} label={chip.label} />
-              ))}
-              {activeFilterChips.length > 1 && (
-                <Link
-                  href={clearFiltersHref}
-                  className="text-[13.5px] text-neutral-600 underline underline-offset-[3px] hover:text-neutral-900"
-                >
-                  Clear all
-                </Link>
-              )}
-            </div>
-          )}
+          {activeFiltersRow}
 
           {/* Listings */}
           <FlipList
             className={view === "grid"
-              ? "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8"
+              ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8"
               : "space-y-4"}
             itemKey={`${view}:${listings.map((l) => l.id).join(",")}`}
           >
             {view === "grid"
               ? listings.map((l) => <GridCard key={l.id} l={l} />)
               : listings.map((l) => (
-                  <ClickTracker key={l.id} listingId={l.id} flipId={l.id} className="card-listing">
+                  <ClickTracker key={l.id} listingId={l.id} flipId={l.id} className="border-b border-stone-200/70 pb-4 last:border-b-0">
                     <ListCard l={l} />
                   </ClickTracker>
                 ))}
@@ -853,7 +872,7 @@ async function BrowseContent({
       </div>
 
       {/* Recently Viewed */}
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="py-10">
         <Suspense>
           <RecentlyViewed />
         </Suspense>
@@ -885,7 +904,7 @@ async function BrowseByCity() {
   const children = metros.filter((m) => m.parentMetroId);
 
   return (
-    <section className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-100">
+    <section className="border-t border-stone-200/70 pt-8">
       <h2 className="text-base font-semibold text-neutral-800 mb-4">Browse by city</h2>
       <div className="space-y-4">
         {majors.map((major) => {

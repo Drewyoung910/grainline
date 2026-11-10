@@ -229,6 +229,9 @@ async function enqueueAccountDeletionSideEffect(
         kind: input.kind,
         dedupKey: input.dedupKey,
         payload: input.payload ?? {},
+        // Due now. A default would stamp this server's clock, and the claim
+        // compares with the database clock, which can be a moment behind.
+        nextAttemptAt: null,
       },
     });
   } catch (error) {

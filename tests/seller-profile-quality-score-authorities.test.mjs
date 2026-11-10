@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import vm from "node:vm";
 
 import { PGlite } from "@electric-sql/pglite";
+import ts from "typescript";
 
 const migration = readFileSync(
   "prisma/migrations/20261020235988_prepare_seller_profile_quality_score_authorities/migration.sql",
@@ -146,4 +148,37 @@ test("quality-score application code uses only the bounded SellerProfile service
   assert.doesNotMatch(quality, /SellerProfile|seller:\s*\{|prisma\.listing\.updateMany/u);
   assert.match(access, /grainline_seller_service_quality_score_batch/u);
   assert.match(access, /grainline_seller_service_quality_score_zero_ineligible/u);
+});
+
+test("one malformed aiReviewFlags row does not throw away the whole batch", async () => {
+  const modulePath = "src/lib/sellerProfileQualityScoreAccess.ts";
+  const javascript = ts.transpileModule(readFileSync(modulePath, "utf8"), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const exports = {};
+  vm.runInThisContext(`(function (exports, require) {${javascript}\n})`)(
+    exports,
+    () => ({ prisma: {} }),
+  );
+  const row = {
+    sellerId: "seller",
+    viewCount: 1,
+    clickCount: 1,
+    photoCount: 1n,
+    hasAltText: true,
+    descLength: 10,
+    createdAt: new Date(),
+    sellerCreatedAt: new Date(),
+    guildLevel: "NONE",
+    sellerAvgRating: null,
+    sellerReviewCount: 0n,
+  };
+  const rows = await exports.sellerServiceQualityScoreBatch(null, 200, {
+    $queryRaw: async () => [
+      { ...row, id: "null-flags", aiReviewFlags: null },
+      { ...row, id: "bad-element", aiReviewFlags: ["ok", null] },
+      { ...row, id: "good", aiReviewFlags: [] },
+    ],
+  });
+  assert.equal(rows.length, 3);
 });

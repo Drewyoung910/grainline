@@ -53,17 +53,20 @@ export default function Error({
       <div className="flex gap-3">
         <button
           onClick={reset}
-          className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
+          className="btn btn-primary btn-sm"
         >
           Try again
         </button>
         <Link
           href="/"
-          className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm"
         >
           Go Home
         </Link>
       </div>
+      {error.digest ? (
+        <p className="text-xs text-neutral-500">Reference: {error.digest}</p>
+      ) : null}
     </main>
   );
 }

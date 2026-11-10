@@ -185,7 +185,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
 
     assert.match(listRoute, /const sinceRaw = url\.searchParams\.get\("since"\)/);
     assert.match(listRoute, /const sinceIdRaw = url\.searchParams\.get\("sinceId"\)/);
-    assert.match(listRoute, /parseMessageCursor\(sinceRaw, sinceIdRaw\)/);
+    assert.match(listRoute, /parseMessageCursor\(sinceRaw, sinceIdRaw, \{ requireId: true \}\)/);
     assert.match(listRoute, /parseMessageCursor\(beforeRaw, beforeIdRaw, \{ requireId: true \}\)/);
     assert.match(listRoute, /import \{ MESSAGE_POLL_LIMIT \} from "@\/lib\/messagePolling"/);
     assert.match(listRoute, /direction: historyMode \? "before" : "after"/);

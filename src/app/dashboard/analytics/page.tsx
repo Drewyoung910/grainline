@@ -35,6 +35,7 @@ type ChartBucket = {
 type TopListing = {
   id: string;
   title: string;
+  archived: boolean;
   imageUrl: string | null;
   totalRevenueCents: number;
   unitsSold: number;
@@ -646,12 +647,7 @@ export default function AnalyticsPage() {
     <main className="max-w-7xl mx-auto p-4 md:p-8 space-y-10">
       {/* ── Header ── */}
       <header>
-        <div className="flex items-center gap-4 mb-1">
-          <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-700">
-            ← Workshop
-          </Link>
-          <h1 className="font-display page-title">Analytics</h1>
-        </div>
+        <h1 className="font-display page-title">Analytics</h1>
 
         {/* Range selector */}
         <div className="scrollbar-hidden mt-4 flex overflow-x-auto gap-2 pb-1">
@@ -873,12 +869,16 @@ export default function AnalyticsPage() {
                     <div className="h-20 w-20 bg-neutral-100 border border-neutral-200 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <Link
-                      href={publicListingPath(l.id, l.title)}
-                      className="text-sm font-medium hover:underline truncate block"
-                    >
-                      {l.title}
-                    </Link>
+                    {l.archived ? (
+                      <span className="text-sm font-medium truncate block">{l.title} (archived)</span>
+                    ) : (
+                      <Link
+                        href={publicListingPath(l.id, l.title)}
+                        className="text-sm font-medium hover:underline truncate block"
+                      >
+                        {l.title}
+                      </Link>
+                    )}
                     <p className="text-xs text-neutral-600 mt-0.5">
                       {fmtExact(l.totalRevenueCents)} total · {l.unitsSold} unit
                       {l.unitsSold !== 1 ? "s" : ""}

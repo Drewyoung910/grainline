@@ -1,4 +1,5 @@
 // src/app/page.tsx
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/db";
@@ -66,6 +67,10 @@ function StarsInline({ value }: { value: number }) {
 }
 
 type FeaturedMaker = SellerPublicFeaturedMaker;
+
+export const metadata: Metadata = {
+  alternates: { canonical: "https://thegrainline.com/" },
+};
 
 const getFeaturedMakers = unstable_cache(
   async (): Promise<FeaturedMaker[]> => [...await sellerPublicFeaturedMakers()],
@@ -256,6 +261,12 @@ export default async function HomePage() {
   );
   const fresh = hydrateHomeListingCards(freshRows, homeListingCardById);
   const topSaved = hydrateHomeListingCards(topSavedRows, homeListingCardById);
+  // A small catalogue puts the same pieces in both rows. Top Picks shows six,
+  // and New Arrivals skips those six unless nothing else is left.
+  const topPicks = topSaved.slice(0, 6);
+  const topPickIds = new Set(topPicks.map((l) => l.id));
+  const otherFresh = fresh.filter((l) => !topPickIds.has(l.id));
+  const newArrivals = otherFresh.length > 0 ? otherFresh : fresh;
 
   const featuredMakers = featuredMakerBlock;
 
@@ -459,13 +470,13 @@ export default async function HomePage() {
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
           <HomeHeroIntro>
-            <div className="w-full text-left text-[#E5DFD2]">
+            <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
               <h1 data-hero-intro-heading className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
                 <span className="block whitespace-nowrap">Buy handmade.</span>
                 <span className="block whitespace-nowrap">Buy local.</span>
                 <span className="block whitespace-nowrap">Buy quality.</span>
               </h1>
-              <p data-hero-intro-copy className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
+              <p data-hero-intro-copy className="relative z-10 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:mt-8 sm:text-lg">
                 More than what&apos;s made for everyone.
               </p>
               <div data-hero-intro-actions className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
@@ -547,16 +558,16 @@ export default async function HomePage() {
       <div className="max-w-[1600px] mx-auto px-4 pb-12 pt-4 sm:px-6 sm:pt-6 lg:px-8 space-y-10">
 
         {/* ── Top Picks ───────────────────────────────────────────── */}
-        {topSaved.length > 0 && (
+        {topPicks.length > 0 && (
           <ScrollSection>
             <div data-home-top-picks className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <h2 className="font-display text-2xl font-semibold sm:text-3xl">Top Picks</h2>
               <Link href="/browse?sort=popular" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
-                {topSaved.map((l) => {
+              <ul className="reveal-stagger flex gap-4 pb-0" style={{ width: "max-content" }}>
+                {topPicks.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
@@ -599,15 +610,16 @@ export default async function HomePage() {
 
         {/* ── Shop by Category ─────────────────────────────────────────────── */}
         <ScrollSection>
-          <h2 data-home-categories className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
-          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
-          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:overflow-visible sm:px-0">
-            <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
+          <h2 data-home-categories className="font-display text-2xl font-semibold sm:text-3xl mb-5">Shop by Category</h2>
+          {/* Phones and tablets: horizontal scroll with fade. From lg the nine
+              tiles are wide enough for one row (no fade). */}
+          <ScrollFadeRow hideAtBreakpoint="lg" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 lg:overflow-visible">
+            <div className="flex lg:grid lg:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
               {CATEGORIES.map((c) => (
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 lg:px-2 lg:py-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 lg:w-auto"
                 >
                   <c.Icon size={28} className="text-[#2C1F1A] will-change-transform transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-[1.08]" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
@@ -615,9 +627,9 @@ export default async function HomePage() {
               ))}
               <Link
                 href="/browse"
-                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 lg:px-2 lg:py-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 lg:w-auto"
               >
-                <span className="text-2xl text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
+                <span aria-hidden="true" className="flex h-7 items-center text-2xl leading-none text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
               </Link>
             </div>
@@ -627,18 +639,18 @@ export default async function HomePage() {
         {/* ── New Arrivals ───────────────────────────────────────── */}
         <ScrollSection>
           <div data-home-new-arrivals className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
+            <h2 className="font-display text-2xl font-semibold sm:text-3xl">New Arrivals</h2>
             <Link href="/browse?sort=newest" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
           </div>
 
-          {fresh.length === 0 ? (
+          {newArrivals.length === 0 ? (
             <div className="card-section p-6 text-neutral-600">
               Nothing listed yet — check back soon.
             </div>
           ) : (
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
-                {fresh.map((l) => {
+              <ul className="reveal-stagger flex gap-4 pb-0" style={{ width: "max-content" }}>
+                {newArrivals.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
@@ -683,18 +695,18 @@ export default async function HomePage() {
         {fromYourMakers.length > 0 && (
           <ScrollSection>
             <div data-home-followed-makers className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Makers You Follow</h2>
+              <h2 className="font-display text-2xl font-semibold sm:text-3xl">Makers You Follow</h2>
               <Link href="/account/feed" className="group text-sm text-neutral-600 hover:underline">
                 See full feed <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
             </div>
             <ScrollFadeRow className="overflow-x-auto -mx-1 px-1">
-            <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
+            <ul className="reveal-stagger flex gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
-                      <div className="group/photo aspect-[4/5] overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
+                      <div className="group/photo aspect-[4/5] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
                         <MediaImage
                           src={item.photoUrl}
                           alt={item.photoAltText ?? item.title}
@@ -759,7 +771,7 @@ export default async function HomePage() {
           return (
             <ScrollSection>
               <div data-home-workshop className="mb-5 space-y-0.5">
-                <h2 className="text-xl font-semibold font-display">In the Workshop</h2>
+                <h2 className="font-display text-2xl font-semibold sm:text-3xl">In the Workshop</h2>
                 <p className="text-sm text-neutral-500">
                   Maker of the Week · {weekStart} to {weekEnd}
                 </p>
@@ -777,38 +789,26 @@ export default async function HomePage() {
                     className="photo-drift absolute inset-x-0 -top-[6%] h-[112%] w-full object-cover"
                     fallbackClassName="absolute inset-0 h-full w-full bg-gradient-to-br from-neutral-800 to-neutral-600"
                   />
-                  {/* Identity chip over the photo */}
-                  <Link
-                    href={publicSellerPath(spotlight.id, spotlight.displayName)}
-                    className="absolute bottom-4 left-4 flex items-center gap-2.5 rounded-full bg-white/90 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-                  >
+                </div>
+
+                {/* Story side */}
+                <div className="flex flex-col p-6 sm:p-8 lg:p-10">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
                     {spotlightAvatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={spotlightAvatar}
                         alt=""
                         loading="lazy"
-                        width={36}
-                        height={36}
-                        className="h-9 w-9 rounded-full object-cover"
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
                         {avatarInitial(spotlight.displayName, "M")}
                       </div>
                     )}
-                    <span className="text-sm font-semibold text-neutral-900">
-                      {spotlight.displayName}
-                    </span>
-                  </Link>
-                </div>
-
-                {/* Story side */}
-                <div className="flex flex-col p-6 sm:p-8 lg:p-10">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700">
-                    Maker of the Week
-                  </p>
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
                     <h3 className="font-display text-2xl font-semibold text-neutral-900 sm:text-3xl">
                       {spotlight.displayName}
                     </h3>
@@ -890,7 +890,7 @@ export default async function HomePage() {
                               src={fl.photos[0]?.url ?? null}
                               alt={fl.photos[0]?.altText ?? fl.title}
                               loading="lazy"
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:scale-[1.035]"
                               fallbackClassName="h-full w-full bg-stone-100"
                             />
                           </div>
@@ -907,8 +907,8 @@ export default async function HomePage() {
                 const alsoRating = sellerRatings.get(also.id) ?? null;
                 const alsoAvatar = also.avatarImageUrl ?? also.ownerImageUrl ?? null;
                 return (
-                  <div className="mt-4 card-section !bg-[#EFEAE0] flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
-                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-stone-200/70 pt-4">
+                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                       Also featured
                     </span>
                     {alsoAvatar ? (
@@ -919,7 +919,7 @@ export default async function HomePage() {
                         loading="lazy"
                         width={40}
                         height={40}
-                        className="h-10 w-10 rounded-full object-cover ring-1 ring-neutral-200"
+                        className="h-10 w-10 rounded-full object-cover"
                       />
                     ) : (
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
@@ -978,9 +978,9 @@ export default async function HomePage() {
 
         {/* ── From the Blog ────────────────────────────────────────────────── */}
         {recentBlogPosts.length > 0 && (
-          <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
+          <ScrollSection>
             <div data-home-blog className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">From the Blog</h2>
+              <h2 className="font-display text-2xl font-semibold sm:text-3xl">From the Blog</h2>
               <Link href="/blog" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">
                 Read more stories <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
@@ -990,9 +990,9 @@ export default async function HomePage() {
                 const { name: authorName, imageUrl: authorAvatar } =
                   publicBlogAuthorPresentation(p, "Former author");
                 return (
-                  <li key={p.slug} className="card-listing">
-                    <div className="photo-save-surface relative overflow-hidden bg-stone-100">
-                      <Link href={`/blog/${p.slug}`} className="block aspect-[4/3]">
+                  <li key={p.slug}>
+                    <div className="photo-save-surface relative overflow-hidden rounded-xl bg-stone-100">
+                      <Link href={`/blog/${p.slug}`} aria-label={p.title} className="block aspect-[4/3]">
                         <MediaImage
                           src={p.coverImageUrl}
                           alt={p.title}
@@ -1006,7 +1006,7 @@ export default async function HomePage() {
                       </div>
                     </div>
                     <Link href={`/blog/${p.slug}`} className="block">
-                      <div className="p-4 space-y-2 bg-[#EFEAE0]">
+                      <div className="pt-3 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
                             {BLOG_TYPE_LABELS[p.type]}

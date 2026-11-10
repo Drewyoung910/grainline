@@ -5,12 +5,13 @@ import AllSellersMap from "@/components/AllSellersMap";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
-import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { firstSearchParams, parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCityState } from "@/lib/locationDisplay";
 import {
   sellerPublicMapMetros,
   sellerPublicMapPoints,
 } from "@/lib/sellerProfilePublicAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = {
   title: { absolute: "Find Local Woodworkers Near You | Grainline Makers Map" },
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
     title: "Find Local Woodworkers Near You | Grainline",
     description: "Discover handmade woodworking makers in your area.",
     type: "website",
+    images: defaultOpenGraphImages(),
   },
 };
 
@@ -39,7 +41,7 @@ export default async function AllSellersMapPage({
 }: {
   searchParams: Promise<{ near?: string; zoom?: string }>;
 }) {
-  const { near, zoom } = await searchParams;
+  const { near, zoom } = firstSearchParams(await searchParams);
 
   const { userId } = await auth();
   let meDbId: string | null = null;
@@ -87,12 +89,12 @@ export default async function AllSellersMapPage({
     }));
 
   return (
-    <main className="max-w-7xl mx-auto p-6 space-y-6">
+    <main className="max-w-[1600px] mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold font-display">Makers near you</h1>
           <p className="text-sm text-neutral-500 mt-1">
-            Showing {points.length} maker{points.length === 1 ? "" : "s"}. Pin precision follows each maker&apos;s privacy choice.
+            Showing {points.length} maker{points.length === 1 ? "" : "s"}.
           </p>
         </div>
       </header>

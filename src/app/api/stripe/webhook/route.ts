@@ -33,6 +33,7 @@ import {
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
+import { isPickupRateObjectId } from "@/lib/shippingQuoteState";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
   restoreUnorderedCheckoutStockOnce,
@@ -152,12 +153,10 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
+  // Nothing below this point has proved it came from the provider. Junk requests must
+  // not spend Sentry events or Redis commands, or a flood could blind monitoring and
+  // exhaust the budget the fail-closed limiters depend on.
   if (!signature) {
-    Sentry.captureMessage("Stripe webhook signature header missing", {
-      level: "warning",
-      tags: { source: "stripe_webhook_signature" },
-    });
-    await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Missing Stripe signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
@@ -166,16 +165,6 @@ export async function POST(req: Request) {
     body = await readBoundedText(req, STRIPE_WEBHOOK_BODY_MAX_BYTES);
   } catch (err) {
     if (isRequestBodyTooLargeError(err)) {
-      Sentry.captureMessage("Stripe webhook payload is too large", {
-        level: "warning",
-        tags: { source: "stripe_webhook_payload" },
-        extra: { maxBytes: err.maxBytes },
-      });
-      await recordWebhookFailureSpike({
-        webhook: "stripe",
-        kind: "payload",
-        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
-      });
       return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw err;
@@ -186,8 +175,6 @@ export async function POST(req: Request) {
       nextSecret, constructEvent: (payload, header, key) => stripe.webhooks.constructEvent(payload, header, key) });
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", sanitizeEmailOutboxError(err));
-    Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });
-    await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
@@ -349,7 +336,7 @@ export async function POST(req: Request) {
 
   async function enqueueOrderPostPaymentSideEffects(
     sessionId: string,
-    opts: { multiSellerCheckout?: boolean } = {},
+    opts: { multiSellerCheckout?: boolean; sessionMetadata?: Record<string, string | undefined> } = {},
   ) {
     const result = await readCheckoutPostpaymentProjection({
       eventId: event.id,
@@ -440,7 +427,11 @@ export async function POST(req: Request) {
       shipToCity: order.shipToCity,
       shipToState: order.shipToState,
       shipToPostalCode: order.shipToPostalCode,
+      // The fixed projection omits these. Checkout wrote them to the signed session.
+      shipToName: opts.sessionMetadata?.quotedToName ?? null,
+      shipToLine2: opts.sessionMetadata?.quotedToLine2 ?? null,
     };
+    const isPickup = isPickupRateObjectId(opts.sessionMetadata?.selectedRateObjectId);
 
     await sendOrderTransactionalEmailWithFallback({
       email: renderOrderConfirmedBuyerEmail({
@@ -449,6 +440,7 @@ export async function POST(req: Request) {
         seller: { displayName: sellerName },
         items: emailItems,
         multiSellerCheckout: opts.multiSellerCheckout === true,
+        isPickup,
       }),
       dedupKey: `order-confirmed-buyer:${order.orderId}`,
       userId: order.buyerId,
@@ -463,6 +455,7 @@ export async function POST(req: Request) {
           buyer: { name: buyerDisplayName },
           seller: { displayName: sellerName, email: order.sellerEmail },
           items: emailItems,
+          isPickup,
         }),
         dedupKey: `order-confirmed-seller:${order.orderId}`,
         userId: sellerUserId,
@@ -581,6 +574,7 @@ export async function POST(req: Request) {
           await releaseCheckoutLock(checkoutLockKey, sessionId);
           await enqueueOrderPostPaymentSideEffects(sessionId, {
             multiSellerCheckout: initialMultiSellerCheckout,
+            sessionMetadata: initialSessionMeta,
           });
           return NextResponse.json({ ok: true });
         }
@@ -1018,7 +1012,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      await enqueueOrderPostPaymentSideEffects(sessionId, { multiSellerCheckout });
+      await enqueueOrderPostPaymentSideEffects(sessionId, { multiSellerCheckout, sessionMetadata: sessionMeta });
       return NextResponse.json({ ok: true });
       }, async () => {
         await releaseCheckoutLock(checkoutLockKey, sessionId);

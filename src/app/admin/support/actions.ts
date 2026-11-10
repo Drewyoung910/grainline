@@ -8,6 +8,7 @@ import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { isSupportRequestStatus } from "@/lib/supportRequestState";
 import { transitionSupportRequest } from "@/lib/supportRequestAccess";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { adminPinExpiredActionState } from "@/lib/adminPinApi";
 
 export type SupportRequestActionState = { ok: boolean; error?: string };
 
@@ -61,6 +62,8 @@ export async function setSupportRequestStatus(
     revalidatePath("/admin/support");
     return { ok: true };
   } catch (error) {
+    const pinExpired = adminPinExpiredActionState(error);
+    if (pinExpired) return pinExpired;
     logServerError(error, {
       source: "admin_support_status_update",
       extra: { requestId, status },

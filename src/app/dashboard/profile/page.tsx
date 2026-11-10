@@ -15,8 +15,10 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
+import ConfirmButton from "@/components/ConfirmButton";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { normalizeDisplayNameForLookup, sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import {
   filterVerifiedFirstPartyMediaUrlsForUser,
   verifyFirstPartyMediaUrlForPersistence,
@@ -24,7 +26,7 @@ import {
 import { syncSellerProfileDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { publicSellerPath } from "@/lib/publicPaths";
-import { parseMoneyInputToCents } from "@/lib/money";
+import { parseOptionalMoneyField } from "@/lib/sellerShopSettingsInput";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
@@ -47,6 +49,7 @@ const primaryButtonClass =
   "rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50";
 const SELLER_FAQ_LIMIT = 20;
 const SELLER_FEATURED_LISTING_LIMIT = 6;
+const MAX_GIFT_WRAPPING_PRICE_CENTS = 10_000; // $100
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -174,11 +177,20 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const customOrderTurnaroundDays = toInt(formData.get("customOrderTurnaroundDays"));
 
   const offersGiftWrapping = toBool(formData.get("offersGiftWrapping"));
-  const giftWrappingPriceCentsRaw = parseMoneyInputToCents(formData.get("giftWrappingPriceCents"));
-  const giftWrappingPriceCents =
-    giftWrappingPriceCentsRaw !== null
-      ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
-      : null;
+  const giftWrappingPriceResult = parseOptionalMoneyField(
+    formData.get("giftWrappingPriceCents"),
+    "Gift wrapping price",
+    MAX_GIFT_WRAPPING_PRICE_CENTS,
+  );
+  if (!giftWrappingPriceResult.ok) return giftWrappingPriceResult;
+  const giftWrappingPriceCents = giftWrappingPriceResult.value;
+
+  if (containsSlur([
+    displayName, tagline, bio, storyTitle, storyBody,
+    returnPolicy, customOrderPolicy, shippingPolicy, ...galleryAltTexts,
+  ].join("\n"))) {
+    return { ok: false, error: SHOP_TEXT_SLUR_MESSAGE };
+  }
 
   let duplicateDisplayName = false;
   await withDbUserContext(seller.userId, async (tx) => {
@@ -241,6 +253,7 @@ async function addFaq(formData: FormData) {
   const question = truncateText(sanitizeText(String(formData.get("question") ?? "")), 200).trim();
   const answer = truncateText(sanitizeRichText(String(formData.get("answer") ?? "")), 2000).trim();
   if (!question || !answer) return;
+  if (containsSlur(`${question}\n${answer}`)) redirect("/dashboard/profile?warning=blocked-language");
 
   await withSerializableRetry(() => prisma.$transaction(async (tx) => {
     const faqCount = await tx.sellerFaq.count({
@@ -369,6 +382,12 @@ export default async function ProfilePage({
         </div>
       )}
 
+      {sp.warning === "blocked-language" && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {SHOP_TEXT_SLUR_MESSAGE}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="font-display page-title">Shop Profile</h1>
         <Link
@@ -381,7 +400,12 @@ export default async function ProfilePage({
         </Link>
       </div>
 
-      <ActionForm action={updateSellerProfile} className="space-y-6">
+      <p className="text-sm text-neutral-600">
+        Photos and text below are kept when you press Save profile, at the end of the form. FAQs and featured
+        listings save right away.
+      </p>
+
+      <ActionForm action={updateSellerProfile} preserveOnError className="space-y-6">
         {/* ── A. Shop Identity ─────────────────────────────────────────────── */}
         <section className="card-section space-y-4 p-6">
           <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Shop Identity</h2>
@@ -422,7 +446,7 @@ export default async function ProfilePage({
             <input
               name="displayName"
               required
-              autoComplete="name"
+              autoComplete="off"
               defaultValue={fullSeller.displayName}
               className={inputClass}
             />
@@ -688,23 +712,20 @@ export default async function ProfilePage({
         {fullSeller.faqs.length === 0 ? (
           <p className="text-sm text-neutral-500">No FAQs yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul>
             {fullSeller.faqs.map((faq) => (
               <li
                 key={faq.id}
-                className="card-section p-4 flex items-start justify-between gap-4"
+                className="flex items-start justify-between gap-4 border-b border-neutral-100 py-3 last:border-b-0"
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{faq.question}</p>
-                  <p className="text-sm text-neutral-600 mt-1">{faq.answer}</p>
+                  <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line break-words">{faq.answer}</p>
                 </div>
                 <form action={deleteFaq.bind(null, faq.id)}>
-                  <button
-                    type="submit"
-                    className="btn btn-danger btn-sm shrink-0"
-                  >
+                  <ConfirmButton confirm="Delete this FAQ?" className="btn btn-danger btn-sm shrink-0">
                     Delete
-                  </button>
+                  </ConfirmButton>
                 </form>
               </li>
             ))}
@@ -725,7 +746,7 @@ export default async function ProfilePage({
                 autoComplete="off"
                 required
                 className={inputClass}
-                placeholder="e.g. Do you ship internationally?"
+                placeholder="e.g. Can you match an existing finish?"
               />
             </div>
             <div>

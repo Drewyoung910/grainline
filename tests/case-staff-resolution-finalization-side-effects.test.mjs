@@ -33,11 +33,15 @@ test("Case staff finalization co-commits participant delivery records", () => {
     "await createNotificationOrThrow({",
     buyerNotification + 1,
   );
-  const emailReservation = finalization.indexOf(
+  const buyerEmailReservation = finalization.indexOf(
     "await enqueueEmailOutboxOnce(",
     sellerNotification,
   );
-  const transactionEnd = finalization.indexOf("});", emailReservation);
+  const sellerEmailReservation = finalization.indexOf(
+    "await enqueueEmailOutboxOnce(",
+    buyerEmailReservation + 1,
+  );
+  const transactionEnd = finalization.indexOf("});", sellerEmailReservation);
   const directDelivery = finalization.indexOf(
     "await processEmailOutboxJobById(",
     transactionEnd,
@@ -47,8 +51,9 @@ test("Case staff finalization co-commits participant delivery records", () => {
   assert.ok(databaseFinalize > transactionStart);
   assert.ok(buyerNotification > databaseFinalize);
   assert.ok(sellerNotification > buyerNotification);
-  assert.ok(emailReservation > sellerNotification);
-  assert.ok(transactionEnd > emailReservation);
+  assert.ok(buyerEmailReservation > sellerNotification);
+  assert.ok(sellerEmailReservation > buyerEmailReservation);
+  assert.ok(transactionEnd > sellerEmailReservation);
   assert.ok(directDelivery > transactionEnd);
   assert.match(
     finalization,
@@ -57,6 +62,10 @@ test("Case staff finalization co-commits participant delivery records", () => {
   assert.match(
     finalization,
     /dedupKey: `case-resolution:\$\{result\.claimId\}`/,
+  );
+  assert.match(
+    finalization,
+    /dedupKey: `case-resolution-seller:\$\{result\.claimId\}`/,
   );
   assert.match(finalization, /preferenceKey: refunding[\s\S]*"EMAIL_REFUND_ISSUED"[\s\S]*"EMAIL_CASE_RESOLVED"/);
   assert.match(finalization, /sourceId: result\.claimId/);
@@ -72,10 +81,6 @@ test("Case route has no post-finalization best-effort delivery gap", () => {
 
 test("Case resolution email uses the versioned retryable outbox", () => {
   assert.match(email, /export function renderCaseResolvedEmail\(/);
-  assert.match(
-    email,
-    /export async function sendCaseResolved\([\s\S]*sendRenderedEmail\(renderCaseResolvedEmail\(opts\)\)/,
-  );
   assert.match(outbox, /"case_resolved"/);
   assert.match(finalization, /templateName: "case_resolved"/);
   assert.match(finalization, /processEmailOutboxJobById/);

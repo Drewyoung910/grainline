@@ -6,10 +6,10 @@ function WarmSurfacePulse({ className, media = false }: { className: string; med
 
 function ListingGridSkeleton({ count = 8 }: { count?: number }) {
   return (
-    <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-8 lg:grid-cols-3 xl:grid-cols-4" aria-hidden="true">
+    <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8" aria-hidden="true">
       {Array.from({ length: count }).map((_, index) => (
         <li key={index}>
-          <Pulse className="aspect-[4/5] w-full rounded-2xl" />
+          <Pulse className="aspect-[4/5] w-full rounded-xl" />
           <div className="space-y-2 pt-2.5">
             <Pulse className="h-4 w-4/5" />
             <Pulse className="h-4 w-1/3" />
@@ -46,7 +46,7 @@ export function TagLandingSkeleton() {
 export function BlogAuthorSkeleton() {
   return (
     <main
-      className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6"
+      className="mx-auto min-h-[100svh] max-w-7xl px-4 pb-16 pt-8 sm:px-6"
       aria-busy="true"
       aria-label="Loading author stories"
     >
@@ -90,7 +90,7 @@ export function CustomerPhotosSkeleton() {
   const heights = ["h-52", "h-72", "h-60", "h-80", "h-64", "h-48", "h-72", "h-56"];
   return (
     <main
-      className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8"
+      className="mx-auto min-h-[100svh] max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8"
       aria-busy="true"
       aria-label="Loading customer photos"
     >

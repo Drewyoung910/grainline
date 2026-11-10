@@ -21,14 +21,14 @@ type RecentListing = {
 export default function RecentlyViewed() {
   const { toast } = useToast();
   const [listings, setListings] = React.useState<RecentListing[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  // Do not server-render a section that immediately vanishes for a visitor
+  // with no local viewing history.
+  const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
     const ids = getRecentlyViewed();
-    if (ids.length === 0) {
-      setLoading(false);
-      return;
-    }
+    if (ids.length === 0) return;
+    setLoading(true);
     const controller = new AbortController();
     let active = true;
     const params = new URLSearchParams({ ids: ids.join(",") });
@@ -65,13 +65,13 @@ export default function RecentlyViewed() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Recently Viewed</h2>
+      <h2 className="font-display text-xl font-semibold">Recently Viewed</h2>
 
       {loading ? (
         <div className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="animate-pulse shrink-0 w-48">
-              <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-[#EFEAE0]" />
+              <div className="rounded-xl overflow-hidden aspect-[4/5] bg-[#EFEAE0]" />
               <div className="mt-2 space-y-1.5 px-0.5">
                 <div className="h-3 bg-[#EFEAE0] rounded w-3/4" />
                 <div className="h-3 bg-[#EFEAE0] rounded w-1/2" />
@@ -83,7 +83,7 @@ export default function RecentlyViewed() {
         <ul className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
           {listings.map((l) => (
             <li key={l.id} className="relative shrink-0 w-48">
-              <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+              <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100">
                 <Link href={publicListingPath(l.id, l.title)} className="block aspect-[4/5]">
                   {l.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -91,7 +91,7 @@ export default function RecentlyViewed() {
                       src={l.photoUrl}
                       alt={l.title}
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                     />
                   ) : (
                     <div className="h-full w-full bg-[#EFEAE0]" />

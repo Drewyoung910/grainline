@@ -34,6 +34,7 @@ export default async function AdminReviewPage() {
         createdAt: true,
         aiReviewFlags: true,
         aiReviewScore: true,
+        rejectionReason: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
     }),
@@ -141,6 +142,11 @@ export default async function AdminReviewPage() {
                         </ul>
                       </div>
                     )}
+                    {listing.rejectionReason && (
+                      <p className="text-xs text-neutral-700 mt-2">
+                        <span className="font-medium">AI reason:</span> {listing.rejectionReason}
+                      </p>
+                    )}
                     {listing.aiReviewScore !== null && (
                       <div className="text-xs text-neutral-500 mt-1">
                         AI confidence: {Math.round((listing.aiReviewScore ?? 0) * 100)}%
@@ -148,9 +154,9 @@ export default async function AdminReviewPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <ReviewListingButtons listingId={listing.id} />
-                  <DeleteListingButton listingId={listing.id} />
+                  {staff.role === "ADMIN" && <DeleteListingButton listingId={listing.id} />}
                   <Link
                     href={`${publicListingPath(listing.id, listing.title)}?preview=admin`}
                     target="_blank"

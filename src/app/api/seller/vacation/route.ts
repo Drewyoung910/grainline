@@ -13,6 +13,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { sellerStripeOwnerState } from "@/lib/sellerStripePrivateAccess";
@@ -94,6 +95,9 @@ export async function POST(req: Request) {
     const vacationMessage = vacParsed.vacationMessage
       ? truncateText(sanitizeText(vacParsed.vacationMessage), 200) || null
       : null;
+    if (containsSlur(vacationMessage)) {
+      return privateJson({ error: SHOP_TEXT_SLUR_MESSAGE }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
 
     const updatedSeller = await sellerOwnerVacationUpdate(seller.userId, {
       sellerProfileId: seller.id,

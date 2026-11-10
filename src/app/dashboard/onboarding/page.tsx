@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe";
 import OnboardingWizard from "./OnboardingWizard";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { safeRateLimit, stripeConnectRatelimit } from "@/lib/ratelimit";
 import type { Metadata } from "next";
 import { sellerOwnerOnboardingState } from "@/lib/sellerOwnerPrivateAccess";
 
@@ -27,9 +28,14 @@ export default async function OnboardingPage({
   }
 
   // Check actual Stripe account status (charges_enabled), not just whether an account ID exists
-  let chargesEnabled = false;
+  let chargesEnabled = !!sp.stripeAccountId && sp.chargesEnabled;
   let hasStripeAccount = !!sp.stripeAccountId;
-  if (sp.stripeAccountId) {
+  // Over the limit, show the saved status rather than calling Stripe on every load.
+  const mayAskStripe = !!sp.stripeAccountId
+    // Keep passive page refreshes from consuming the account-creation/status
+    // endpoint's allowance for the same user.
+    && (await safeRateLimit(stripeConnectRatelimit, `onboarding:${seller.userId}`)).success;
+  if (sp.stripeAccountId && mayAskStripe) {
     try {
       const account = await stripe.accounts.retrieve(sp.stripeAccountId);
       const mirrorResult = await mirrorStripeChargesEnabled({
@@ -47,6 +53,7 @@ export default async function OnboardingPage({
       });
       // Stripe account may be invalid; treat as not connected
       hasStripeAccount = false;
+      chargesEnabled = false;
     }
   }
 

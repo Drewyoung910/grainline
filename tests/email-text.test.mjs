@@ -21,6 +21,10 @@ describe("email text rendering", () => {
     assert.equal(text, "refundgpj.exe foo");
   });
 
+  it("keeps the joiner inside a joined emoji in the plain-text fallback", () => {
+    assert.equal(htmlToText("<p>Thanks &#x1F937;&#x200D;&#x2640;&#xFE0F;</p>"), "Thanks 🤷\u200D♀\uFE0F");
+  });
+
   it("keeps table cells readable in plain text", () => {
     const text = htmlToText(`
       <table>

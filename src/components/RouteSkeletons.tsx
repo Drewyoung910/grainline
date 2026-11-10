@@ -6,7 +6,6 @@ export function AccountOverviewSkeleton() {
   return (
     <main className="mx-auto max-w-5xl space-y-7" aria-busy="true" aria-label="Loading account">
       <header className="flex items-center gap-4">
-        <Pulse className="h-14 w-14 rounded-full" />
         <div className="space-y-2">
           <Pulse className="h-8 w-44" />
           <Pulse className="h-4 w-64 max-w-full" />
@@ -149,34 +148,39 @@ export function WorkshopSkeleton() {
 export function CommissionRoomSkeleton() {
   return (
     <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6" aria-busy="true" aria-label="Loading commission room">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="space-y-3">
-          <Pulse className="h-8 w-60" />
-          <Pulse className="h-4 w-96 max-w-full" />
+      <div className="mb-8 flex items-start justify-between gap-4 sm:items-end">
+        <div className="min-w-0 flex-1 space-y-3">
+          <Pulse className="h-3 w-24" />
+          <Pulse className="h-[clamp(2.25rem,5vw,4.5rem)] w-3/4 max-w-xl" />
+          <Pulse className="h-4 w-full max-w-2xl" />
         </div>
-        <Pulse className="h-10 w-32 shrink-0" />
+        <Pulse className="h-9 w-28 shrink-0 rounded-full" />
+      </div>
+      <div className="mb-8 grid gap-3 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="flex gap-3 rounded-lg border border-stone-200/80 bg-white p-4">
+            <Pulse className="size-7 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Pulse className="h-4 w-2/3" />
+              <Pulse className="h-3 w-full" />
+              <Pulse className="h-3 w-4/5" />
+            </div>
+          </div>
+        ))}
       </div>
       {/* No tab placeholder: the board shows tabs only for makers with a
           location, so most visitors would see it jump away. */}
-      <section className="card-section mb-6 space-y-2 border-amber-200/60 bg-amber-50 p-4">
-        <Pulse className="h-5 w-56" />
-        <Pulse className="h-4 w-full" />
-        <Pulse className="h-4 w-4/5" />
-      </section>
-      <div className="mb-6 flex gap-2 overflow-hidden">
+      <div className="mb-7 flex gap-2 overflow-hidden border-y border-stone-200/80 py-4">
         {Array.from({ length: 8 }).map((_, index) => (
-          <Pulse key={index} className="h-8 w-20 shrink-0 rounded-full" />
+          <Pulse key={index} className="h-9 w-20 shrink-0 rounded-full" />
         ))}
       </div>
-      <div className="space-y-4">
-        {Array.from({ length: 5 }).map((_, index) => (
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
           <section key={index} className="card-section space-y-3 p-5">
-            <div className="flex items-start justify-between gap-4">
-              <Pulse className="h-5 w-64 max-w-full" />
-              <Pulse className="h-5 w-20 rounded-full" />
-            </div>
+            <Pulse className="h-5 w-3/4" />
             <Pulse className="h-4 w-full" />
-            <Pulse className="h-4 w-3/4" />
+            <Pulse className="h-4 w-2/3" />
             <Pulse className="h-8 w-28" />
           </section>
         ))}
@@ -216,7 +220,7 @@ export function BlogIndexSkeleton() {
 
 export function FeedSkeleton() {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8" aria-busy="true" aria-label="Loading feed">
+    <div className="max-w-2xl pb-8" aria-busy="true" aria-label="Loading feed">
       <Pulse className="mb-4 h-4 w-24" />
       <div className="mb-6 flex items-center justify-between gap-4">
         <Pulse className="h-8 w-32" />

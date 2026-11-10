@@ -88,7 +88,9 @@ describe("upload UX follow-ups", () => {
 
     assert.match(blogForm, /endpoint="blogImage"/);
     assert.doesNotMatch(blogForm, /endpoint="galleryImage"/);
-    assert.match(markdownToolbar, /validateUploadFile\("blogImage", file, 0\)/);
+    assert.match(markdownToolbar, /validateUploadSelection\("blogImage", file, 0\)/);
+    assert.match(markdownToolbar, /shrinkLargeImageForRouteUpload\(file\)/);
+    assert.match(markdownToolbar, /validateUploadFile\("blogImage", upload, 0\)/);
     assert.match(markdownToolbar, /form\.set\("endpoint", "blogImage"\)/);
     assert.match(blogInput, /\["galleryImage", "blogImage"\]/);
     assert.match(deletion, /"blogImage"/);
@@ -139,7 +141,7 @@ describe("upload UX follow-ups", () => {
     assert.match(imageRoute, /safeRateLimit\(uploadHourlyRatelimit, userId\)/);
     assert.match(verifyRoute, /safeRateLimit\(uploadHourlyRatelimit, userId\)/);
 
-    assert.match(presignRoute, /ContentLength: size/);
+    assert.match(source("src/lib/r2.ts"), /ContentLength: input\.size/);
     assert.match(presignRoute, /expectedSize: size/);
     assert.match(presignRoute, /verificationToken/);
     assert.match(presignRoute, /Sentry\.captureMessage\("Upload verification token creation failed"/);
@@ -196,10 +198,11 @@ describe("upload UX follow-ups", () => {
     const hook = source("src/hooks/useR2Upload.ts");
     const button = source("src/components/R2UploadButton.tsx");
 
-    assert.match(hook, /validateUploadFile\(endpoint, originalFile, i\)/);
+    assert.match(hook, /validateUploadSelection\(endpoint, originalFile, i\)/);
+    assert.match(hook, /validateUploadFile\(endpoint, file, i\)/);
     assert.match(hook, /xhr\.upload\.onprogress/);
     assert.match(hook, /shrinkLargeImageForRouteUpload/);
-    assert.match(button, /validateUploadFile\(endpoint, file, index\)/);
+    assert.match(button, /validateUploadSelection\(endpoint, file, index\)/);
     assert.match(button, /Uploading \$\{progress > 0 \? `\$\{progress\}%` : "…"\}/);
     assert.match(button, /animate-spin/);
   });

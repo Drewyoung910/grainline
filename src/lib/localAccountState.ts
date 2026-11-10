@@ -1,5 +1,5 @@
 import { clearAnonymousCart, type CartStorage } from "./anonymousCart.ts";
-import { clearCartSessionStorage, type CartSessionStorage } from "./cartSessionStorage.ts";
+import { clearCartGiftNotes, clearCartSessionStorage, type CartSessionStorage } from "./cartSessionStorage.ts";
 import { clearRecentSearches, type RecentSearchStorage } from "./recentSearches.ts";
 import { clearRecentlyViewed } from "./recentlyViewed.ts";
 
@@ -18,6 +18,7 @@ export function clearSignedOutLocalAccountState({
   clearRecentSearches(recentSearchStorage);
   clearAnonymousCart(anonymousCartStorage);
   clearCartSessionStorage({ includeAddress: true, storage: cartSessionStorage });
+  clearCartGiftNotes(cartSessionStorage);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(LOCAL_ACCOUNT_STATE_CLEARED_EVENT));
   }

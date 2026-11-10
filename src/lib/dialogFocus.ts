@@ -19,13 +19,19 @@ const FOCUSABLE_SELECTOR = [
 let scrollLockCount = 0;
 let removeScrollGuards: (() => void) | null = null;
 
+export function isPageZoomed() {
+  return (window.visualViewport?.scale ?? 1) > 1.01;
+}
+
 function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
-  let element = target instanceof HTMLElement ? target : null;
+  // A gesture can begin on an SVG child inside a scrollable control.
+  let element = target instanceof Element ? target : null;
   while (element && element !== document.body && element !== document.documentElement) {
     const style = window.getComputedStyle(element);
     const scrollable = /(auto|scroll)/u.test(style.overflowY)
       && element.scrollHeight > element.clientHeight + 1;
     if (scrollable) {
+      if (deltaY === 0) return true;
       if (deltaY < 0 && element.scrollTop > 0) return true;
       if (deltaY > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - 1) {
         return true;
@@ -36,22 +42,30 @@ function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
   return false;
 }
 
-function installScrollGuards() {
-  let previousTouchY: number | null = null;
+export function installScrollGuards() {
+  let previousTouch: { clientX: number; clientY: number } | null = null;
   const onWheel = (event: WheelEvent) => {
+    // ctrl+wheel is trackpad pinch/browser zoom. A zoomed page must remain
+    // pannable for low-vision visitors.
+    if (event.ctrlKey || isPageZoomed()) return;
     if (!scrollableAncestorCanMove(event.target, event.deltaY)) event.preventDefault();
   };
   const onTouchStart = (event: TouchEvent) => {
-    previousTouchY = event.touches[0]?.clientY ?? null;
+    const touch = event.touches[0];
+    previousTouch = touch ? { clientX: touch.clientX, clientY: touch.clientY } : null;
   };
   const onTouchMove = (event: TouchEvent) => {
-    const currentY = event.touches[0]?.clientY;
-    if (currentY == null || previousTouchY == null) {
+    if (event.touches.length > 1 || isPageZoomed()) return;
+    const current = event.touches[0];
+    if (!current || !previousTouch) {
       event.preventDefault();
       return;
     }
-    const deltaY = previousTouchY - currentY;
-    previousTouchY = currentY;
+    const deltaY = previousTouch.clientY - current.clientY;
+    previousTouch = { clientX: current.clientX, clientY: current.clientY };
+    // A slider needs its sideways drag. Anything else left uncancelled here can
+    // let the browser start moving the page behind the dialog.
+    if (event.target instanceof Element && event.target.closest('input[type="range"]')) return;
     if (!scrollableAncestorCanMove(event.target, deltaY)) event.preventDefault();
   };
   const onKeyDown = (event: KeyboardEvent) => {

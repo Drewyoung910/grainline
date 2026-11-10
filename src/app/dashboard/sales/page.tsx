@@ -6,7 +6,6 @@ import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
-import { publicListingPath } from "@/lib/publicPaths";
 import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import {
@@ -89,7 +88,11 @@ async function SalesContent({
   const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.sellerProfileId);
   if (!sellerPrivate) redirect("/dashboard/seller");
 
-  if (!sellerPrivate.onboardingComplete) {
+  // A maker can have a real order before finishing setup, because publishing only
+  // needs Stripe. Show the setup panel only when Stripe is off and there is
+  // nothing to fulfil.
+  const total = await countSellerOrders(me.id);
+  if (!sellerPrivate.onboardingComplete && !seller.chargesEnabled && total === 0) {
     return (
       <main className="mx-auto max-w-4xl p-8 space-y-6">
         <header>
@@ -98,7 +101,7 @@ async function SalesContent({
         </header>
         <section className="card-section p-8">
           <p className="text-base font-semibold text-neutral-900">
-            {seller.chargesEnabled ? "Finish setup to start accepting orders" : "Connect Stripe to start accepting orders"}
+            Connect Stripe to start accepting orders
           </p>
           <p className="mt-2 text-sm text-neutral-600">
             Your sales dashboard will unlock after your shop setup is complete and buyers can pay you.
@@ -110,14 +113,12 @@ async function SalesContent({
             >
               Continue setup →
             </Link>
-            {!seller.chargesEnabled && (
-              <Link
-                href="/dashboard/seller"
-                className="btn btn-secondary btn-sm"
-              >
-                Connect Stripe Payouts →
-              </Link>
-            )}
+            <Link
+              href="/dashboard/seller"
+              className="btn btn-secondary btn-sm"
+            >
+              Connect Stripe Payouts →
+            </Link>
           </div>
         </section>
       </main>
@@ -127,15 +128,12 @@ async function SalesContent({
   const { cursor: rawCursor } = await searchParams;
   const historyCursor = parseOrderHistoryCursor(rawCursor);
   const page = historyCursor?.page ?? 1;
-  const [total, orderPage] = await Promise.all([
-    countSellerOrders(me.id),
-    readSellerOrderSummaryPage({
-      actorUserId: me.id,
-      limit: PAGE_SIZE,
-      cursor: historyCursor?.boundary ?? null,
-      direction: historyCursor?.direction ?? "older",
-    }),
-  ]);
+  const orderPage = await readSellerOrderSummaryPage({
+    actorUserId: me.id,
+    limit: PAGE_SIZE,
+    cursor: historyCursor?.boundary ?? null,
+    direction: historyCursor?.direction ?? "older",
+  });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const orders = orderPage.rows;
   if (historyCursor && (page > totalPages || (total > 0 && orders.length === 0))) {
@@ -180,9 +178,6 @@ async function SalesContent({
               const myItems = o.items;
               const mySubtotalCents = o.itemsSubtotalCents;
               const currency = o.currency ?? DEFAULT_CURRENCY;
-              const shipping = o.shippingAmountCents ?? 0;
-              const tax = o.taxAmountCents ?? 0;
-              const giftWrapping = o.giftWrappingPriceCents ?? 0;
               // Orders are durably single-seller; use the complete checkout subtotal,
               // not the five item summaries rendered on this list card.
               const orderTotal = orderTotalCents(o, { itemsSubtotalCents: mySubtotalCents });
@@ -242,17 +237,17 @@ async function SalesContent({
                         <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                           {img ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
+                            <img src={img} alt="" className="h-16 w-16 rounded-lg object-cover" />
                           ) : (
-                            <div className="h-16 w-16 rounded border bg-neutral-100" />
+                            <div className="h-16 w-16 rounded-lg bg-neutral-100" />
                           )}
                           <div className="min-w-0 flex-1">
-                            <a
-                              href={publicListingPath(it.listingId, it.title)}
+                            <Link
+                              href={`/dashboard/sales/${o.id}`}
                               className="block truncate text-sm font-medium hover:underline"
                             >
                               {it.title}
-                            </a>
+                            </Link>
                             <div className="mt-1 text-sm text-neutral-700">
                               {fmtMoney(it.priceCents, currency)} × {it.quantity}
                             </div>
@@ -270,42 +265,14 @@ async function SalesContent({
                     )}
                   </ul>
 
-                  <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-600">Items subtotal (your items)</span>
-                      <span className="font-medium">{fmtMoney(mySubtotalCents, currency)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-600">
-                        Shipping{o.shippingTitle ? ` · ${o.shippingTitle}` : ""}
-                      </span>
-                      <span className="font-medium">{fmtMoney(shipping, currency)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-600">Tax</span>
-                      <span className="font-medium">{fmtMoney(tax, currency)}</span>
-                    </div>
-                    {giftWrapping > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-neutral-600">Gift wrapping</span>
-                        <span className="font-medium">{fmtMoney(giftWrapping, currency)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
-                      <span className="text-neutral-800">Order total</span>
-                      <span className="text-base font-semibold">
-                        {fmtMoney(orderTotal, currency)}
+                  {(refundAmountCents ?? 0) > 0 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100 text-sm">
+                      <span className="text-red-600">Refund issued</span>
+                      <span className="text-red-600">
+                        -{fmtMoney(refundAmountCents!, currency)}
                       </span>
                     </div>
-                    {(refundAmountCents ?? 0) > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-red-600">Refund issued</span>
-                        <span className="text-sm text-red-600">
-                          -{fmtMoney(refundAmountCents!, currency)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </li>
               );
             })}

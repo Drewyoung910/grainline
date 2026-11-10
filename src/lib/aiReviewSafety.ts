@@ -5,13 +5,13 @@ const PROMPT_CONTROL_PHRASES =
 const MODEL_CONTROL_MARKERS =
   /(<\|im_(?:start|end)\|>|\[\/?INST\]|\b(system|assistant|developer|user|human)\s*:)/giu;
 
-export function redactPromptInjection(value: string): string {
+export function redactPromptInjection(value: string, maxLength = 4000): string {
   const redacted = normalizeUserText(value)
     .replace(PROMPT_CONTROL_PHRASES, "[redacted-command]")
     .replace(MODEL_CONTROL_MARKERS, "[redacted-role]:")
     .replace(/\b(approved|confidence|flags)\s*[:=]/gi, "[redacted-field]=")
     .replace(/```/g, "`\u200b``");
-  return truncateText(redacted, 4000);
+  return truncateText(redacted, maxLength);
 }
 
 export function filterAIReviewImageUrls(

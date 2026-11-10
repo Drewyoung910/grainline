@@ -19,7 +19,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { firstSearchParams, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { sellerPublicProfile } from "@/lib/sellerProfilePublicAccess";
 import { normalizeTag } from "@/lib/tags";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
@@ -77,7 +77,7 @@ export default async function SellerShopPage({
 }) {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const sp = await searchParams;
+  const sp = firstSearchParams(await searchParams);
 
   const sort = sp.sort && ["newest", "price_asc", "price_desc", "popular"].includes(sp.sort)
     ? sp.sort
@@ -244,7 +244,7 @@ export default async function SellerShopPage({
           <img
             src={avatarSrc}
             alt={seller.displayName ?? ""}
-            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
+            className="h-10 w-10 shrink-0 rounded-full object-cover"
           />
         ) : (
           <div className="h-10 w-10 rounded-full bg-neutral-200 shrink-0" />
@@ -252,36 +252,40 @@ export default async function SellerShopPage({
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-xl font-semibold">
+            <h1 className="font-display text-2xl font-semibold sm:text-3xl">
               {seller.displayName ? `${seller.displayName}'s Shop` : "Shop"}
             </h1>
-            <GuildBadge level={seller.guildLevel} showLabel={true} size={36} />
-            {seller.isFoundingMaker && (
-              <FoundingMakerBadge
-                number={seller.foundingMakerNumber}
-                showLabel={true}
-                size={26}
-              />
-            )}
+            {/* Badge labels move as a whole rather than breaking word by word. */}
+            <span className="inline-flex flex-wrap items-center gap-2 whitespace-nowrap">
+              <GuildBadge level={seller.guildLevel} showLabel={true} size={28} />
+              {seller.isFoundingMaker && (
+                <FoundingMakerBadge
+                  number={seller.foundingMakerNumber}
+                  showLabel={true}
+                  size={26}
+                />
+              )}
+            </span>
           </div>
-          {!isOwner && (
-            <div className="mt-1">
-              <FollowButton
-                sellerProfileId={seller.id}
-                initialFollowing={isFollowing}
-                initialCount={followerCount}
-                size="sm"
-              />
-            </div>
-          )}
         </div>
 
-        <Link
-          href={publicSellerPath(seller.id, seller.displayName)}
-          className="text-sm text-neutral-600 underline shrink-0"
-        >
-          ← Back to profile
-        </Link>
+        {/* Its own row on phones, so it cannot squeeze the shop name. */}
+        <div className="flex w-full items-center gap-3 sm:w-auto sm:shrink-0">
+          {!isOwner && (
+            <FollowButton
+              sellerProfileId={seller.id}
+              initialFollowing={isFollowing}
+              initialCount={followerCount}
+              size="sm"
+            />
+          )}
+          <Link
+            href={publicSellerPath(seller.id, seller.displayName)}
+            className="text-sm text-neutral-600 underline"
+          >
+            ← Back to profile
+          </Link>
+        </div>
       </div>
 
       {/* ── Category tabs + sort ────────────────────────────────────── */}
@@ -383,7 +387,7 @@ export default async function SellerShopPage({
           )}
         </div>
       ) : (
-        <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
           {listings.map((l) => {
             const statusBadge =
               l.status === "DRAFT" ? { label: "Draft", cls: "bg-neutral-100 text-neutral-600" }
@@ -420,6 +424,7 @@ export default async function SellerShopPage({
                     }}
                     initialSaved={savedSet.has(l.id)}
                     variant="grid"
+                    hideMaker
                     href={
                       isOwner && l.status === "DRAFT"
                         ? `${publicListingPath(l.id, l.title)}?preview=1`

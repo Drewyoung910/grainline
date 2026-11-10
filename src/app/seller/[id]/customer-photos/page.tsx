@@ -104,7 +104,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
       <div className="mb-8">
         <Link
           href={publicSellerPath(seller.id, seller.displayName)}
-          className="text-sm text-amber-700 hover:underline inline-flex items-center gap-1"
+          className="text-sm font-semibold text-neutral-800 underline-offset-4 hover:underline inline-flex items-center gap-1"
         >
           ← Back to {seller.displayName}
         </Link>

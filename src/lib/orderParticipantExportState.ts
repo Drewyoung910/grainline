@@ -4,6 +4,7 @@ import {
   type HistoricalOrderItemSnapshot,
 } from "./orderItemSnapshot.ts";
 import type { SelectedVariantSnapshot } from "./listingVariants.ts";
+import { isTextWithinCodePointRange } from "./textLength.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/;
 const MAX_EPOCH_MILLIS = 253402300799999;
@@ -47,7 +48,7 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[], 
 }
 
 function text(value: unknown, label: string, maxLength: number) {
-  if (typeof value !== "string" || value.length < 1 || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 1, maxLength)) {
     throw new TypeError(`Order export ${label} is invalid`);
   }
   return value;
@@ -55,7 +56,7 @@ function text(value: unknown, label: string, maxLength: number) {
 
 function optionalText(value: unknown, label: string, maxLength: number) {
   if (value == null) return null;
-  if (typeof value !== "string" || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 0, maxLength)) {
     throw new TypeError(`Order export ${label} is invalid`);
   }
   return value;
@@ -104,8 +105,8 @@ function selectedVariants(value: unknown): SelectedVariantSnapshot[] | null {
     const optionLabel = candidate.optionLabel;
     const priceAdjustCents = candidate.priceAdjustCents;
     if (
-      typeof groupName !== "string" || groupName.length < 1 || groupName.length > 50
-      || typeof optionLabel !== "string" || optionLabel.length < 1 || optionLabel.length > 50
+      !isTextWithinCodePointRange(groupName, 1, 50)
+      || !isTextWithinCodePointRange(optionLabel, 1, 50)
       || !Number.isSafeInteger(priceAdjustCents)
       || Number(priceAdjustCents) < -10_000_000
       || Number(priceAdjustCents) > 10_000_000

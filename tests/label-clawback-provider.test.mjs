@@ -101,6 +101,13 @@ test("late or missing clocks never issue another POST", async () => {
   }
 });
 
+test("a database clock slightly ahead of this server still deducts the label", async () => {
+  const client = provider();
+  const labelPurchasedAt = new Date(now + 3_000).toISOString();
+  await recoverOrCreateLabelClawback({ ...intent, labelPurchasedAt }, client, timing);
+  assert.equal(client.calls.filter(([kind]) => kind === "create").length, 1);
+});
+
 test("UTC naive clocks are interpreted explicitly and equivalent offsets keep their age", async () => {
   const client = provider();
   await recoverOrCreateLabelClawback({ ...intent, labelPurchasedAt: "2026-09-07T11:00:00" }, client, timing);

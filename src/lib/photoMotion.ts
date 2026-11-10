@@ -3,6 +3,7 @@
 // opacity only, so nothing around it reflows. Every path does nothing under
 // reduced motion and leaves the page correct if the animation never runs.
 type Rect = Pick<DOMRect, "left" | "top" | "width" | "height">;
+type PhotoFit = "cover" | "contain";
 
 const EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
 export const PHOTO_GROW_MS = 340;
@@ -24,6 +25,32 @@ export function photoDeltaTransform(from: Rect, to: Rect): string | null {
   const dy = to.top + to.height / 2 - (from.top + from.height / 2);
   if (!Number.isFinite(scale) || !Number.isFinite(dx) || !Number.isFinite(dy)) return null;
   return `translate(${dx}px, ${dy}px) scale(${scale})`;
+}
+
+// Returns the visible rectangle occupied by an image inside a frame when it
+// uses CSS object-fit. Keeping this explicit lets a portrait card reveal the
+// full desktop photo without stretching or cross-fading two shapes.
+export function fittedPhotoRect(frame: Rect, imageRatio: number, fit: PhotoFit): Rect | null {
+  if (
+    frame.width <= 0
+    || frame.height <= 0
+    || !Number.isFinite(imageRatio)
+    || imageRatio <= 0
+  ) return null;
+
+  const frameRatio = frame.width / frame.height;
+  const widthConstrained = fit === "contain"
+    ? imageRatio >= frameRatio
+    : imageRatio < frameRatio;
+  const width = widthConstrained ? frame.width : frame.height * imageRatio;
+  const height = widthConstrained ? frame.width / imageRatio : frame.height;
+
+  return {
+    left: frame.left + (frame.width - width) / 2,
+    top: frame.top + (frame.height - height) / 2,
+    width,
+    height,
+  };
 }
 
 // Grows the viewer's photo out of the photo that was clicked.
@@ -102,7 +129,7 @@ export const LISTING_PHOTO_TARGET_ATTRIBUTE = "data-listing-photo-target";
 // the page doesn't move when it arrives and a traveling photo lands in the
 // right place.
 export const LISTING_GALLERY_FRAME_HEIGHT =
-  "h-[clamp(18rem,calc(100svh-var(--site-header-offset)-12rem),26rem)] lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),32rem)]";
+  "aspect-[4/5] h-auto lg:aspect-auto lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),30rem)]";
 const TRAVEL_MS = 420;
 const TARGET_WAIT_MS = 4000;
 const LANDED_HOLD_MS = 5000;
@@ -126,6 +153,13 @@ function removeFlyer(flyer: HTMLElement): void {
     discardFlyer(flyer);
   }
   if (activeFlyer === flyer) activeFlyer = null;
+}
+
+// Card hover zoom uses the independent CSS scale property rather than the
+// transform property in modern browsers.
+function visibleZoom(element: Element): string {
+  const { scale, transform } = getComputedStyle(element);
+  return scale && scale !== "none" ? `scale(${scale})` : transform;
 }
 
 function flyerImage(source: HTMLImageElement, transform: string): HTMLImageElement {
@@ -172,6 +206,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
   const flyer = document.createElement("div");
   flyer.setAttribute("aria-hidden", "true");
   flyer.setAttribute(PHOTO_FLYER_ATTRIBUTE, "");
+  const sourceRadius = getComputedStyle(frame).borderTopLeftRadius || "12px";
   Object.assign(flyer.style, {
     position: "fixed",
     left: `${from.left}px`,
@@ -179,13 +214,13 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     width: `${from.width}px`,
     height: `${from.height}px`,
     overflow: "hidden",
-    borderRadius: "16px",
+    borderRadius: sourceRadius,
     zIndex: "40",
     pointerEvents: "none",
     transformOrigin: "center",
     willChange: "transform",
   });
-  const zoom = getComputedStyle(photo).transform;
+  const zoom = visibleZoom(photo);
   const image = flyerImage(photo, zoom);
   flyer.appendChild(image);
   // A hover photo showing on top dissolves back to the listing's first photo
@@ -195,7 +230,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     && candidate.complete
     && candidate.naturalWidth > 0
     && Number(getComputedStyle(candidate).opacity) > 0.5);
-  const hoverImage = hoverSource ? flyerImage(hoverSource, getComputedStyle(hoverSource).transform) : null;
+  const hoverImage = hoverSource ? flyerImage(hoverSource, visibleZoom(hoverSource)) : null;
   if (hoverImage) flyer.appendChild(hoverImage);
   document.body.appendChild(flyer);
   activeFlyer = flyer;
@@ -213,26 +248,125 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
 
   const land = (target: Element) => {
     const to = target.getBoundingClientRect();
-    const transform = photoDeltaTransform(from, to);
-    if (!transform) {
-      removeFlyer(flyer);
-      return;
-    }
     const timing = { duration: TRAVEL_MS, easing: EASE, fill: "forwards" as const };
-    if (zoom !== "none") image.animate([{ transform: zoom }, { transform: "none" }], timing);
-    hoverImage?.animate([{ opacity: 1 }, { opacity: 0 }], timing);
-    const animation = flyer.animate([{ transform: "none" }, { transform }], timing);
+    const targetRadius = getComputedStyle(target).borderTopLeftRadius;
+    let animation: Animation;
+
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      const imageRatio = photo.naturalWidth / photo.naturalHeight;
+      const sourcePhoto = fittedPhotoRect(
+        { left: 0, top: 0, width: from.width, height: from.height },
+        imageRatio,
+        "cover",
+      );
+      const targetPhoto = fittedPhotoRect(to, imageRatio, "contain");
+      if (!sourcePhoto || !targetPhoto) {
+        removeFlyer(flyer);
+        return;
+      }
+
+      Object.assign(image.style, {
+        inset: "auto",
+        left: `${sourcePhoto.left}px`,
+        top: `${sourcePhoto.top}px`,
+        width: `${sourcePhoto.width}px`,
+        height: `${sourcePhoto.height}px`,
+        objectFit: "fill",
+      });
+      image.animate(
+        [
+          {
+            left: `${sourcePhoto.left}px`,
+            top: `${sourcePhoto.top}px`,
+            width: `${sourcePhoto.width}px`,
+            height: `${sourcePhoto.height}px`,
+            transform: zoom,
+          },
+          {
+            left: "0px",
+            top: "0px",
+            width: `${targetPhoto.width}px`,
+            height: `${targetPhoto.height}px`,
+            transform: "none",
+          },
+        ],
+        timing,
+      );
+      hoverImage?.animate(
+        [{ opacity: 1 }, { opacity: 0 }],
+        { duration: 150, easing: "ease-out", fill: "forwards" },
+      );
+      animation = flyer.animate(
+        [
+          {
+            left: `${from.left}px`,
+            top: `${from.top}px`,
+            width: `${from.width}px`,
+            height: `${from.height}px`,
+            borderRadius: sourceRadius,
+          },
+          {
+            left: `${targetPhoto.left}px`,
+            top: `${targetPhoto.top}px`,
+            width: `${targetPhoto.width}px`,
+            height: `${targetPhoto.height}px`,
+            borderRadius: targetRadius,
+          },
+        ],
+        timing,
+      );
+    } else {
+      const transform = photoDeltaTransform(from, to);
+      if (!transform) {
+        removeFlyer(flyer);
+        return;
+      }
+      if (zoom !== "none") image.animate([{ transform: zoom }, { transform: "none" }], timing);
+      hoverImage?.animate(
+        [{ opacity: 1 }, { opacity: 0 }],
+        { duration: 150, easing: "ease-out", fill: "forwards" },
+      );
+      const scale = Math.min(to.width / from.width, to.height / from.height);
+      const targetRadiusPx = Number.parseFloat(targetRadius);
+      animation = flyer.animate(
+        [
+          { transform: "none", borderRadius: sourceRadius },
+          {
+            transform,
+            borderRadius: Number.isFinite(targetRadiusPx) ? `${targetRadiusPx / scale}px` : targetRadius,
+          },
+        ],
+        timing,
+      );
+    }
     animation.onfinish = () => {
       // Hold over the gallery until its own photo has arrived, however long the
       // page takes, so the photo never gives way to an empty frame.
       const holdStart = performance.now();
       const landedScrollY = window.scrollY;
+      let decoding = false;
       const hold = () => {
         if (flyer !== activeFlyer) return;
         const shown = document.querySelector<HTMLImageElement>(`${selector} img`);
-        const gone = !onListingPage() || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX;
-        if (gone || shown?.complete || performance.now() - holdStart > LANDED_HOLD_MS) removeFlyer(flyer);
-        else requestAnimationFrame(hold);
+        const gone = !onListingPage()
+          || !document.querySelector(selector)
+          || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX;
+        if (gone || performance.now() - holdStart > LANDED_HOLD_MS) {
+          removeFlyer(flyer);
+          return;
+        }
+        if (shown?.complete && shown.naturalWidth > 0 && !decoding) {
+          decoding = true;
+          shown.decode().catch(() => undefined).then(() => {
+            if (flyer !== activeFlyer) return;
+            if (!onListingPage() || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX) {
+              removeFlyer(flyer);
+              return;
+            }
+            discardFlyer(flyer);
+          });
+        }
+        requestAnimationFrame(hold);
       };
       hold();
     };
@@ -250,7 +384,13 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
       land(target);
       return;
     }
-    if (performance.now() - startedAt > TARGET_WAIT_MS) {
+    // Once the listing route has rendered its main content without a gallery
+    // target, there is nowhere for the flyer to land. End it immediately
+    // instead of leaving it over a not-found or photo-less page for 4 seconds.
+    if (
+      (onListingPage() && !target && document.querySelector("main"))
+      || performance.now() - startedAt > TARGET_WAIT_MS
+    ) {
       removeFlyer(flyer);
       return;
     }
