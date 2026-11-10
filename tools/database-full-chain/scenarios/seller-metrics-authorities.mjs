@@ -267,6 +267,9 @@ export async function proveSellerMetricsPreparedAuthorities({
   const runtimeUrl = runtimeConnectionString(connectionString, runtimePassword);
   const first = await connectRuntime(runtimeUrl, "seller_metrics_primary");
   const second = await connectRuntime(runtimeUrl, "seller_metrics_secondary");
+  const parityReviewerId = `${suffix}_inactive_reviewer`;
+  const parityListingId = `${suffix}_review_listing`;
+  const parityReviewId = `${suffix}_inactive_review`;
 
   const originalSellerState = rowsOf(await database.query(
     `SELECT "guildLevel"::text AS guild_level,
@@ -332,6 +335,48 @@ export async function proveSellerMetricsPreparedAuthorities({
     const initial = await ownerMetrics(first, seller.userId, { force: true });
     assert.equal(initial.length, 1);
     assertMetricsRow(initial[0], seller.sellerProfileId);
+
+    await database.query(
+      `INSERT INTO public."User" (id, "clerkId", email)
+       VALUES ($1, $2, $3)`,
+      [
+        parityReviewerId,
+        `${parityReviewerId}_clerk`,
+        `${parityReviewerId}@example.test`,
+      ],
+    );
+    await database.query(
+      `INSERT INTO public."Listing" (
+         id, "sellerId", title, description, "priceCents", status
+       ) VALUES ($1, $2, 'Metrics parity listing', 'Metrics parity fixture', 100,
+                 'ACTIVE'::public."ListingStatus")`,
+      [parityListingId, seller.sellerProfileId],
+    );
+    await database.query(
+      `INSERT INTO public."Review" (
+         id, "listingId", "reviewerId", "reviewerAccountActive", "ratingX2"
+       ) VALUES ($1, $2, $3, false, 10)`,
+      [parityReviewId, parityListingId, parityReviewerId],
+    );
+
+    const inactiveReview = await ownerMetrics(first, seller.userId, { force: true });
+    assert.equal(
+      Number(inactiveReview[0]?.reviewCount),
+      Number(initial[0]?.reviewCount),
+      "inactive reviewer rows must remain excluded from Guild metrics",
+    );
+    await database.query(
+      `UPDATE public."Review"
+          SET "reviewerAccountActive" = true
+        WHERE id = $1`,
+      [parityReviewId],
+    );
+    const activeReview = await ownerMetrics(first, seller.userId, { force: true });
+    assert.equal(
+      Number(activeReview[0]?.reviewCount),
+      Number(initial[0]?.reviewCount) + 1,
+      "reactivated reviewer rows must be counted once",
+    );
 
     const cached = await ownerMetrics(first, seller.userId);
     assert.equal(cached.length, 1);
@@ -501,6 +546,15 @@ export async function proveSellerMetricsPreparedAuthorities({
   } finally {
     await Promise.all([closeTransaction(first), closeTransaction(second)]);
     await Promise.all([first.end(), second.end()]);
+    await database.query('DELETE FROM public."Review" WHERE id = $1', [
+      parityReviewId,
+    ]).catch(() => {});
+    await database.query('DELETE FROM public."Listing" WHERE id = $1', [
+      parityListingId,
+    ]).catch(() => {});
+    await database.query('DELETE FROM public."User" WHERE id = $1', [
+      parityReviewerId,
+    ]).catch(() => {});
     await database.query(
       `UPDATE public."SellerProfile"
           SET "guildLevel" = $2::public."GuildLevel",
