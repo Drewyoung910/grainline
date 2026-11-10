@@ -51,7 +51,8 @@ describe("verified audit follow-up guardrails", () => {
     const text = source("src/app/messages/new/page.tsx");
     assert.match(text, /canStartConversationWith/);
     assert.match(text, /sellerParticipantConversationListingTarget/);
-    assert.match(text, /prisma\.block\.findFirst/);
+    assert.match(text, /userBlockPairIsBlocked\(me\.id, other\.id\)/);
+    assert.doesNotMatch(text, /prisma\.block\.findFirst/);
     assert.equal(text.includes("contextListingId: listing"), false);
   });
 

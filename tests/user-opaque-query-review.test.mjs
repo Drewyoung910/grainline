@@ -47,13 +47,15 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // publicListingWhere/openCommissionWhere build-time reads. C-261 then added
   // three reviewed factory reads to metadata (empty metro and category pages
   // return 404 or noindex), and C-1890 removed the tag-word spread residual.
-  assert.equal(report.opaqueShapes.length, 144);
-  assert.equal(reviewedFactories.length, 109);
+  // UserReport validation moves three public target factories behind its
+  // actor-bound SQL authority.
+  assert.equal(report.opaqueShapes.length, 141);
+  assert.equal(reviewedFactories.length, 106);
   assert.equal(reviewedResidual.length, 35);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 88,
-    sha256: "e6abaf116291b81e72307c7efddca1e37d93cf305dc099865df9e8cab3a05afa",
+    unique: 85,
+    sha256: "dab378b98bf6869fa9db178cdda09c1d12152f8ec1ac9dfbc351cbddd9686b35",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 29,

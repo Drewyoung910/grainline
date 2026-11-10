@@ -11,6 +11,7 @@ import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
 import { sellerParticipantConversationListingTarget } from "@/lib/sellerProfilePublicAccess";
 import { userRelationshipTargetState } from "@/lib/userRelationshipAccess";
 import { messageRouteId } from "@/lib/messageInputState";
+import { userBlockPairIsBlocked } from "@/lib/blockAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -44,16 +45,8 @@ export default async function NewConversationPage({
   });
   if (!other) redirect("/messages");
 
-  const blockExists = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: other.id },
-        { blockerId: other.id, blockedId: me.id },
-      ],
-    },
-    select: { id: true },
-  });
-  if (!canStartConversationWith(me.id, other, !!blockExists)) redirect("/messages");
+  const pairIsBlocked = await userBlockPairIsBlocked(me.id, other.id);
+  if (!canStartConversationWith(me.id, other, pairIsBlocked)) redirect("/messages");
 
   let validListingId: string | null = null;
   let listingTitle: string | null = null;
