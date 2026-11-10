@@ -73,6 +73,10 @@ describe("SellerMetrics compatible preparation", () => {
     assert.match(migration, /grainline_order_seller_metrics_facts/u);
     assert.match(migration, /grainline_case_seller_active_count/u);
     assert.match(migration, /grainline_seller_message_response_metrics/u);
+    assert.match(
+      migration,
+      /listing\."sellerId" = p_seller_profile_id\s+AND review\."reviewerAccountActive" = true/u,
+    );
     assert.match(migration, /effect\."claimGeneration" = p_claim_generation/u);
     assert.match(migration, /effect\."claimToken" = p_claim_token/u);
     assert.match(

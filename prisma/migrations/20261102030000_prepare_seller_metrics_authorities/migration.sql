@@ -323,7 +323,8 @@ BEGIN
     FROM public."Review" AS review
     JOIN public."Listing" AS listing
       ON listing.id = review."listingId"
-   WHERE listing."sellerId" = p_seller_profile_id;
+   WHERE listing."sellerId" = p_seller_profile_id
+     AND review."reviewerAccountActive" = true;
 
   SELECT facts.completed_order_count,
          facts.total_sales_cents,
