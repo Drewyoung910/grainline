@@ -552,7 +552,7 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-broadcast-preparation"
-          migration=20261101010000_prepare_seller_broadcast_authorities
+          migration=20261101100000_prepare_seller_broadcast_authorities
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
@@ -7154,7 +7154,7 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-broadcast-preparation"
-          migration=20261101010000_prepare_seller_broadcast_authorities
+          migration=20261101100000_prepare_seller_broadcast_authorities
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"

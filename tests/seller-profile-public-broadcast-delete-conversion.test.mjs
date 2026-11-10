@@ -9,7 +9,8 @@ const deleteAction = page.slice(
 );
 
 test("broadcast deletion no longer reconstructs an email subject from seller profile data", () => {
-  assert.match(deleteAction, /deleteStaffSellerBroadcast\(getOrderStaffReadClient\(\), \{/u);
+  assert.match(deleteAction, /const staffClient = getOrderStaffReadClient\(\)/u);
+  assert.match(deleteAction, /deleteStaffSellerBroadcast\(staffClient, \{/u);
   assert.match(deleteAction, /actorId: user\.id/u);
   assert.match(deleteAction, /broadcastId: id/u);
   assert.doesNotMatch(deleteAction, /sellerProfileStaffReportTargets/u);

@@ -296,7 +296,7 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
   "grainline_follow_account_deletion_cleanup",
 ];
 const SELLER_BROADCAST_PREPARATION_MIGRATION =
-  "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql";
+  "prisma/migrations/20261101100000_prepare_seller_broadcast_authorities/migration.sql";
 const SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES = [
   "grainline_seller_broadcast_owner_cooldown",
   "grainline_seller_broadcast_owner_create",

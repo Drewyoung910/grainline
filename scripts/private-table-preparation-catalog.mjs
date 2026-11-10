@@ -403,8 +403,8 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
     ]),
   }),
   seller_broadcast_v1: Object.freeze({
-    migration: "20261101010000_prepare_seller_broadcast_authorities",
-    migrationSha256: "2fd1b027f87e640b254d6be065a376777c5bf4eecb32fda6962d24126dbf7617",
+    migration: "20261101100000_prepare_seller_broadcast_authorities",
+    migrationSha256: "06e96ccc11bf36637e7479178e0e63b8d81fc589a0ac7393b71b4b1d3dcd4a5d",
     table: "SellerBroadcast",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -473,7 +473,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_email_outbox_begin_provider_attempt",
         arguments: "text, bigint, uuid",
         predecessorSourceSha256:
-          "06c8df2412ad8809f2564a886074f95c5190e9238bb6224bbe22cab131aa8436",
+          "acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e",
       }),
     ]),
   }),

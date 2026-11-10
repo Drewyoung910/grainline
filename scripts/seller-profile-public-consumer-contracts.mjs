@@ -155,8 +155,8 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // actor-bound SQL authority without adding SellerProfile access.
       // Email-service least privilege moves four additional reviewed factory
       // calls behind fixed SQL authorities without adding SellerProfile access.
-      // SellerBroadcast's fixed authorities replace two public seller query
-      // factory calls while preserving their reviewed public visibility rules.
+      // SellerBroadcast's fixed authorities replace the remaining public
+      // seller broadcast query factory while preserving its visibility rules.
       || reviewedNonTargetFactoryCalls.length !== 110
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the

@@ -3,7 +3,8 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
--- Additive compatible preparation only. SellerBroadcast RLS and predecessor
+-- Additive compatible preparation only, ordered after the email-service
+-- boundary. SellerBroadcast RLS and predecessor
 -- CRUD grants stay unchanged until every caller and complete-chain proof is
 -- accepted.
 DO $grainline_seller_broadcast_preflight$
@@ -66,7 +67,7 @@ BEGIN
      WHERE procedure.oid =
        'public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)'::pg_catalog.regprocedure
        AND pg_catalog.md5(procedure.prosrc) =
-         'c1c8e556ba5a5da2c4cf176fc4397060'
+         'd5b060579f6bd92b5203f8e663badd80'
   ) THEN
     RAISE EXCEPTION
       'SellerBroadcast email provider-attempt predecessor drifted';
