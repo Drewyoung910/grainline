@@ -38,8 +38,10 @@ function loadInterestRoute({ buyerId = "buyer-1", blocked = false } = {}) {
         commissionRequest: {
           findUnique: async () => ({ id: "request-1", buyerId, status: "OPEN", expiresAt: null, buyerAccountActive: true }),
         },
-        block: { findFirst: async () => (blocked ? { id: "block-1" } : null) },
       },
+    },
+    "@/lib/blockAccess": {
+      userBlockPairIsBlocked: async () => blocked,
     },
     "@/lib/commissionExpiry": { commissionIsExpired: () => false },
     "@/lib/userIdentityAccess": {
