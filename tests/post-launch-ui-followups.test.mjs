@@ -153,10 +153,11 @@ describe("post-launch UI follow-ups", () => {
     assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
-    assert.match(gallery, /overflow-hidden rounded-lg/);
+    assert.match(gallery, /touch-pinch-zoom rounded-xl/);
+    assert.match(gallery, /overflow-hidden rounded-xl/);
     assert.match(frame, /aspect-\[4\/5\] h-auto/);
     assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),30rem/);
-    assert.doesNotMatch(gallery, /rounded-xl|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
+    assert.doesNotMatch(gallery, /h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
     // Match the actual UploadButton element — endpoint immediately followed by

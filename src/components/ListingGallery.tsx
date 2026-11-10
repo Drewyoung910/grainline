@@ -232,7 +232,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y touch-pinch-zoom rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:flex lg:items-center lg:justify-center lg:bg-transparent lg:[container-type:size]`}
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y touch-pinch-zoom rounded-xl bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:flex lg:items-center lg:justify-center lg:bg-transparent lg:[container-type:size]`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -248,7 +248,7 @@ export default function ListingGallery({
       >
         <div
           ref={photoSurfaceRef}
-          className={`relative h-full w-full overflow-hidden rounded-lg${activeRatio ? " lg:h-auto lg:w-[min(100cqw,var(--photo-width))] lg:[aspect-ratio:var(--photo-ratio)]" : ""}`}
+          className={`relative h-full w-full overflow-hidden rounded-xl${activeRatio ? " lg:h-auto lg:w-[min(100cqw,var(--photo-width))] lg:[aspect-ratio:var(--photo-ratio)]" : ""}`}
           style={activeRatio ? ({
             "--photo-ratio": activeRatio,
             "--photo-width": `${activeRatio * 100}cqh`,
