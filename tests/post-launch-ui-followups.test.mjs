@@ -605,6 +605,19 @@ describe("post-launch UI follow-ups", () => {
     assert.match(docs, /maker posts show a Follow-the-maker card[\s\S]*staff posts show `NewsletterSignup`/);
   });
 
+  it("keeps anchored public content clear of the sticky navigation", () => {
+    const blogPost = source("src/app/blog/[slug]/page.tsx");
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+
+    assert.match(blogPost, /id=\{`comment-\$\{c\.id\}`\} data-scroll-anchor/);
+    for (const section of ["shop", "about", "policies"]) {
+      assert.match(
+        sellerPage,
+        new RegExp(`id="${section}"[^>]*data-scroll-anchor[^>]*scroll-mt-\\[calc\\(var\\(--site-header-offset\\)\\+3\\.75rem\\)\\]`),
+      );
+    }
+  });
+
   it("hides inert blog discovery controls before launch but keeps an active type filter escapable", () => {
     const blog = source("src/app/blog/page.tsx");
     assert.match(blog, /const showDiscoveryControls = Boolean\(isSearching \|\| typeFilter \|\| total > 0\)/);

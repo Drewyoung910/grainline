@@ -746,7 +746,7 @@ export default async function ProfilePage({
                 autoComplete="off"
                 required
                 className={inputClass}
-                placeholder="e.g. Do you ship internationally?"
+                placeholder="e.g. Can you match an existing finish?"
               />
             </div>
             <div>

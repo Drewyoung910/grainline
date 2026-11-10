@@ -43,6 +43,8 @@ describe("server action hardening guardrails", () => {
 
     assert.match(shopActions, /source: "listing_activation_follower_fanout"/);
     assert.match(shopActions, /sellerProfileId: listing\.sellerId/);
+    assert.match(shopActions, /if \(!listing\.isPrivate\) \{\s*await sendFirstListingCongratsIfFirst\(\{/);
+    assert.match(shopActions, /sellerUserId: listing\.seller\.userId/);
     assert.match(shopActions, /source: "listing_publish_ai_review"/);
     assert.match(shopActions, /source: "listing_publish_ai_review_followup"/);
     assert.match(shopActions, /source: "listing_publish_ai_error_mark_failed"/);

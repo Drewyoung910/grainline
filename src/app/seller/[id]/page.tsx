@@ -579,7 +579,7 @@ async function SellerPublicContent({
 
           {/* Shop first, as on Etsy: featured work, every listing, then what
               buyers received (customer photos). */}
-          <div id="shop" data-scroll-anchor="" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
+          <div id="shop" data-scroll-anchor="" className="scroll-mt-[calc(var(--site-header-offset)+3.75rem)] space-y-10 outline-none" tabIndex={-1}>
             {/* Featured Work: a compact, consistent grid */}
             {(() => {
               // Use seller-curated featured listings if set; otherwise fall back to
@@ -750,7 +750,7 @@ async function SellerPublicContent({
           </div>
 
           {hasAboutSection && (
-            <div id="about" data-scroll-anchor="" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
+            <div id="about" data-scroll-anchor="" className="scroll-mt-[calc(var(--site-header-offset)+3.75rem)] space-y-10 outline-none" tabIndex={-1}>
               {/* Story | Workshop two-column. The bio renders once, in the header above;
                   a story title with no body has nothing to show. */}
               {(seller.storyBody || seller.workshopImageUrl) && (
@@ -862,7 +862,7 @@ async function SellerPublicContent({
           )}
 
           {hasPolicySection && (
-            <div id="policies" data-scroll-anchor="" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
+            <div id="policies" data-scroll-anchor="" className="scroll-mt-[calc(var(--site-header-offset)+3.75rem)] space-y-10 outline-none" tabIndex={-1}>
               {/* Policies + FAQ two-column */}
               {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy || seller.faqs.length > 0) && (
                 <section className="smooth-details grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">

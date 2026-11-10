@@ -19,6 +19,7 @@ import {
 } from "@/lib/listingActionState";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
+import { sendFirstListingCongratsIfFirst } from "@/lib/firstListingEmail";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
@@ -388,6 +389,14 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       await syncThreshold(listing.sellerId);
       // First active listing for this seller might earn the Founding Maker badge.
       await maybeGrantFoundingMaker(listing.sellerId);
+      if (!listing.isPrivate) {
+        await sendFirstListingCongratsIfFirst({
+          sellerProfileId: listing.sellerId,
+          sellerUserId: listing.seller.userId,
+          sellerDisplayName: listing.seller.displayName,
+          listing,
+        });
+      }
       if (shouldNotifyFollowers) {
         queueFollowerFanoutForActiveListing(listing);
       }

@@ -101,7 +101,7 @@ export default async function MyReviewsPage({
                 )}
                 {r.sellerReply && (
                   <div className="mt-2 pl-3 border-l-2 border-amber-200">
-                    <p className="text-xs text-neutral-500 font-medium">Seller replied:</p>
+                    <p className="text-xs text-neutral-500 font-medium">Maker replied:</p>
                     <p className="text-xs text-neutral-600 mt-0.5 line-clamp-2">{r.sellerReply}</p>
                   </div>
                 )}
