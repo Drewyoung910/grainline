@@ -8,7 +8,10 @@ import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
-import { sellerPublicFollowerListingTarget } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerPublicFollowerListingTarget,
+  sellerPublicRecentlyViewedListings,
+} from "@/lib/sellerProfilePublicAccess";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
 import { userFollowerNotificationPage } from "@/lib/userFollowerAccess";
 
@@ -40,6 +43,18 @@ export async function fanOutListingToFollowers({
   const listingPath = publicListingPath(publicListing.id, publicListing.title);
   const listingUrl = `${EMAIL_APP_URL}${listingPath}`;
   const listingPrice = formatCurrencyCents(publicListing.priceCents, publicListing.currency);
+  let listingImageUrl: string | null = null;
+  try {
+    const [presentation] = await sellerPublicRecentlyViewedListings(null, [publicListing.id]);
+    if (presentation?.id === publicListing.id) listingImageUrl = presentation.photoUrl;
+  } catch (error) {
+    // A missing enhancement must not suppress the notification itself.
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "followed_maker_listing_photo" },
+      extra: { listingId: publicListing.id },
+    });
+  }
   let cursor: string | undefined;
 
   while (true) {
@@ -80,6 +95,7 @@ export async function fanOutListingToFollowers({
         listingTitle: publicListing.title,
         listingPrice,
         listingUrl,
+        listingImageUrl: listingImageUrl ?? undefined,
       });
       await enqueueEmailOutbox({
         ...email,

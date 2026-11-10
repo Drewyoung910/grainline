@@ -11,6 +11,7 @@ function fixture({ target = undefined, recipients = [], notificationFails = fals
     targetCalls: [],
     followerReads: 0,
     notifications: [],
+    renderedEmails: [],
     enqueued: [],
     sentry: [],
   };
@@ -37,7 +38,12 @@ function fixture({ target = undefined, recipients = [], notificationFails = fals
       captureException: (error, context) => { state.sentry.push({ error, context }); },
     },
     "@/lib/db": { prisma },
-    "@/lib/email": { renderNewListingFromFollowedMakerEmail: () => ({}) },
+    "@/lib/email": {
+      renderNewListingFromFollowedMakerEmail: (input) => {
+        state.renderedEmails.push(input);
+        return {};
+      },
+    },
     "@/lib/emailOutbox": {
       enqueueEmailOutbox: async (job) => {
         if (enqueueFails) throw new Error("outbox down");
@@ -80,6 +86,10 @@ function fixture({ target = undefined, recipients = [], notificationFails = fals
         state.targetCalls.push({ listingId, sellerProfileId });
         return publicTarget;
       },
+      sellerPublicRecentlyViewedListings: async () => [{
+        id: "listing",
+        photoUrl: "https://cdn.example.test/listing.jpg",
+      }],
     },
     "@/lib/listingVisibility": { publicListingWhere: () => ({}) },
   };
@@ -139,6 +149,10 @@ test("every publication path shares one email key per follower", async () => {
     listing: { id: "listing", title: "Listing", priceCents: 12500, currency: "usd" },
   });
   assert.equal(subject.state.enqueued[0].dedupKey, "followed-listing:listing:follower");
+  assert.equal(
+    subject.state.renderedEmails[0].listingImageUrl,
+    "https://cdn.example.test/listing.jpg",
+  );
 });
 
 test("per-recipient failures are reported instead of disappearing", async () => {
