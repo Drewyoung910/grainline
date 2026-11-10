@@ -69,7 +69,7 @@ export default function ReviewComposer(props: {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (locked) {
-      toast("This review is locked because the seller has replied.", "error");
+      toast("This review is locked because the maker has replied.", "error");
       return;
     }
     if (submitting) return;
@@ -132,7 +132,7 @@ export default function ReviewComposer(props: {
     <form onSubmit={onSubmit} className="card-section p-4 space-y-3">
       {locked && (
         <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] px-3 py-2 text-sm text-neutral-700">
-          This review is locked because the seller has replied. Existing review content is read-only.
+          This review is locked because the maker has replied. Existing review content is read-only.
         </div>
       )}
       <div className="flex items-center justify-between">
