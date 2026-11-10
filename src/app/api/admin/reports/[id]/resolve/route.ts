@@ -40,7 +40,7 @@ export async function POST(
   const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
   if (pinResponse) return pinResponse;
 
-  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
 
   const { id } = await params;
