@@ -26,11 +26,19 @@ test("SellerMetrics activation is policyless and removes direct authority", () =
   assert.deepEqual(release.activatedPublicPrivileges, []);
   assert.equal(release.preparation.functions.length, 4);
   assert.equal(release.preparation.retainedFunctions.length, 5);
+  assert.deepEqual(release.additionalLocks, [{
+    table: "SellerProfile",
+    mode: "SHARE UPDATE EXCLUSIVE",
+  }]);
   assert.equal(verified.migrationDigest, release.migrationSha256);
   assert.equal(verified.rollbackDigest, release.rollbackSha256);
   assert.match(
     migration,
     /LOCK TABLE public\."SellerMetrics" IN ACCESS EXCLUSIVE MODE/u,
+  );
+  assert.match(
+    migration,
+    /LOCK TABLE public\."SellerProfile" IN SHARE UPDATE EXCLUSIVE MODE/u,
   );
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/u);
   assert.match(migration, /FORCE ROW LEVEL SECURITY/u);
