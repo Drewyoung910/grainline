@@ -21,14 +21,14 @@ type RecentListing = {
 export default function RecentlyViewed() {
   const { toast } = useToast();
   const [listings, setListings] = React.useState<RecentListing[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  // Do not server-render a section that immediately vanishes for a visitor
+  // with no local viewing history.
+  const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
     const ids = getRecentlyViewed();
-    if (ids.length === 0) {
-      setLoading(false);
-      return;
-    }
+    if (ids.length === 0) return;
+    setLoading(true);
     const controller = new AbortController();
     let active = true;
     const params = new URLSearchParams({ ids: ids.join(",") });

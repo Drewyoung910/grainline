@@ -19,8 +19,13 @@ const FOCUSABLE_SELECTOR = [
 let scrollLockCount = 0;
 let removeScrollGuards: (() => void) | null = null;
 
+export function isPageZoomed() {
+  return (window.visualViewport?.scale ?? 1) > 1.01;
+}
+
 function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
-  let element = target instanceof HTMLElement ? target : null;
+  // A gesture can begin on an SVG child inside a scrollable control.
+  let element = target instanceof Element ? target : null;
   while (element && element !== document.body && element !== document.documentElement) {
     const style = window.getComputedStyle(element);
     const scrollable = /(auto|scroll)/u.test(style.overflowY)
@@ -36,22 +41,30 @@ function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
   return false;
 }
 
-function installScrollGuards() {
-  let previousTouchY: number | null = null;
+export function installScrollGuards() {
+  let previousTouch: { clientX: number; clientY: number } | null = null;
   const onWheel = (event: WheelEvent) => {
+    // ctrl+wheel is trackpad pinch/browser zoom. A zoomed page must remain
+    // pannable for low-vision visitors.
+    if (event.ctrlKey || isPageZoomed()) return;
     if (!scrollableAncestorCanMove(event.target, event.deltaY)) event.preventDefault();
   };
   const onTouchStart = (event: TouchEvent) => {
-    previousTouchY = event.touches[0]?.clientY ?? null;
+    const touch = event.touches[0];
+    previousTouch = touch ? { clientX: touch.clientX, clientY: touch.clientY } : null;
   };
   const onTouchMove = (event: TouchEvent) => {
-    const currentY = event.touches[0]?.clientY;
-    if (currentY == null || previousTouchY == null) {
+    if (event.touches.length > 1 || isPageZoomed()) return;
+    const current = event.touches[0];
+    if (!current || !previousTouch) {
       event.preventDefault();
       return;
     }
-    const deltaY = previousTouchY - currentY;
-    previousTouchY = currentY;
+    const deltaX = previousTouch.clientX - current.clientX;
+    const deltaY = previousTouch.clientY - current.clientY;
+    previousTouch = { clientX: current.clientX, clientY: current.clientY };
+    // Horizontal drags belong to sliders and swipeable media, not the page.
+    if (Math.abs(deltaY) <= Math.abs(deltaX)) return;
     if (!scrollableAncestorCanMove(event.target, deltaY)) event.preventDefault();
   };
   const onKeyDown = (event: KeyboardEvent) => {

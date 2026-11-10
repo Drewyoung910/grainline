@@ -315,9 +315,11 @@ export default function BuyNowCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-[#14100D]/45 modal-backdrop-in p-4 pt-12 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-[#14100D]/45 p-4 pt-12 modal-backdrop-in"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // A backdrop tap should not throw away a live Stripe session and the
+        // card details the buyer has already entered.
+        if (e.target === e.currentTarget && step !== "payment") onClose();
       }}
     >
       <div

@@ -55,6 +55,12 @@ describe("recently viewed cookie helpers", () => {
     assert.match(recentlyViewedComponent, /setRecentlyViewed\(Array\.isArray\(data\.ids\) \? data\.ids/);
   });
 
+  it("does not server-render a placeholder section for visitors with no history", () => {
+    assert.match(recentlyViewedComponent, /const \[loading, setLoading\] = React\.useState\(false\)/);
+    assert.match(recentlyViewedComponent, /if \(ids\.length === 0\) return;\s*setLoading\(true\)/);
+    assert.match(recentlyViewedComponent, /if \(!loading && listings\.length === 0\) return null/);
+  });
+
   it("returns and renders saved state for recently viewed favorite buttons", () => {
     assert.match(recentlyViewedRoute, /ownerFavoriteListingIds\(meId, orderedIds\)/);
     assert.doesNotMatch(recentlyViewedRoute, /prisma\.favorite/);

@@ -31,6 +31,17 @@ describe("checkout script inventory", () => {
     assert.match(embeddedCheckout, /role="alert"/);
   });
 
+  it("keeps a live payment session open and reports a Stripe form that never draws", () => {
+    const modal = source("src/components/BuyNowCheckoutModal.tsx");
+    const embeddedCheckout = source("src/components/EmbeddedCheckoutPanel.tsx");
+
+    assert.match(modal, /e\.target === e\.currentTarget && step !== "payment"/);
+    assert.match(modal, /overscroll-contain/);
+    assert.match(embeddedCheckout, /const \[formMissing, setFormMissing\] = useState\(false\)/);
+    assert.match(embeddedCheckout, /We couldn&apos;t load secure checkout/);
+    assert.match(embeddedCheckout, /setFormMissing\(false\);\s*markDrawn\(\)/);
+  });
+
   it("documents covered checkout surfaces and change-control rules", () => {
     const doc = source("docs/checkout-script-inventory.md");
 

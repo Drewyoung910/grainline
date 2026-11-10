@@ -4,7 +4,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, type MutableRefObject, type RefObject } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
-import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { LISTING_GALLERY_FRAME_HEIGHT, LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
@@ -166,13 +166,14 @@ export default function ListingGallery({
     lightboxHorizontalLocked.current = false;
   }
   function handleTouchEnd(e: React.TouchEvent) {
+    lightboxHorizontalLocked.current = false;
+    if (e.touches.length > 0 || isPageZoomed()) return;
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 50) {
       if (diff > 0) showNextLightboxPhoto();
       else showPreviousLightboxPhoto();
     }
-    lightboxHorizontalLocked.current = false;
   }
 
   // Main photo swipe handlers — swipe changes index; tap (< 10px) opens lightbox
@@ -183,13 +184,14 @@ export default function ListingGallery({
     mainHorizontalLocked.current = false;
   }
   function handleMainTouchEnd(e: React.TouchEvent) {
+    mainHorizontalLocked.current = false;
+    if (e.touches.length > 0 || isPageZoomed()) return;
     const diff = mainTouchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) >= 50) {
       mainSwiped.current = true;
       if (diff > 0) showNextPhoto();
       else showPreviousPhoto();
     }
-    mainHorizontalLocked.current = false;
   }
 
   return (
@@ -201,7 +203,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900`}
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y touch-pinch-zoom overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -347,7 +349,7 @@ export default function ListingGallery({
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black/90"
+          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-manipulation items-center justify-center bg-black/90"
           onClick={closeViewer}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -436,7 +438,7 @@ function attachHorizontalTouchLock(
 
   function handleTouchMove(event: TouchEvent) {
     const touch = event.touches[0];
-    if (!touch) return;
+    if (!touch || event.touches.length > 1 || isPageZoomed()) return;
 
     if (horizontalLockedRef.current) {
       if (event.cancelable) event.preventDefault();

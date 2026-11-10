@@ -1,7 +1,7 @@
 // src/components/ImageLightbox.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 
 export function ImageLightbox({ images, thumbnailSize = 96 }: { images: string[]; thumbnailSize?: number }) {
@@ -39,6 +39,7 @@ export function ImageLightbox({ images, thumbnailSize = 96 }: { images: string[]
     touchStartX.current = e.targetTouches[0].clientX;
   }
   function handleTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length > 0 || isPageZoomed()) return;
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 50) {

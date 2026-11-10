@@ -603,6 +603,13 @@ describe("post-launch UI follow-ups", () => {
     assert.match(docs, /maker posts show a Follow-the-maker card[\s\S]*staff posts show `NewsletterSignup`/);
   });
 
+  it("hides inert blog discovery controls before launch but keeps an active type filter escapable", () => {
+    const blog = source("src/app/blog/page.tsx");
+    assert.match(blog, /const showDiscoveryControls = Boolean\(isSearching \|\| typeFilter \|\| total > 0\)/);
+    assert.match(blog, /\{showDiscoveryControls && \([\s\S]*?<BlogSearchBar/);
+    assert.match(blog, /No posts of this type yet/);
+  });
+
   it("keeps the map maker card an overlay pinned to the map container", () => {
     const allSellersMap = source("src/components/AllSellersMap.tsx");
     const sellersMap = source("src/components/SellersMap.tsx");

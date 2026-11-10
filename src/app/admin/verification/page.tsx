@@ -17,6 +17,7 @@ import {
 } from "@/lib/email";
 import {
   GUILD_MASTER_REQUIREMENTS,
+  getFreshSellerMetrics,
   meetsGuildMasterRequirements,
   metricsPeriodStart,
   type SellerMetricsResult,
@@ -498,17 +499,23 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
   }
 
-  if (
-    !verification.sellerProfile.sellerMetrics ||
-    !isSellerMetricsFresh(verification.sellerProfile.sellerMetrics)
-  ) {
+  const cachedMetrics = verification.sellerProfile.sellerMetrics;
+  let metrics: SellerMetricsResult;
+  try {
+    metrics = cachedMetrics && isSellerMetricsFresh(cachedMetrics)
+      ? cachedMetricsToResult(verification.sellerProfileId, cachedMetrics)
+      : await getFreshSellerMetrics(verification.sellerProfileId);
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "admin_guild_master_metrics_refresh" },
+      extra: { verificationId, sellerProfileId: verification.sellerProfileId },
+    });
     return {
       ok: false,
-      error: "Cached Guild metrics are missing or stale. Ask the seller to refresh the verification page, or run the metrics cron, before approval.",
+      error: "Guild metrics could not be refreshed. No approval was recorded; try again shortly.",
     };
   }
-
-  const metrics = cachedMetricsToResult(verification.sellerProfileId, verification.sellerProfile.sellerMetrics);
   const criteria = meetsGuildMasterRequirements(metrics);
   if (!criteria.allMet) {
     await logAdminAction({
@@ -1102,27 +1109,17 @@ export default async function AdminVerificationPage({
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                    Cached Guild metrics are missing or stale. Approval is blocked until the seller refreshes their verification page or the metrics cron updates this profile.
+                    These numbers are out of date. Approving recalculates them first and refuses if the seller no longer qualifies.
                   </div>
                 )}
 
                 <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
-                  {m && mc ? (
-                    <ActionForm action={approveGuildMaster}>
-                      <input type="hidden" name="verificationId" value={v.id} />
-                      <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed">
-                        Approve Guild Master
-                      </SubmitButton>
-                    </ActionForm>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="btn btn-secondary btn-sm disabled:cursor-not-allowed"
-                    >
-                      Approval unavailable
-                    </button>
-                  )}
+                  <ActionForm action={approveGuildMaster}>
+                    <input type="hidden" name="verificationId" value={v.id} />
+                    <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed">
+                      Approve Guild Master
+                    </SubmitButton>
+                  </ActionForm>
                   <form action={rejectGuildMaster} className="flex items-start gap-2 flex-wrap">
                     <input type="hidden" name="verificationId" value={v.id} />
                     <input

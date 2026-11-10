@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 import MediaImage from "@/components/MediaImage";
 
@@ -57,6 +57,7 @@ export default function SellerGallery({
     touchStartX.current = e.targetTouches[0].clientX;
   }
   function handleTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length > 0 || isPageZoomed()) return;
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 50) {

@@ -46,9 +46,11 @@ export default function EmbeddedCheckoutPanel({ clientSecret, onComplete, seller
   const [placeholder, setPlaceholder] = useState<"loading" | "leaving" | "drawn">("loading");
   // A new payment (next seller) starts with the shimmer again.
   const [placeholderSecret, setPlaceholderSecret] = useState(clientSecret);
+  const [formMissing, setFormMissing] = useState(false);
   if (placeholderSecret !== clientSecret) {
     setPlaceholderSecret(clientSecret);
     setPlaceholder("loading");
+    setFormMissing(false);
   }
 
   useEffect(() => {
@@ -59,14 +61,19 @@ export default function EmbeddedCheckoutPanel({ clientSecret, onComplete, seller
     const markDrawn = () => {
       if (done) return;
       done = true;
-      observer?.disconnect();
       setPlaceholder("leaving");
       leaveTimer = window.setTimeout(() => setPlaceholder("drawn"), 320);
     };
-    const giveUpTimer = window.setTimeout(markDrawn, PLACEHOLDER_GIVE_UP_MS);
+    const giveUpTimer = window.setTimeout(() => {
+      if (!form || form.offsetHeight < STRIPE_FORM_DRAWN_PX) setFormMissing(true);
+      markDrawn();
+    }, PLACEHOLDER_GIVE_UP_MS);
     if (form && typeof ResizeObserver !== "undefined") {
       observer = new ResizeObserver(() => {
-        if (form.offsetHeight >= STRIPE_FORM_DRAWN_PX) markDrawn();
+        if (form.offsetHeight < STRIPE_FORM_DRAWN_PX) return;
+        observer?.disconnect();
+        setFormMissing(false);
+        markDrawn();
       });
       observer.observe(form);
     }
@@ -96,6 +103,19 @@ export default function EmbeddedCheckoutPanel({ clientSecret, onComplete, seller
       </div>
       <div className={`relative${placeholder === "drawn" ? "" : " min-h-[22rem]"}`}>
         {placeholder !== "drawn" && <CheckoutFormPlaceholder leaving={placeholder === "leaving"} />}
+        {formMissing && (
+          <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-neutral-700">
+            We couldn&apos;t load secure checkout. Check your connection or content blocker, then{" "}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="font-medium underline underline-offset-2"
+            >
+              try again
+            </button>
+            .
+          </p>
+        )}
         <div ref={formRef} className="relative">
           <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret, onComplete }}>
             <EmbeddedCheckout />

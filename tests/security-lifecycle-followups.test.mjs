@@ -44,6 +44,8 @@ describe("security lifecycle follow-ups", () => {
     assert.match(functionBody(page, "approveGuildMember"), /const me = await requireStaff\(\)/);
     assert.match(functionBody(page, "approveGuildMember"), /const adminOverride = me\.role === "ADMIN"/);
     assert.match(functionBody(page, "approveGuildMaster"), /const me = await requireStaff\(\)/);
+    assert.match(functionBody(page, "approveGuildMaster"), /await getFreshSellerMetrics\(verification\.sellerProfileId\)/);
+    assert.match(functionBody(page, "approveGuildMaster"), /No approval was recorded/);
     assert.match(page, /staff\.role === "ADMIN" && \(/);
   });
 
