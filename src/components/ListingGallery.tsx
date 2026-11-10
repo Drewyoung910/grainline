@@ -1,7 +1,7 @@
 // src/components/ListingGallery.tsx
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
@@ -15,16 +15,25 @@ type Photo = { id: string; url: string; altText?: string | null };
 export default function ListingGallery({
   photos,
   title,
+  saveControl,
 }: {
   photos: Photo[];
   title: string;
+  saveControl?: ReactNode;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  // Show the already-decoded page image while the full lightbox source loads.
+  // Its aspect ratio reserves the final geometry so the image never jumps.
+  const [lightboxPreview, setLightboxPreview] = useState<{ url: string; src: string; ratio: number } | null>(null);
   const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
+  // Width over height of the decoded image. Desktop centers an exact-ratio
+  // photo box inside the bounded gallery frame instead of a cream letterbox.
+  const [activeRatio, setActiveRatio] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
+  const photoSurfaceRef = useRef<HTMLDivElement>(null);
   const thumbnailListRef = useRef<HTMLDivElement>(null);
   const thumbnailRefs = useRef(new Map<number, HTMLButtonElement>());
   const [thumbnailIndicator, setThumbnailIndicator] = useState<{ left: number; width: number } | null>(null);
@@ -48,7 +57,7 @@ export default function ListingGallery({
     open: lightboxOpen,
     photoRef: lightboxPhotoRef,
     dialogRef,
-    getSource: () => mainPhotoRef.current,
+    getSource: () => photoSurfaceRef.current,
     onClosed: () => {
       // The page keeps the photo the visitor stopped on.
       setActiveIndex(lightboxIndex);
@@ -57,6 +66,19 @@ export default function ListingGallery({
   });
   useDialogFocus(lightboxOpen, dialogRef, closeViewer);
   useBodyScrollLock(lightboxOpen);
+
+  useEffect(() => {
+    if (!lightboxPreview) return;
+    let cancelled = false;
+    const original = new window.Image();
+    original.src = lightboxPreview.url;
+    original.decode().then(() => {
+      if (!cancelled) setLightboxPreview(null);
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [lightboxPreview]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -120,15 +142,22 @@ export default function ListingGallery({
     return cleanup;
   }, [lightboxOpen, photos.length]);
 
-  if (photos.length === 0) return null;
+  if (photos.length === 0) return saveControl ?? null;
 
   // Behind the viewer the page follows along, so the photo it shrinks back into
   // has already loaded instead of swapping in afterwards.
   const mainIndex = lightboxOpen ? lightboxIndex : activeIndex;
   const activeUrl = photos[mainIndex]?.url ?? "";
+  const showPreview = lightboxPreview !== null && lightboxPreview.url === photos[lightboxIndex]?.url;
 
   function openLightbox(i: number) {
     lightboxSwapRef.current = false;
+    const shown = photoSurfaceRef.current?.querySelector("img");
+    setLightboxPreview(
+      shown?.complete && shown.naturalWidth > 0
+        ? { url: photos[i].url, src: shown.currentSrc, ratio: shown.naturalWidth / shown.naturalHeight }
+        : null,
+    );
     setLightboxIndex(i);
     setLightboxOpen(true);
   }
@@ -203,7 +232,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y touch-pinch-zoom overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900`}
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y touch-pinch-zoom rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:flex lg:items-center lg:justify-center lg:bg-transparent lg:[container-type:size]`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -217,83 +246,92 @@ export default function ListingGallery({
           }
         }}
       >
-        <Image
-          src={activeUrl}
-          alt={photos[mainIndex]?.altText ?? title}
-          unoptimized={!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)}
-          fill
-          sizes="(max-width: 1023px) 100vw, 50vw"
-          preload={mainIndex === 0}
-          data-fly-to-cart-source=""
-          className="h-full w-full object-contain"
-          onLoad={(e) => {
-            if (!mainSwapRef.current) return;
-            mainSwapRef.current = false;
-            playPhotoSwap(e.currentTarget);
-          }}
-          onError={() => {
-            if (!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)) return;
-            setOptimizerFailures((current) => new Set(current).add(activeUrl));
-          }}
-        />
-        {photos.length > 1 && (
-          <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
-            {activeIndex + 1} / {photos.length}
-          </div>
-        )}
-        {photos.length > 1 && (
-          <>
-            <button
-              type="button"
-              aria-label="Previous photo"
-              onClick={(event) => {
-                event.stopPropagation();
-                showPreviousPhoto();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  showPreviousPhoto();
-                }
-              }}
-              className="absolute left-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
-              style={{ borderRadius: "9999px" }}
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <button
-              type="button"
-              aria-label="Next photo"
-              onClick={(event) => {
-                event.stopPropagation();
-                showNextPhoto();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  showNextPhoto();
-                }
-              }}
-              className="absolute right-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
-              style={{ borderRadius: "9999px" }}
-            >
-              <ChevronRight size={24} />
-            </button>
-          </>
-        )}
-        {/* Expand and favorite use the same 44px corner cell and 36px visible
-            circle, so the gallery controls are optically symmetrical. */}
         <div
-          className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
-          aria-hidden="true"
+          ref={photoSurfaceRef}
+          className={`relative h-full w-full overflow-hidden rounded-lg${activeRatio ? " lg:h-auto lg:w-[min(100cqw,var(--photo-width))] lg:[aspect-ratio:var(--photo-ratio)]" : ""}`}
+          style={activeRatio ? ({
+            "--photo-ratio": activeRatio,
+            "--photo-width": `${activeRatio * 100}cqh`,
+          } as CSSProperties) : undefined}
         >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-            </svg>
-          </span>
+          <Image
+            src={activeUrl}
+            alt={photos[mainIndex]?.altText ?? title}
+            unoptimized={!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)}
+            fill
+            sizes="(max-width: 1023px) 100vw, 50vw"
+            preload={mainIndex === 0}
+            data-fly-to-cart-source=""
+            className="h-full w-full object-cover lg:object-contain"
+            onLoad={(e) => {
+              const { naturalWidth, naturalHeight } = e.currentTarget;
+              if (naturalWidth > 0 && naturalHeight > 0) {
+                setActiveRatio(naturalWidth / naturalHeight);
+              }
+              if (!mainSwapRef.current) return;
+              mainSwapRef.current = false;
+              playPhotoSwap(e.currentTarget);
+            }}
+            onError={() => {
+              if (!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)) return;
+              setOptimizerFailures((current) => new Set(current).add(activeUrl));
+            }}
+          />
+
+          {/* Keep every overlay attached to the visible photo, not the wider
+              desktop gallery frame. */}
+          <div className={`transition-opacity duration-150${activeRatio ? "" : " lg:opacity-0"}`}>
+            <div
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              {saveControl}
+            </div>
+            {photos.length > 1 && (
+              <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
+                {activeIndex + 1} / {photos.length}
+              </div>
+            )}
+            {photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Previous photo"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    showPreviousPhoto();
+                  }}
+                  className="absolute left-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
+                  style={{ borderRadius: "9999px" }}
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next photo"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    showNextPhoto();
+                  }}
+                  className="absolute right-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
+                  style={{ borderRadius: "9999px" }}
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </>
+            )}
+            {/* Expand and favorite share matching 44px corner cells. */}
+            <div
+              className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
+              aria-hidden="true"
+            >
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+                </svg>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -391,9 +429,12 @@ export default function ListingGallery({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={lightboxPhotoRef}
-              src={photos[lightboxIndex]?.url}
+              src={showPreview ? lightboxPreview.src : photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85dvh] object-contain"
+              style={showPreview
+                ? { width: `min(56rem, 100vw - 2rem, 85dvh * ${lightboxPreview.ratio})`, aspectRatio: lightboxPreview.ratio }
+                : undefined}
               onLoad={(e) => {
                 if (!lightboxSwapRef.current) return;
                 lightboxSwapRef.current = false;
