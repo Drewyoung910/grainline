@@ -384,7 +384,13 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
       land(target);
       return;
     }
-    if (performance.now() - startedAt > TARGET_WAIT_MS) {
+    // Once the listing route has rendered its main content without a gallery
+    // target, there is nowhere for the flyer to land. End it immediately
+    // instead of leaving it over a not-found or photo-less page for 4 seconds.
+    if (
+      (onListingPage() && !target && document.querySelector("main"))
+      || performance.now() - startedAt > TARGET_WAIT_MS
+    ) {
       removeFlyer(flyer);
       return;
     }

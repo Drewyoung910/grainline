@@ -12,20 +12,20 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.doesNotMatch(header, /sign-in\?redirect_url=\/messages/);
   });
 
-  it("keeps a 44px favorite target around a centered frosted circle", () => {
+  it("keeps a 44px favorite target around a centered pale frosted circle", () => {
     const favorite = source("src/components/FavoriteButton.tsx");
     assert.match(favorite, /h-11 w-11/);
-    assert.match(favorite, /absolute h-8 w-8 rounded-full bg-neutral-950\/55/);
+    assert.match(favorite, /absolute h-8 w-8 rounded-full bg-white\/92/);
     assert.match(favorite, /backdrop-blur-md/);
-    assert.match(favorite, /group-hover\/fav:scale-\[1\.07\]/);
+    assert.match(favorite, /group-hover\/fav:scale-\[1\.06\]/);
     // Pending saves ignore clicks without the disabled attribute, which
     // restyled the button mid-tap.
     assert.match(favorite, /if \(isPending\) return;/);
     assert.doesNotMatch(favorite, /disabled=\{isPending\}/);
-    assert.match(favorite, /saved \? "fill-red-500 stroke-red-500" : "fill-transparent stroke-white"/);
+    assert.match(favorite, /saved \? "fill-red-500 stroke-red-500" : "fill-transparent stroke-neutral-900"/);
     assert.match(favorite, /toast\(next \? "Saved to favorites\." : "Removed from favorites\.", "success"\)/);
     assert.doesNotMatch(favorite, /-translate-y-px/);
-    assert.match(favorite, /0_0_0_1px_rgba\(255,255,255,0\.28\)/);
+    assert.match(favorite, /0_0_0_1px_rgba\(44,31,26,0\.16\)/);
   });
 
   it("confirms saved blog changes with the same durable toast system", () => {
@@ -35,8 +35,8 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.match(savedPost, /toast\(data\.saved \? "Post saved\." : "Removed from saved posts\.", "success"\)/);
     assert.match(savedPost, /aria-pressed=\{saved\}/);
     assert.match(savedPost, /onPointerUp=\{\(event\) => event\.currentTarget\.blur\(\)\}/);
-    assert.match(savedPost, /absolute h-8 w-8 rounded-full bg-neutral-950\/55/);
-    assert.match(savedPost, /stroke="#FFFFFF"/);
+    assert.match(savedPost, /absolute h-8 w-8 rounded-full bg-white\/92/);
+    assert.match(savedPost, /stroke="#171717"/);
   });
 
   it("provides a leaf review loader that mirrors review cards", () => {

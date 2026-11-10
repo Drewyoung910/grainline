@@ -46,7 +46,8 @@ function NavCount({ count, capped = false }: { count?: number; capped?: boolean 
   if (!count) return null;
   return (
     <span className="ml-auto inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-[#2C1F1A] px-1.5 text-xs tabular-nums text-[#FBF8F3]">
-      {count > 99 ? "99+" : capped ? `${count}+` : count}
+      <span aria-hidden="true">{count > 99 ? "99+" : capped ? `${count}+` : count}</span>
+      <span className="sr-only"> new</span>
     </span>
   );
 }
@@ -86,7 +87,10 @@ function PhoneLink({ item, current }: { item: WorkspaceNavItem; current: boolean
         <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] tabular-nums ${
           current ? "bg-[#FBF8F3] text-[#2C1F1A]" : "bg-[#2C1F1A] text-[#FBF8F3]"
         }`}>
-          {item.count > 99 ? "99+" : item.countCapped ? `${item.count}+` : item.count}
+          <span aria-hidden="true">
+            {item.count > 99 ? "99+" : item.countCapped ? `${item.count}+` : item.count}
+          </span>
+          <span className="sr-only"> new</span>
         </span>
       ) : null}
     </Link>

@@ -84,7 +84,12 @@ export default function VariantEditor({
   function priceDisplayValue(gi: number, oi: number, opt: VariantOptionData) {
     const key = priceKey(gi, oi);
     const draft = opt.priceDraft;
-    if (focusedPriceKey === key) return draft ?? (opt.priceAdjustCents === 0 ? "" : String(opt.priceAdjustCents / 100));
+    // Keep the displayed string byte-for-byte stable when focus arrives.
+    // Changing "20.00" to "20" during the focus event clears the browser's
+    // select-all state, so keyboard replacement prepends the old digits.
+    if (focusedPriceKey === key) {
+      return draft ?? (opt.priceAdjustCents === 0 ? "" : (opt.priceAdjustCents / 100).toFixed(2));
+    }
     if (draft !== undefined && draft.trim() === "") return "";
     if (isVariantPriceDraftInvalid(opt)) return draft ?? "";
     const cents = optionPriceCents(opt);

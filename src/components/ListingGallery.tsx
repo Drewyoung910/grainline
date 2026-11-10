@@ -292,34 +292,6 @@ export default function ListingGallery({
                 {activeIndex + 1} / {photos.length}
               </div>
             )}
-            {photos.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Previous photo"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    showPreviousPhoto();
-                  }}
-                  className="absolute left-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
-                  style={{ borderRadius: "9999px" }}
-                >
-                  <ChevronLeft size={24} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Next photo"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    showNextPhoto();
-                  }}
-                  className="absolute right-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
-                  style={{ borderRadius: "9999px" }}
-                >
-                  <ChevronRight size={24} />
-                </button>
-              </>
-            )}
             {/* Expand and favorite share matching 44px corner cells. */}
             <div
               className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
@@ -333,6 +305,48 @@ export default function ListingGallery({
             </div>
           </div>
         </div>
+        {photos.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous photo"
+              onClick={(event) => {
+                event.stopPropagation();
+                showPreviousPhoto();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  showPreviousPhoto();
+                }
+              }}
+              className="absolute left-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
+              style={{ borderRadius: "9999px" }}
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <button
+              type="button"
+              aria-label="Next photo"
+              onClick={(event) => {
+                event.stopPropagation();
+                showNextPhoto();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  showNextPhoto();
+                }
+              }}
+              className="absolute right-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
+              style={{ borderRadius: "9999px" }}
+            >
+              <ChevronRight size={24} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Thumbnails */}

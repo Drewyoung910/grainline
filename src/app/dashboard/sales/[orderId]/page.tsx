@@ -201,7 +201,7 @@ export default async function SellerOrderDetailPage({
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
       <Link href="/dashboard/sales" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
-        <ArrowLeft size={14} /> Back to Sales
+        <ArrowLeft size={14} /> Back to orders
       </Link>
       <header className="space-y-1">
         <h1 className="font-display page-title">
@@ -770,7 +770,7 @@ export default async function SellerOrderDetailPage({
           href="/dashboard/sales"
           className="btn btn-secondary btn-sm"
         >
-          Back to sales
+          Back to orders
         </Link>
         {order.buyerId ? (
           <Link

@@ -251,6 +251,15 @@ describe("motion stability guardrails", () => {
     assert.doesNotMatch(categoryRow, /flex-wrap/);
   });
 
+  it("lets wheel-mouse visitors reach hidden cards without visible scrollbars", () => {
+    const row = source("src/components/ScrollFadeRow.tsx");
+    assert.match(row, /onWheel=\{handleWheel\}/);
+    assert.match(row, /el\.scrollLeft \+= event\.deltaY/);
+    assert.match(row, /if \(!canMove\) return/);
+    assert.match(row, /scrollbar-hidden/);
+    assert.doesNotMatch(row, /Scroll forward|card-row-scroll/);
+  });
+
   it("composes listing story and facts side by side without dropping policy content", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
     const composition = listing.slice(
