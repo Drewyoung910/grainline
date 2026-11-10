@@ -189,6 +189,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(variantState, /priceDraft\?: string/);
     assert.match(variant, /updateOption\(gi, oi, "priceDraft", e\.target\.value\)/);
     assert.match(variant, /focusedPriceKey/);
+    assert.match(variant, /focusedPriceKey === key[\s\S]*?toFixed\(2\)/);
+    assert.doesNotMatch(variant, /focusedPriceKey === key[^\n]*String\(opt\.priceAdjustCents \/ 100\)/);
     assert.match(variant, /onBlur=/);
     assert.doesNotMatch(variant, /value=\{opt\.priceAdjustCents === 0 \? "" : \(opt\.priceAdjustCents \/ 100\)\.toFixed\(2\)\}/);
   });

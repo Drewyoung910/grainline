@@ -149,7 +149,7 @@ async function AccountPageContent() {
         <section aria-labelledby="account-active-order-title" className="card-section p-5 sm:p-[22px]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-neutral-500">On its way</p>
+              <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-neutral-500">In progress</p>
               <h2 id="account-active-order-title" className="mt-1.5 font-display text-[26px] leading-tight">
                 {onItsWay.items[0]?.title ?? "Your order"}
               </h2>

@@ -39,6 +39,6 @@ test("the separation decision preserves predecessor grants and tracks both closu
   assert.ok(broadCrud, "missing predecessor runtime CRUD block");
   assert.match(broadCrud[1], /public\."ClerkWebhookEvent"/);
   assert.match(broadCrud[1], /public\."AccountDeletionSideEffect"/);
-  assert.match(backlog, /\| Clerk webhook event service ledger \| Conditional blocker \|/);
-  assert.match(backlog, /\| Account-deletion side-effect service ledger \| Conditional blocker \|/);
+  assert.match(backlog, /\| Clerk webhook event service ledger \| Closed \|/);
+  assert.match(backlog, /\| Account-deletion side-effect service ledger \| Closed \|/);
 });

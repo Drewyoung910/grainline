@@ -67,6 +67,9 @@ describe("mobile menu landmarks and focus return (UI-26)", () => {
     assert.match(header, /const closeDrawer = React\.useCallback\(\(restoreFocus = false\)/);
     assert.match(header, /onPointerUp=\{\(event\) => event\.currentTarget\.blur\(\)\}/);
     assert.match(header, /if \(drawerOpen \|\| !restoreMenuFocusRef\.current\) return;[\s\S]*?menuButtonRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+    const hamburger = between(header, "{/* Hamburger */}", "</button>");
+    assert.match(hamburger, /className=\{mobileIconButtonClass\}/);
+    assert.doesNotMatch(hamburger, /drawerOpen[\s\S]*bg-current\/10/);
   });
 });
 

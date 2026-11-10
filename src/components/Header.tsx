@@ -547,7 +547,7 @@ export default function Header() {
                   isLoaded ? (
                     <Link
                       href="/sign-in"
-                      className="inline-flex h-10 items-center rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
+                      className="inline-flex h-10 items-center whitespace-nowrap rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
                     >
                       Sign in
                     </Link>
@@ -623,7 +623,7 @@ export default function Header() {
             aria-haspopup="dialog"
             aria-controls={drawerOpen ? drawerId : undefined}
             onPointerUp={(event) => event.currentTarget.blur()}
-            className={`${mobileIconButtonClass} ${drawerOpen && !drawerClosing ? "bg-current/10" : ""}`}
+            className={mobileIconButtonClass}
           >
             <Menu size={24} />
           </button>
@@ -698,7 +698,8 @@ export default function Header() {
                 Menu
               </span>
               <button
-                onClick={() => closeDrawer()}
+                // detail is 0 for a keyboard press: return focus to the hamburger.
+                onClick={(event) => closeDrawer(event.detail === 0)}
                 aria-label="Close menu"
                 className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-600 hover:bg-black/10"
               >

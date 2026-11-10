@@ -714,13 +714,13 @@ input, textarea, select {
    its shade during Safari elastic scrolling. */
 @media (prefers-reduced-motion: no-preference) {
   .home-hero-intro [data-hero-intro-heading] {
-    animation: home-hero-copy-in 480ms var(--motion-ease-out) both;
+    animation: home-hero-copy-in 480ms var(--motion-ease-out) backwards;
   }
   .home-hero-intro [data-hero-intro-copy] {
-    animation: home-hero-copy-in 520ms 70ms var(--motion-ease-out) both;
+    animation: home-hero-copy-in 520ms 70ms var(--motion-ease-out) backwards;
   }
   .home-hero-intro [data-hero-intro-actions] {
-    animation: home-hero-copy-in 560ms 125ms var(--motion-ease-out) both;
+    animation: home-hero-copy-in 560ms 125ms var(--motion-ease-out) backwards;
   }
 }
 

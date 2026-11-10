@@ -13,6 +13,12 @@ describe("public security configuration guardrails", () => {
     assert.match(config, /productionBrowserSourceMaps:\s*false/);
   });
 
+  it("keeps dynamic metadata in the document head for every crawler", () => {
+    const config = source("next.config.ts");
+
+    assert.match(config, /htmlLimitedBots:\s*\/\.\*\//);
+  });
+
   it("keeps enforced script CSP off unsafe eval", () => {
     const config = source("next.config.ts");
 
@@ -109,7 +115,6 @@ describe("public security configuration guardrails", () => {
     for (const name of [
       "NEXT_PUBLIC_APP_URL",
       "DATABASE_URL",
-      "DIRECT_URL",
       "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
       "CLERK_SECRET_KEY",
       "STRIPE_SECRET_KEY",
@@ -120,6 +125,8 @@ describe("public security configuration guardrails", () => {
       assert.match(docs, new RegExp(`\`${name}\``));
       assert.match(launch, new RegExp(`- \`${name}\``));
     }
+    assert.match(docs, /`DIRECT_URL`/);
+    assert.match(launch, /- Never in Vercel: `DIRECT_URL`, `MIGRATION_DB_ROLE`/);
   });
 
   it("documents Vercel geo header trust and staged database-role hardening", () => {

@@ -39,10 +39,10 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
     <div className="rounded-2xl bg-[#EFEAE0] px-6 py-10 sm:px-10 sm:py-12 text-center space-y-5 max-w-2xl mx-auto">
       <div>
         <h2 className="font-display text-xl sm:text-2xl font-semibold text-neutral-900">
-          {heading ?? "New blog stories, in your inbox"}
+          {heading ?? "The Grainline newsletter"}
         </h2>
         <p className="text-sm text-neutral-600 mt-2 max-w-md mx-auto">
-          {subheading ?? "An occasional email when new stories are published on the Grainline blog. Unsubscribe anytime."}
+          {subheading ?? "We're getting the first issue ready. Sign up and we'll email you when it starts. Unsubscribe anytime."}
         </p>
       </div>
 

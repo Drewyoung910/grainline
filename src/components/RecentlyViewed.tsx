@@ -65,7 +65,7 @@ export default function RecentlyViewed() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Recently Viewed</h2>
+      <h2 className="font-display text-xl font-semibold">Recently Viewed</h2>
 
       {loading ? (
         <div className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">

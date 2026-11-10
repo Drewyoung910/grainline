@@ -14,12 +14,15 @@ Confirm production and preview values in Vercel:
 - `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` if using the root metadata tag for
   Search Console ownership verification.
-- `DATABASE_URL`
-- `DIRECT_URL`
-- `RUNTIME_DB_ROLE=grainline_app_runtime` (required by the production
-  post-migration grant audit)
-- `MIGRATION_DB_ROLE=neondb_owner` for this rollout (required by the production
-  post-migration grant audit; change only after ownership evidence supports it)
+- `DATABASE_URL` (pooled `grainline_app_runtime` only)
+- `RUNTIME_DB_ROLE=grainline_app_runtime` (required by the production build guard)
+- `ORDER_STAFF_READ_DATABASE_URL` and `ACCOUNT_DELETION_DATABASE_URL` (the
+  isolated staff and account-deletion roles; the production build guard requires
+  them)
+- Never in Vercel: `DIRECT_URL`, `MIGRATION_DB_ROLE`, `GRANT_AUDIT_DATABASE_URL`
+  or any owner or admin database URL. The build guard fails if one is present.
+  The owner URL lives only in the protected GitHub `Production` environment as
+  `PRODUCTION_MIGRATION_DIRECT_URL`.
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `CLERK_SECRET_KEY`
 - `CLERK_WEBHOOK_SECRET`
@@ -113,6 +116,16 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 
 ## Database And Deploy
 
+Current path: merging to `main` does not deploy. Apply database changes first
+through the protected GitHub workflow for that release, from the exact clean
+`main` commit. Then deploy that same commit with `vercel deploy --prod
+--skip-domain`, inspect its aliases, smoke test, and run `vercel promote`.
+
+The RLS context-gate and SavedSearch Release 0, Phase A and Phase B items below
+are finished July 2026 rollout history, retained as the record of that release.
+Do not run their owner commands or follow their Vercel-build descriptions for a
+new release. The live checks resume at `STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_CONFIRM`.
+
 - `npx prisma validate`
 - `npx prisma generate`
 - Non-counted owner setup must pass via `npm run audit:rls-context` against exact reviewed staging endpoint `ep-bold-recipe-aavx4plv`, database `neondb`, and region `westus3.azure`, using the pooled runtime URL plus direct admin URL. Before any owner mutation, live `current_user` and `session_user` must both equal the exact direct-URL username and `current_database()` must equal its reviewed database path. Rollback cleanup must restore `ENABLE` and `FORCE ROW LEVEL SECURITY` without swallowing errors and then positively retain `pg_class.relrowsecurity=true` plus `relforcerowsecurity=true`. It persists the exact SECURITY INVOKER RPC-shaped fixture used unchanged by both counted repeats; write its sanitized `setup_passed` artifact to a distinct `RLS_CONTEXT_GATE_EVIDENCE_PATH` (mode `0600`) and retain it separately.
@@ -135,8 +148,8 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   migrations (`20260717024500_add_saved_search_owner_rpcs` and the forward-only
   `20260717025000_harden_saved_search_owner_rpc_projection`) while RLS is still
   off, verify them, and only then deploy the app release that calls the RPCs.
-  Because `vercel.json` automatically runs every pending migration, the exact
-  Release 0 artifact/cherry-pick must exclude the later RLS policy migration,
+  Because `vercel.json` then ran every pending migration, the exact
+  Release 0 artifact/cherry-pick had to exclude the later RLS policy migration,
   temporary runner route, exact middleware exemption, and runner-only test.
   Release-0 CI must assert those temporary acceptance artifacts are absent and
   the policy migration is absent. The temporary provider-proof branch is
@@ -171,10 +184,10 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   grant or catalog evidence. A failed post-migration audit then stops the production build before
   application traffic. Retain the sanitized
   `SAVED_SEARCH_CATALOG_STATE={...}` output line as the parseable catalog proof.
-- Record the current deployment-credential residual in the release evidence:
-  because `vercel.json` runs owner migrations in the production Build Step,
-  Vercel also makes that project-level `DIRECT_URL` available to production
-  Function execution. This rollout improves wrong-context isolation through
+- Historical, closed 2026-07-21 by `docs/runtime-db-credential-separation.md`:
+  because `vercel.json` then ran owner migrations in the production Build Step,
+  Vercel also made that project-level `DIRECT_URL` available to production
+  Function execution. This rollout improved wrong-context isolation through
   `DATABASE_URL` but does not claim arbitrary-code isolation from the owner
   credential. Keep the separate follow-up to externalize owner migrations and
   the grant audit, then remove `DIRECT_URL`/`MIGRATION_DB_ROLE` from the
@@ -256,7 +269,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
-- `npx vercel --prod`
+- After the release's protected migration workflow passes: `vercel deploy --prod --skip-domain`, inspect the deployment's aliases, smoke test, then `vercel promote`.
 
 Do not rename a migration directory after it has been applied in production.
 
@@ -276,6 +289,7 @@ Run these in test mode before switching to live money:
 - Seller order fulfillment: shipped and pickup paths.
 - Seller refund and staff case refund paths.
 - Private custom listing is visible only to the reserved buyer.
+- Test listings and development seller profiles removed or marked `robots: { index: false }` before Google indexes them.
 - Public listing visibility: draft, hidden, pending review, rejected, private, vacation, banned seller.
 - `/api/health` returns 200 when DB/Redis/R2 dependency checks are healthy and 503 on dependency failure; verbose dependency output works only with `Authorization: Bearer $HEALTH_CHECK_TOKEN`, not a query string token. Confirm deployed responses include `Cache-Control: private, no-store, max-age=0` and `Vary: Authorization, X-Health-Check-Token`.
 
@@ -307,6 +321,7 @@ Record links/screenshots/dates for:
   `npm run audit:sentry-crons` plus dashboard screenshots or exported
   notification-delivery evidence. DirectUpload activation evidence separately
   proves GitHub cleanup-workflow failure notification delivery.
+- OWASP ZAP scan of a current preview deployment, with the dated report retained.
 - Google Search Console ownership verification and sitemap index submission.
 - Launch evidence inventory artifact from `npm run audit:launch-evidence`, generated after the machine artifacts and manual evidence manifest have been assembled.
 
@@ -318,5 +333,7 @@ Record links/screenshots/dates for:
 - Money transmitter analysis documented.
 - INFORM Consumers Act scope documented.
 - Business insurance decision documented.
+- Trademark Class 035 clearance and filing decision documented (optional at launch).
+- Duplicate Feedback clause (Terms 11.6 and 33.11) resolved by the attorney.
 - Texas marketplace facilitator filing calendar set.
 - DMCA agent details verified.

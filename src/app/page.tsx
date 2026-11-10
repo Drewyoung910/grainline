@@ -706,7 +706,7 @@ export default async function HomePage() {
                 item.kind === "listing" ? (
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
-                      <div className="group/photo aspect-[4/5] overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
+                      <div className="group/photo aspect-[4/5] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
                         <MediaImage
                           src={item.photoUrl}
                           alt={item.photoAltText ?? item.title}

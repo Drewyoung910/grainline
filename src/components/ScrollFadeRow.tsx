@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, type WheelEvent } from "react";
 
 type Props = {
   children: React.ReactNode;
@@ -57,6 +57,20 @@ export default function ScrollFadeRow({
     return () => ro.disconnect();
   }, [updateEdgeState, children]);
 
+  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    // Native horizontal trackpad gestures already work. Translate a regular
+    // mouse wheel only while the row can move in that direction; at either
+    // end the page resumes vertical scrolling normally.
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || event.deltaY === 0) return;
+    const canMove = event.deltaY > 0
+      ? el.scrollLeft + el.clientWidth < el.scrollWidth - 2
+      : el.scrollLeft > 2;
+    if (!canMove) return;
+    event.preventDefault();
+    el.scrollLeft += event.deltaY;
+  }, []);
+
   // Back-compat: mobileOnly === "sm" hide breakpoint.
   const breakpoint = hideAtBreakpoint ?? (mobileOnly ? "sm" : undefined);
   const fadeClass = breakpoint === "sm"
@@ -69,6 +83,7 @@ export default function ScrollFadeRow({
     <div
       ref={ref}
       onScroll={updateEdgeState}
+      onWheel={handleWheel}
       className={`${fadeClass} scrollbar-hidden ${className}`}
     >
       {children}
