@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 class FakeElement {
-  constructor({ parent = null, overflowY = "visible", scrollHeight = 0, clientHeight = 0, scrollTop = 0 } = {}) {
-    Object.assign(this, { parentElement: parent, overflowY, scrollHeight, clientHeight, scrollTop });
+  constructor({ parent = null, overflowY = "visible", scrollHeight = 0, clientHeight = 0, scrollTop = 0, range = false } = {}) {
+    Object.assign(this, { parentElement: parent, overflowY, scrollHeight, clientHeight, scrollTop, range });
+  }
+  closest(selector) {
+    if (selector === 'input[type="range"]' && this.range) return this;
+    return this.parentElement?.closest(selector) ?? null;
   }
 }
 
@@ -48,9 +52,22 @@ test("holds a vertical drag when the dialog cannot scroll", () => {
   assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(100, 200)] }), true);
 });
 
-test("leaves a sideways slider drag alone", () => {
+test("holds sideways and diagonal drags when the dialog cannot scroll", () => {
   start(fixedPanel, 100, 300);
-  assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(180, 300)] }), false);
+  assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(180, 300)] }), true);
+  start(fixedPanel, 100, 300);
+  assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(140, 260)] }), true);
+});
+
+test("leaves a sideways range-slider drag alone", () => {
+  const slider = new FakeElement({ parent: fixedPanel, range: true });
+  start(slider, 100, 300);
+  assert.equal(cancelled("touchmove", { target: slider, touches: [finger(180, 300)] }), false);
+});
+
+test("leaves a level drag inside a scrollable sheet alone", () => {
+  start(scrollable, 100, 300);
+  assert.equal(cancelled("touchmove", { target: scrollable, touches: [finger(160, 300)] }), false);
 });
 
 test("leaves pinch and trackpad zoom alone", () => {
