@@ -10,7 +10,7 @@ const path = "src/app/api/newsletter/route.ts";
 
 // The real route with its ports stubbed. Nothing here exercises the database.
 function fixture({ addressLimitOk = true } = {}) {
-  const state = { sent: [], reads: 0, limited: [] };
+  const state = { sent: [], reads: 0, limited: [], reservations: [] };
   const limiters = { ip: "ip", address: "address" };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const NextResponse = {
@@ -44,9 +44,15 @@ function fixture({ addressLimitOk = true } = {}) {
       },
     },
     "@/lib/emailSuppression": {
-      isEmailSuppressedForNewsletterSignup: async () => false,
       normalizeEmailAddress: (email) => email,
       normalizeEmailSuppressionAddress: (email) => email.replace("+tag", ""),
+    },
+    "@/lib/emailServiceAccess": {
+      reserveNewsletterSignup: async (_client, input) => {
+        state.reservations.push(input);
+        return "reserved";
+      },
+      releaseNewsletterSignup: async () => "released",
     },
     "@/lib/newsletterConfirmation": {
       buildNewsletterConfirmationUrl: () => "https://example.test/confirm",
@@ -102,5 +108,6 @@ test("the per-address daily cap stops the mail and keeps the same answer", async
 test("an address under the cap still gets its confirmation", async () => {
   const subject = fixture();
   assert.equal((await subject.post("buyer@example.com")).status, 200);
+  assert.equal(subject.state.reservations.length, 1);
   assert.equal(subject.state.sent.length, 1);
 });

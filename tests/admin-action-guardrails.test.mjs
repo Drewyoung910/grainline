@@ -11,7 +11,6 @@ describe("admin server action guardrails", () => {
     for (const path of [
       "src/app/admin/actions.ts",
       "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/verification/page.tsx",
     ]) {
       const text = source(path);
@@ -26,6 +25,10 @@ describe("admin server action guardrails", () => {
         `${path} must block suspended or deleted staff accounts inside admin server actions`,
       );
     }
+
+    const broadcastActions = source("src/app/admin/broadcasts/page.tsx");
+    assert.match(broadcastActions, /requireAdminPageAccess\(\)/);
+    assert.doesNotMatch(broadcastActions, /\bprisma\.user\./);
 
     const supportActions = source("src/app/admin/support/actions.ts");
     assert.match(supportActions, /requireAdminPageAccess\(\)/);
@@ -104,7 +107,6 @@ describe("admin server action guardrails", () => {
     for (const path of [
       "src/app/admin/actions.ts",
       "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/verification/page.tsx",
     ]) {
       const text = source(path);
@@ -116,6 +118,15 @@ describe("admin server action guardrails", () => {
         `${path} must rate-limit before local admin user lookup`,
       );
     }
+
+    const broadcastActions = source("src/app/admin/broadcasts/page.tsx");
+    assert.match(broadcastActions, /const \{ userId \} = await auth\(\)/);
+    assert.match(broadcastActions, /safeRateLimit\(adminActionRatelimit, userId\)/);
+    assert.ok(
+      broadcastActions.indexOf("safeRateLimit(adminActionRatelimit, userId)") <
+        broadcastActions.indexOf("requireAdminPageAccess()"),
+      "broadcast delete must rate-limit before the shared admin DB and PIN boundary",
+    );
 
     const supportActions = source("src/app/admin/support/actions.ts");
     assert.match(supportActions, /const \{ userId \} = await auth\(\)/);

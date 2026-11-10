@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminActionOrThrow } from "@/lib/audit";
@@ -24,10 +25,12 @@ import { cancelSellerBroadcastEmails } from "@/lib/emailServiceAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  if (!success) return;
   const user = await requireAdminPageAccess();
   if (!user) redirect("/admin/broadcasts");
-  const { success } = await safeRateLimit(adminActionRatelimit, user.id);
-  if (!success) return;
 
   const id = String(formData.get("id") ?? "");
   if (id) {
