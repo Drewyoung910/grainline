@@ -139,7 +139,7 @@ export default function MakersMapSection({
 
         <div className={`${compact ? "h-[300px] sm:h-[320px] lg:h-[340px]" : "h-[420px]"} w-full min-w-0 lg:flex-1 overflow-hidden rounded-lg shadow-sm ring-1 ring-stone-200/70`}>
           {mapReady ? (
-            <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height="100%" />
+            <AllSellersMap embedded points={points} initialZoom={3} mobileInitialZoom={2.05} height="100%" />
           ) : (
             <div className="h-full w-full rounded-lg bg-[#EFEAE0] animate-pulse motion-reduce:animate-none" aria-hidden="true" />
           )}

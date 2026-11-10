@@ -154,6 +154,16 @@ describe("Workshop overview", () => {
     assert.equal(notifications?.count, 4);
   });
 
+  it("labels a bounded Workshop order count as incomplete", () => {
+    const items = workshopNavGroups({
+      counts: { ordersToShip: 50, ordersToShipCapped: true },
+    }).flatMap((group) => group.items);
+    const orders = items.find((item) => item.href === "/dashboard/sales");
+    assert.equal(orders?.count, 50);
+    assert.equal(orders?.countCapped, true);
+    assert.match(source("src/components/WorkspaceSidebar.tsx"), /item\.countCapped \? `\$\{item\.count\}\+`/);
+  });
+
   it("can lose a read without losing the page", () => {
     const page = source("src/app/dashboard/page.tsx");
     assert.match(page, /readOptional\("order_queue"/);

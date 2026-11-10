@@ -456,7 +456,6 @@ async function CommissionPageContent({
                     {sellerProfileId && (
                       <CommissionInterestButton
                         requestId={r.id}
-                        sellerProfileId={sellerProfileId}
                         initialInterested={interestedSet.has(r.id)}
                       />
                     )}

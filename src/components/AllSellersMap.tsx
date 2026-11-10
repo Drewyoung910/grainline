@@ -26,6 +26,7 @@ type Props = {
   initialZoom?: number;
   mobileInitialZoom?: number;
   height?: CSSProperties["height"];
+  embedded?: boolean;
 };
 
 export default function AllSellersMap({
@@ -34,6 +35,7 @@ export default function AllSellersMap({
   initialZoom = 3,
   mobileInitialZoom,
   height = 520,
+  embedded = false,
 }: Props) {
   const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -99,10 +101,9 @@ export default function AllSellersMap({
         style: "https://tiles.openfreemap.org/styles/liberty",
         center,
         zoom: resolvedInitialZoom,
-        // Let the page keep scrolling over an embedded homepage map. Desktop
-        // visitors can zoom with Ctrl/Cmd + wheel; touch visitors use two
-        // fingers, matching MapLibre's cooperative interaction guidance.
-        cooperativeGestures: true,
+        // Embedded maps let their page keep scrolling. The dedicated map owns
+        // its surface and can use ordinary one-finger and wheel gestures.
+        cooperativeGestures: embedded,
       });
     } catch {
       setMapUnavailable(true);
@@ -310,7 +311,7 @@ export default function AllSellersMap({
       markers.clear();
       map.remove();
     };
-  }, [points, initialCenter, initialZoom, mobileInitialZoom]);
+  }, [points, initialCenter, initialZoom, mobileInitialZoom, embedded]);
 
   if (mapUnavailable) {
     return (

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 type Props = {
   requestId: string;
-  sellerProfileId: string;
   initialInterested: boolean;
 };
 

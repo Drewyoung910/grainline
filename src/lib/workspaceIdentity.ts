@@ -46,6 +46,7 @@ export const readWorkspaceIdentity = cache(async (): Promise<WorkspaceIdentity |
 
   let guildLabel: string | null = null;
   let ordersToShip: number | null = null;
+  let ordersToShipCapped = false;
   if (summary) {
     const [dashboard, guild, queue] = await Promise.all([
       soft("dashboard", () => sellerOwnerDashboardState(me.id)),
@@ -59,6 +60,7 @@ export const readWorkspaceIdentity = cache(async (): Promise<WorkspaceIdentity |
         })
       : null;
     ordersToShip = queue?.awaiting.length ?? null;
+    ordersToShipCapped = queue?.capped ?? false;
   }
 
   return {
@@ -69,6 +71,7 @@ export const readWorkspaceIdentity = cache(async (): Promise<WorkspaceIdentity |
     guildLabel,
     counts: {
       ordersToShip,
+      ordersToShipCapped,
       messages,
       notifications,
     },

@@ -469,7 +469,6 @@ async function CommissionDetailPage({ id }: { id: string }) {
         {sellerProfileId && !isOwner && !readOnly && (
           <CommissionInterestButton
             requestId={request.id}
-            sellerProfileId={sellerProfileId}
             initialInterested={alreadyInterested}
           />
         )}
