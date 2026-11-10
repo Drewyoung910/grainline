@@ -305,11 +305,17 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "887ff0c9fc88a65f5b9854f1312d0000d5fc3878",
     migration: "20261102040000_activate_seller_metrics_rls",
     migrationSha256:
-      "03cccab5eee60dbbe73f3e9204988409f8811b46a9dca1c50c4c8d7adc151772",
+      "350875638d45fc82fa4065d9f88439382a744394ded059d4b2ecbb1527c2a9b9",
     rollbackPath: "docs/rls-drafts/seller-metrics-activation-rollback.sql",
     rollbackSha256:
       "41d2cdadcd854a57624229da09e5dac3a9b4aa185f3e73a9936dbbd488876086",
     table: "SellerMetrics",
+    additionalLocks: Object.freeze([
+      Object.freeze({
+        table: "SellerProfile",
+        mode: "SHARE UPDATE EXCLUSIVE",
+      }),
+    ]),
     mode: "policyless_combined_enable_force",
     policies: NO_POLICIES,
     predecessorRuntimePrivileges: PREDECESSOR_CRUD,
@@ -501,9 +507,34 @@ export function verifyPrivateTableRlsActivationSource(
   }
   const quotedTable = escapeRegExp(release.table);
   const tablePattern = `public\\."${quotedTable}"`;
-  const activationTableStatements = [
-    ...activation.sql.matchAll(/\b(?:ALTER|LOCK)\s+TABLE\s+public\."([^"]+)"/giu),
+  const additionalLocks = release.additionalLocks ?? [];
+  if (
+    !Array.isArray(additionalLocks)
+    || additionalLocks.some((lock) => (
+      typeof lock !== "object"
+      || lock === null
+      || typeof lock.table !== "string"
+      || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(lock.table)
+      || lock.table === release.table
+      || !["SHARE UPDATE EXCLUSIVE"].includes(lock.mode)
+    ))
+    || new Set(additionalLocks.map((lock) => lock.table)).size
+      !== additionalLocks.length
+  ) {
+    throw stopped("activation auxiliary-lock catalog is invalid");
+  }
+  const activationAlterTables = [
+    ...activation.sql.matchAll(/\bALTER\s+TABLE\s+public\."([^"]+)"/giu),
   ].map((match) => match[1]);
+  const activationLocks = [
+    ...activation.sql.matchAll(
+      /\bLOCK\s+TABLE\s+public\."([^"]+)"\s+IN\s+(ACCESS EXCLUSIVE|SHARE UPDATE EXCLUSIVE)\s+MODE/giu,
+    ),
+  ].map((match) => `${match[1]}:${match[2].toUpperCase()}`);
+  const expectedLocks = [
+    `${release.table}:ACCESS EXCLUSIVE`,
+    ...additionalLocks.map((lock) => `${lock.table}:${lock.mode}`),
+  ];
   if (
     !["owner_policy_combined_enable_force", "policyless_combined_enable_force"]
       .includes(release.mode)
@@ -527,8 +558,9 @@ export function verifyPrivateTableRlsActivationSource(
       `LOCK\\s+TABLE\\s+${tablePattern}\\s+IN\\s+ACCESS\\s+EXCLUSIVE\\s+MODE`,
       "iu",
     ).test(activation.sql)
-    || activationTableStatements.length !== 3
-    || activationTableStatements.some((table) => table !== release.table)
+    || activationAlterTables.length !== 2
+    || activationAlterTables.some((table) => table !== release.table)
+    || activationLocks.join("|") !== expectedLocks.join("|")
     || /\b(?:NO\s+FORCE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(activation.sql)
     || /\bDROP\s+(?:TABLE|COLUMN|POLICY|TRIGGER)\b/iu.test(activation.sql)
   ) {

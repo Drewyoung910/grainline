@@ -122,6 +122,10 @@ test("catalog byte-seals policyless SellerMetrics activation", () => {
   );
   assert.equal(metrics.preparation.functions.length, 4);
   assert.equal(metrics.preparation.retainedFunctions.length, 5);
+  assert.deepEqual(metrics.additionalLocks, [{
+    table: "SellerProfile",
+    mode: "SHARE UPDATE EXCLUSIVE",
+  }]);
   assert.deepEqual(metrics.policies, []);
   assert.deepEqual(metrics.activatedRuntimePrivileges, []);
   assert.deepEqual(metrics.activatedStaffPrivileges, []);

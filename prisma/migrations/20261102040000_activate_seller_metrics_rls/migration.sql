@@ -169,7 +169,7 @@ BEGIN
     SELECT expected.identity, expected.source_md5, expected.volatility,
            expected.runtime_execute, expected.staff_execute
       FROM (VALUES
-        ('public.grainline_seller_metrics_refresh_prepared_impl(text,integer,boolean,text)', 'db2f16a904085beb5e2679f8b30eb212', 'v'::"char", false, false),
+        ('public.grainline_seller_metrics_refresh_prepared_impl(text,integer,boolean,text)', '70a797e4e796ad86d61596272decae4e', 'v'::"char", false, false),
         ('public.grainline_seller_metrics_owner_state(integer,boolean)', 'b37116e7cedeb894f33fefd70dc72527', 'v'::"char", true, false),
         ('public.grainline_seller_metrics_account_deletion_clear(text,bigint,uuid)', 'ee4f472920572d095b2c6b7e4d37adc8', 'v'::"char", true, false),
         ('public.grainline_seller_metrics_inactive_owner_cleanup()', '1209378d714fa9c8f733d9c7d74427e8', 'v'::"char", false, false),
