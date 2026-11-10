@@ -2925,6 +2925,76 @@ SELECT format(
    AND to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- The email-service boundary adds the fixed operations used after direct
+-- table grants are retired. Keep their ACLs convergent whenever the additive
+-- preparation is present; the separate activation decides only whether table
+-- CRUD remains available.
+WITH email_service_least_privilege(function_signature) AS (
+  VALUES
+    ('public."grainline_email_suppression_exists"(text, text)'),
+    ('public."grainline_email_one_click_suppression_clear"(text)'),
+    ('public."grainline_newsletter_signup_reserve"(text, text, text, timestamp without time zone, timestamp without time zone, timestamp without time zone)'),
+    ('public."grainline_newsletter_signup_release"(text, text)'),
+    ('public."grainline_newsletter_confirmation_valid"(text, timestamp without time zone)'),
+    ('public."grainline_newsletter_confirm"(text, timestamp without time zone)'),
+    ('public."grainline_newsletter_token_superseded"(text, timestamp without time zone)'),
+    ('public."grainline_email_unsubscribe_apply"(text, jsonb)'),
+    ('public."grainline_email_account_deletion_suppression_clear"(text)'),
+    ('public."grainline_email_service_owner_export"()'),
+    ('public."grainline_email_service_account_deletion_apply"()'),
+    ('public."grainline_resend_webhook_event_reserve"(text, text, timestamp without time zone, timestamp without time zone, uuid)'),
+    ('public."grainline_resend_webhook_event_complete"(text, bigint, uuid, timestamp without time zone)'),
+    ('public."grainline_resend_webhook_event_fail"(text, bigint, uuid, text, timestamp without time zone)'),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)'),
+    ('public."grainline_newsletter_expired_unconfirmed_delete_batch"(timestamp without time zone, integer)'),
+    ('public."grainline_email_outbox_retention_delete_batch"(timestamp without time zone, timestamp without time zone, integer)'),
+    ('public."grainline_resend_webhook_event_retention_delete_batch"(timestamp without time zone, integer)'),
+    ('public."grainline_email_service_ops_health"(timestamp without time zone, timestamp without time zone)'),
+    ('public."grainline_email_outbox_cancel_seller_broadcast"(text)'),
+    ('public."grainline_email_outbox_redact_deleted_seller"(text)')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM email_service_least_privilege
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH email_service_least_privilege(function_signature) AS (
+  VALUES
+    ('public."grainline_email_suppression_exists"(text, text)'),
+    ('public."grainline_email_one_click_suppression_clear"(text)'),
+    ('public."grainline_newsletter_signup_reserve"(text, text, text, timestamp without time zone, timestamp without time zone, timestamp without time zone)'),
+    ('public."grainline_newsletter_signup_release"(text, text)'),
+    ('public."grainline_newsletter_confirmation_valid"(text, timestamp without time zone)'),
+    ('public."grainline_newsletter_confirm"(text, timestamp without time zone)'),
+    ('public."grainline_newsletter_token_superseded"(text, timestamp without time zone)'),
+    ('public."grainline_email_unsubscribe_apply"(text, jsonb)'),
+    ('public."grainline_email_account_deletion_suppression_clear"(text)'),
+    ('public."grainline_email_service_owner_export"()'),
+    ('public."grainline_email_service_account_deletion_apply"()'),
+    ('public."grainline_resend_webhook_event_reserve"(text, text, timestamp without time zone, timestamp without time zone, uuid)'),
+    ('public."grainline_resend_webhook_event_complete"(text, bigint, uuid, timestamp without time zone)'),
+    ('public."grainline_resend_webhook_event_fail"(text, bigint, uuid, text, timestamp without time zone)'),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)'),
+    ('public."grainline_newsletter_expired_unconfirmed_delete_batch"(timestamp without time zone, integer)'),
+    ('public."grainline_email_outbox_retention_delete_batch"(timestamp without time zone, timestamp without time zone, integer)'),
+    ('public."grainline_resend_webhook_event_retention_delete_batch"(timestamp without time zone, integer)'),
+    ('public."grainline_email_service_ops_health"(timestamp without time zone, timestamp without time zone)'),
+    ('public."grainline_email_outbox_cancel_seller_broadcast"(text)'),
+    ('public."grainline_email_outbox_redact_deleted_seller"(text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM email_service_least_privilege
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- SellerPayoutEvent compatible authority is optional until its additive
 -- migration lands. When present, converge only the three reviewed service
 -- functions without changing predecessor table CRUD or RLS posture.
