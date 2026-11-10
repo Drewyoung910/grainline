@@ -623,7 +623,7 @@ export default function Header() {
             aria-haspopup="dialog"
             aria-controls={drawerOpen ? drawerId : undefined}
             onPointerUp={(event) => event.currentTarget.blur()}
-            className={`${mobileIconButtonClass} ${drawerOpen && !drawerClosing ? "bg-current/10" : ""}`}
+            className={mobileIconButtonClass}
           >
             <Menu size={24} />
           </button>
