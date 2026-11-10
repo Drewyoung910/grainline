@@ -113,6 +113,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
     assert.match(searchBar, /popularSearchPresentation\(\{/);
     assert.match(searchBar, /popularLoadedRef\.current \|\| popularLoadingRef\.current/);
+    assert.match(searchBar, /onPointerEnter=\{\(\) => void loadPopularTags\(\)\}/);
     assert.match(searchBar, /aria-label="Clear search"/);
     assert.match(searchBar, /params\.delete\("q"\)/);
     assert.match(searchBar, /openDropdown\(\)/);
