@@ -7,6 +7,7 @@ const migrationDirectory =
   "prisma/migrations/20261030020000_prepare_user_report_authorities";
 const migration = readFileSync(`${migrationDirectory}/migration.sql`, "utf8");
 const adminPage = readFileSync("src/app/admin/reports/page.tsx", "utf8");
+const adminLayout = readFileSync("src/app/admin/layout.tsx", "utf8");
 const resolveRoute = readFileSync(
   "src/app/api/admin/reports/[id]/resolve/route.ts",
   "utf8",
@@ -39,10 +40,12 @@ test("UserReport operations are split between actor-bound runtime and isolated s
 
 test("all UserReport callers use fixed authorities and the staff queue is complete", () => {
   assert.doesNotMatch(adminPage, /prisma\.userReport\./u);
+  assert.doesNotMatch(adminLayout, /prisma\.userReport\./u);
   assert.doesNotMatch(resolveRoute, /prisma\.userReport\./u);
   assert.doesNotMatch(accountExport, /prisma\.userReport\./u);
   assert.doesNotMatch(accountDeletion, /userReport\.updateMany/u);
   assert.match(adminPage, /userReportStaffOpenCount/u);
+  assert.match(adminLayout, /userReportStaffOpenCount\(getOrderStaffReadClient\(\), user\.id\)/u);
   assert.match(adminPage, /userReportStaffOpenPage/u);
   assert.match(adminPage, /Oldest unresolved reports are shown first/u);
   assert.match(adminPage, /afterCreatedAt/u);
