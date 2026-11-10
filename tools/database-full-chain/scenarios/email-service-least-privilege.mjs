@@ -108,6 +108,8 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
     outboxHistoryId: `${suffix}-outbox-history`,
     outboxOtherId: `${suffix}-outbox-other`,
     resendEventId: `svix_${suffix}`,
+    deletionSideEffectId: `${suffix}_deletion_side_effect`,
+    deletionClaimToken: randomUUID(),
     tokenA: "a".repeat(64),
     tokenB: "b".repeat(64),
     tokenC: "c".repeat(64),
@@ -154,6 +156,21 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
       `${suffix}-owned-history`, fixture.actorId, fixture.ownedHistoricalEmail,
       `${suffix}-reused-history`, fixture.reusedHistoricalEmail,
       `${suffix}-reused-current`, fixture.now, fixture.otherUserId,
+    ],
+  );
+  await database.query(
+    `INSERT INTO public."AccountDeletionSideEffect"
+       (id, "userId", kind, "dedupKey", payload, status, attempts,
+        "claimGeneration", "claimToken", "processingStartedAt",
+        "createdAt", "updatedAt")
+     VALUES ($1, $2, 'LOCAL_ANONYMIZE', $3, '{}'::jsonb, 'PROCESSING', 1,
+             1, $4::uuid, $5, $5, $5)`,
+    [
+      fixture.deletionSideEffectId,
+      fixture.actorId,
+      `account-delete:local:${fixture.actorId}`,
+      fixture.deletionClaimToken,
+      fixture.now,
     ],
   );
 
@@ -665,10 +682,25 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
     }
   }
 
+  await assert.rejects(
+    runtimeActorQuery(
+      database,
+      fixture.actorId,
+      `SELECT public.grainline_email_service_account_deletion_apply(
+         $1, 2, $2::uuid
+       ) AS result`,
+      [fixture.deletionSideEffectId, fixture.deletionClaimToken],
+    ),
+    /claim is not authorized/u,
+    "a stale account-deletion claim must not mutate email service data",
+  );
   const deletionResult = rowsOf(await runtimeActorQuery(
     database,
     fixture.actorId,
-    `SELECT public.grainline_email_service_account_deletion_apply() AS result`,
+    `SELECT public.grainline_email_service_account_deletion_apply(
+       $1, 1, $2::uuid
+     ) AS result`,
+    [fixture.deletionSideEffectId, fixture.deletionClaimToken],
   ))[0]?.result;
   assert.equal(deletionResult.deletedFailureCount, 2);
   assert.equal(deletionResult.deletedNewsletterCount, 2);

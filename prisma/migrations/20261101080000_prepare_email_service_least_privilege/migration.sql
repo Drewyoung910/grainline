@@ -706,7 +706,11 @@ BEGIN
 END
 $grainline_email_service_owner_export$;
 
-CREATE OR REPLACE FUNCTION public.grainline_email_service_account_deletion_apply()
+CREATE OR REPLACE FUNCTION public.grainline_email_service_account_deletion_apply(
+  p_side_effect_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid
+)
 RETURNS jsonb
 LANGUAGE plpgsql
 VOLATILE
@@ -715,10 +719,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_email_service_account_deletion_apply$
 DECLARE
-  actor_id text := NULLIF(
-    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
-    ''
-  );
+  actor_id text;
   email_keys text[];
   source_now timestamp(3) without time zone :=
     (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
@@ -729,14 +730,11 @@ DECLARE
   suppression_count integer := 0;
   created_suppression_count integer := 0;
 BEGIN
-  IF actor_id IS NULL
-     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-     OR NOT EXISTS (
-       SELECT 1 FROM public."User" AS actor WHERE actor.id = actor_id
-     ) THEN
-    RAISE EXCEPTION 'Email service account-deletion context is invalid'
-      USING ERRCODE = '42501';
-  END IF;
+  actor_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
 
   SELECT COALESCE(pg_catalog.array_agg(DISTINCT email ORDER BY email), ARRAY[]::text[])
     INTO email_keys
@@ -1584,7 +1582,7 @@ REVOKE ALL ON FUNCTION public.grainline_email_account_deletion_suppression_clear
   FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.grainline_email_service_owner_export()
   FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.grainline_email_service_account_deletion_apply()
+REVOKE ALL ON FUNCTION public.grainline_email_service_account_deletion_apply(text,bigint,uuid)
   FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.grainline_resend_webhook_event_reserve(
   text, text, timestamp without time zone, timestamp without time zone, uuid
@@ -1640,7 +1638,7 @@ GRANT EXECUTE ON FUNCTION public.grainline_email_account_deletion_suppression_cl
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_email_service_owner_export()
   TO grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_email_service_account_deletion_apply()
+GRANT EXECUTE ON FUNCTION public.grainline_email_service_account_deletion_apply(text,bigint,uuid)
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_resend_webhook_event_reserve(
   text, text, timestamp without time zone, timestamp without time zone, uuid
@@ -1686,7 +1684,7 @@ BEGIN
     'public.grainline_email_unsubscribe_apply(text,jsonb)',
     'public.grainline_email_account_deletion_suppression_clear(text)',
     'public.grainline_email_service_owner_export()',
-    'public.grainline_email_service_account_deletion_apply()',
+    'public.grainline_email_service_account_deletion_apply(text,bigint,uuid)',
     'public.grainline_resend_webhook_event_reserve(text,text,timestamp without time zone,timestamp without time zone,uuid)',
     'public.grainline_resend_webhook_event_complete(text,bigint,uuid,timestamp without time zone)',
     'public.grainline_resend_webhook_event_fail(text,bigint,uuid,text,timestamp without time zone)',
@@ -1721,7 +1719,7 @@ BEGIN
        'public.grainline_email_unsubscribe_apply(text,jsonb)'::pg_catalog.regprocedure,
        'public.grainline_email_account_deletion_suppression_clear(text)'::pg_catalog.regprocedure,
        'public.grainline_email_service_owner_export()'::pg_catalog.regprocedure,
-       'public.grainline_email_service_account_deletion_apply()'::pg_catalog.regprocedure,
+       'public.grainline_email_service_account_deletion_apply(text,bigint,uuid)'::pg_catalog.regprocedure,
        'public.grainline_resend_webhook_event_reserve(text,text,timestamp without time zone,timestamp without time zone,uuid)'::pg_catalog.regprocedure,
        'public.grainline_resend_webhook_event_complete(text,bigint,uuid,timestamp without time zone)'::pg_catalog.regprocedure,
        'public.grainline_resend_webhook_event_fail(text,bigint,uuid,text,timestamp without time zone)'::pg_catalog.regprocedure,

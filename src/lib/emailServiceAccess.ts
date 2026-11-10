@@ -250,10 +250,19 @@ export async function exportOwnerEmailServiceData(
 
 export async function applyEmailServiceAccountDeletion(
   client: EmailServiceClient,
+  input: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ): Promise<EmailServiceAccountDeletionResult> {
   const result = scalarJsonRecord(
     await client.$queryRaw<Array<{ result: unknown }>>`
-      SELECT public.grainline_email_service_account_deletion_apply() AS result
+      SELECT public.grainline_email_service_account_deletion_apply(
+        ${input.sideEffectId}::text,
+        ${input.claimGeneration}::bigint,
+        ${input.claimToken}::uuid
+      ) AS result
     `,
     "Email service account-deletion authority",
   );

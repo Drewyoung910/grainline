@@ -1136,7 +1136,11 @@ export async function anonymizeUserAccount(
       accountSensitiveValues,
       accountAuditSensitiveValues,
     );
-    await applyEmailServiceAccountDeletion(tx);
+    await applyEmailServiceAccountDeletion(tx, {
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
+    });
     await tx.commissionRequest.updateMany({
       where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
       data: { status: "CLOSED" },

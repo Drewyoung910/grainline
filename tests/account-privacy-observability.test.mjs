@@ -241,7 +241,7 @@ describe("account and privacy route observability guardrails", () => {
     );
 
     assert.match(suppression, /clearOneClickEmailSuppressionAuthority\(client, normalized\)/);
-    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx\)/);
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx, \{/);
     assert.match(emailServiceAccess, /public\.grainline_email_service_account_deletion_apply/);
     assert.match(migration, /suppression\.reason::text = 'MANUAL'/);
     assert.match(migration, /WHERE NOT EXISTS \([\s\S]*suppression\.email = candidate\.email/s);

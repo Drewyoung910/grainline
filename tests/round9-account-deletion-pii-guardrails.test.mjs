@@ -278,7 +278,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
     assert.match(sellerDeletionAuthority, /"galleryImageUrls" = ARRAY\[\]::text\[\]/);
     assert.match(sellerDeletionAuthority, /"galleryAltTexts" = ARRAY\[\]::text\[\]/);
-    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx\)/);
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx, \{/);
     assert.match(emailServiceAccess, /public\.grainline_email_service_account_deletion_apply/);
     assert.match(emailServiceMigration, /SET status = 'SKIPPED'/);
     assert.match(emailServiceMigration, /'deleted-account@deleted\.thegrainline\.local'/);
@@ -319,7 +319,7 @@ describe("Round 9 account deletion PII guardrails", () => {
       "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
     );
 
-    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx\)/);
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx, \{/);
     assert.match(migration, /suppression\.reason::text = 'MANUAL'/);
     assert.match(migration, /WHERE NOT EXISTS \([\s\S]*suppression\.email = candidate\.email/s);
     assert.match(migration, /ON CONFLICT \(email\) DO NOTHING/);

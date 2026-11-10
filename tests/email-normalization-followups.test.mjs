@@ -59,7 +59,7 @@ describe("email normalization follow-ups", () => {
       identityAuthority,
       /placeholder_email := CASE[\s\S]*p_clerk_id = pg_catalog\.lower\(p_clerk_id\)[\s\S]*pg_catalog\.md5\(p_clerk_id\)[\s\S]*'@placeholder\.invalid'/,
     );
-    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx\)/);
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx, \{/);
     assert.doesNotMatch(deletion, /tx\.(?:emailOutbox|emailSuppression|emailFailureCount|newsletterSubscriber)\./);
     assert.match(emailServiceAccess, /public\.grainline_email_service_account_deletion_apply/);
     assert.match(emailServiceMigration, /grainline_user_email_fallback_addresses\(\)/);

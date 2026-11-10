@@ -362,7 +362,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   email_service_v1: Object.freeze({
     migration: "20261101080000_prepare_email_service_least_privilege",
-    migrationSha256: "fe2025fb5ac81c6692eee0d1a30dbde84504f3143b9534e6d64db72c1624f07a",
+    migrationSha256: "e7ba6b9a456346b74b70eb88f4d61648290a7a892a0da910f9768aaaddeafcb0",
     // The preparation installs one fixed-purpose boundary across five related
     // service tables. EmailOutbox is the representative predecessor table for
     // the generic inspector; the migration itself verifies all five tables.
@@ -412,7 +412,10 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({ name: "grainline_email_unsubscribe_apply", arguments: "text, jsonb" }),
       Object.freeze({ name: "grainline_email_account_deletion_suppression_clear", arguments: "text" }),
       Object.freeze({ name: "grainline_email_service_owner_export", arguments: "" }),
-      Object.freeze({ name: "grainline_email_service_account_deletion_apply", arguments: "" }),
+      Object.freeze({
+        name: "grainline_email_service_account_deletion_apply",
+        arguments: "text, bigint, uuid",
+      }),
       Object.freeze({
         name: "grainline_resend_webhook_event_reserve",
         arguments: "text, text, timestamp without time zone, timestamp without time zone, uuid",
