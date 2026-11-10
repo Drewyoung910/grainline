@@ -387,10 +387,9 @@ describe("post-launch UI follow-ups", () => {
     const header = source("src/components/Header.tsx");
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
-    assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // Search grows to a 640px cap, the text nav follows it, and the tools
-    // sit at the far right (motion prototype layout, 2026-10-30).
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    // Search grows to the reviewed 820px cap, the text nav follows it, and
+    // the tools sit at the far right without an oversized avatar gap.
+    assert.match(header, /data-header-search-slot className="flex min-w-\[240px\] max-w-\[820px\] flex-1"/);
     assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 

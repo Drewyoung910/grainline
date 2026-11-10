@@ -79,7 +79,7 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(globals, /\.hero-logo-mark|\.logo-mark \{[^}]*background-color/);
     assert.match(header, /aria-label="Grainline home"/);
     // Desktop: search, then text nav with a sliding underline, then tools.
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    assert.match(header, /data-header-search-slot className="flex min-w-\[240px\] max-w-\[820px\] flex-1"/);
     assert.match(header, /<SearchBar tone=\{clear \? "glass" : "solid"\} \/>/);
     assert.match(header, /after:origin-left after:bg-current/);
     assert.match(header, /hover:after:scale-x-100/);
