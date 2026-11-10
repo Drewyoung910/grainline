@@ -606,8 +606,14 @@ BEGIN
                  suppression.source::text AS source,
                  suppression."eventId"::text AS "eventId",
                  suppression.details,
-                 suppression."createdAt",
-                 suppression."updatedAt"
+                 pg_catalog.to_char(
+                   suppression."createdAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "createdAt",
+                 pg_catalog.to_char(
+                   suppression."updatedAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "updatedAt"
             FROM public."EmailSuppression" AS suppression
            WHERE suppression.email IN (SELECT email FROM email_keys)
         ) AS export_row
@@ -628,11 +634,23 @@ BEGIN
                  outbox.payload,
                  outbox.status::text AS status,
                  outbox.attempts,
-                 outbox."nextAttemptAt",
-                 outbox."sentAt",
+                 pg_catalog.to_char(
+                   outbox."nextAttemptAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "nextAttemptAt",
+                 pg_catalog.to_char(
+                   outbox."sentAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "sentAt",
                  outbox."lastError"::text AS "lastError",
-                 outbox."createdAt",
-                 outbox."updatedAt"
+                 pg_catalog.to_char(
+                   outbox."createdAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "createdAt",
+                 pg_catalog.to_char(
+                   outbox."updatedAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "updatedAt"
             FROM public."EmailOutbox" AS outbox
            WHERE outbox."userId" = actor_id
               OR (
@@ -646,8 +664,14 @@ BEGIN
         FROM (
           SELECT failure.email::text AS email,
                  failure.count,
-                 failure."firstFailedAt",
-                 failure."lastFailedAt",
+                 pg_catalog.to_char(
+                   failure."firstFailedAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "firstFailedAt",
+                 pg_catalog.to_char(
+                   failure."lastFailedAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "lastFailedAt",
                  failure."lastEventId"::text AS "lastEventId"
             FROM public."EmailFailureCount" AS failure
            WHERE failure.email IN (SELECT email FROM email_keys)
@@ -659,10 +683,19 @@ BEGIN
           SELECT subscriber.id,
                  subscriber.email::text AS email,
                  subscriber.name::text AS name,
-                 subscriber."subscribedAt",
+                 pg_catalog.to_char(
+                   subscriber."subscribedAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "subscribedAt",
                  subscriber.active,
-                 subscriber."confirmedAt",
-                 subscriber."confirmationSentAt"
+                 pg_catalog.to_char(
+                   subscriber."confirmedAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "confirmedAt",
+                 pg_catalog.to_char(
+                   subscriber."confirmationSentAt",
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                 ) AS "confirmationSentAt"
             FROM public."NewsletterSubscriber" AS subscriber
            WHERE subscriber.email IN (SELECT email FROM email_keys)
         ) AS export_row

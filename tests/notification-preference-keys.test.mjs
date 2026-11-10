@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -8,6 +9,10 @@ const {
   isValidEmailPreferenceKey,
   normalizeNotificationPreferences,
 } = await import("../src/lib/notificationPreferenceKeys.ts");
+const {
+  ALWAYS_ON_EMAIL_PREFERENCE_KEYS,
+  isOptionalEmailPreferenceKey,
+} = await import("../src/lib/emailPreferencePolicy.ts");
 
 describe("notification preference keys", () => {
   it("validates email-only preference keys for durable email jobs", () => {
@@ -45,6 +50,29 @@ describe("notification preference keys", () => {
     for (const key of VALID_EMAIL_PREFERENCE_KEYS) {
       assert.equal(VALID_PREFERENCE_KEYS.includes(key), true);
     }
+  });
+
+  it("keeps optional unsubscribe preferences aligned with the database boundary", () => {
+    const migration = fs.readFileSync(
+      new URL(
+        "../prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const functionBody = migration.match(
+      /AS \$grainline_email_unsubscribe_apply\$([\s\S]*?)\$grainline_email_unsubscribe_apply\$;/u,
+    )?.[1];
+    assert.ok(functionBody, "unsubscribe authority must exist in the reviewed migration");
+
+    const allowedKeys = new Set(
+      [...functionBody.matchAll(/'(EMAIL_[A-Z_]+)'/gu)].map((match) => match[1]),
+    );
+    const optionalKeys = new Set(
+      VALID_EMAIL_PREFERENCE_KEYS.filter(isOptionalEmailPreferenceKey),
+    );
+    assert.deepEqual(allowedKeys, optionalKeys);
+    assert.equal(allowedKeys.size, VALID_EMAIL_PREFERENCE_KEYS.length - ALWAYS_ON_EMAIL_PREFERENCE_KEYS.length);
   });
 
   it("validates aggregate preference keys", () => {

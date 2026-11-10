@@ -646,6 +646,24 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
       ].map((suffix) => `${fixture.actorId}_${suffix}`),
     ]),
   );
+  for (const collection of [
+    ownerExport.emailSuppressions,
+    ownerExport.emailOutboxRows,
+    ownerExport.emailFailureCounts,
+    ownerExport.newsletterSubscriptions,
+  ]) {
+    for (const row of collection) {
+      for (const [key, value] of Object.entries(row)) {
+        if (key.endsWith("At") && value !== null) {
+          assert.match(
+            value,
+            /Z$/u,
+            `email export timestamp ${key} must retain an explicit UTC marker`,
+          );
+        }
+      }
+    }
+  }
 
   const deletionResult = rowsOf(await runtimeActorQuery(
     database,
