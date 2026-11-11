@@ -124,16 +124,44 @@ export const MAKER_VERIFICATION_TABLE = "MakerVerification";
 export const FOLLOW_TABLE = "Follow";
 const FOLLOW_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("follow_v1");
 const BLOCK_PREPARATION_RELEASE = privateTablePreparation("block_v1");
+const BLOCK_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("block_v1");
+const USER_REPORT_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("user_report_v1");
+const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("seller_faq_v1");
+export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
+export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
+export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
   BLOCK_PREPARATION_RELEASE.migrationSha256;
+export const BLOCK_RLS_ACTIVATION_MIGRATION =
+  BLOCK_RLS_ACTIVATION_RELEASE.migration;
+export const BLOCK_RLS_ACTIVATION_MIGRATION_SHA256 =
+  BLOCK_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const USER_REPORT_RLS_ACTIVATION_MIGRATION =
+  USER_REPORT_RLS_ACTIVATION_RELEASE.migration;
+export const USER_REPORT_RLS_ACTIVATION_MIGRATION_SHA256 =
+  USER_REPORT_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const SELLER_FAQ_RLS_ACTIVATION_MIGRATION =
+  SELLER_FAQ_RLS_ACTIVATION_RELEASE.migration;
+export const SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256 =
+  SELLER_FAQ_RLS_ACTIVATION_RELEASE.migrationSha256;
 export const FOLLOW_RLS_ACTIVATION_MIGRATION =
   FOLLOW_RLS_ACTIVATION_RELEASE.migration;
 export const FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256 =
   FOLLOW_RLS_ACTIVATION_RELEASE.migrationSha256;
 export const FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze(
   FOLLOW_RLS_ACTIVATION_RELEASE.functionChanges.retained
+    .filter((entry) => (
+      entry.predecessorExecuteRole === "runtime"
+      && entry.activatedExecuteRole === "none"
+    ))
+    .map((entry) => entry.name),
+);
+export const BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  BLOCK_RLS_ACTIVATION_RELEASE.functionChanges.retained
     .filter((entry) => (
       entry.predecessorExecuteRole === "runtime"
       && entry.activatedExecuteRole === "none"
@@ -1560,6 +1588,72 @@ export function followRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
 }
 
+function policylessCatalogActivationExpected(inventory, tableName, stateField) {
+  if (typeof inventory?.[stateField] === "boolean") {
+    return inventory[stateField];
+  }
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(tableName) && !policies.has(tableName);
+}
+
+function policylessCatalogForceExpected(
+  inventory,
+  tableName,
+  stateField,
+) {
+  return policylessCatalogActivationExpected(inventory, tableName, stateField)
+    && (inventory?.rlsForceTables ?? []).includes(tableName);
+}
+
+export function blockRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    BLOCK_TABLE,
+    "blockRlsActivationApplied",
+  );
+}
+
+export function blockRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    BLOCK_TABLE,
+    "blockRlsActivationApplied",
+  );
+}
+
+export function userReportRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    USER_REPORT_TABLE,
+    "userReportRlsActivationApplied",
+  );
+}
+
+export function userReportRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    USER_REPORT_TABLE,
+    "userReportRlsActivationApplied",
+  );
+}
+
+export function sellerFaqRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    SELLER_FAQ_TABLE,
+    "sellerFaqRlsActivationApplied",
+  );
+}
+
+export function sellerFaqRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    SELLER_FAQ_TABLE,
+    "sellerFaqRlsActivationApplied",
+  );
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -1595,6 +1689,10 @@ export function runtimePrivateFunctionNames(inventory) {
     typeof inventory?.followRlsActivationApplied === "boolean"
       ? inventory.followRlsActivationApplied
       : followRlsActivationExpected(inventory);
+  const blockActivated =
+    typeof inventory?.blockRlsActivationApplied === "boolean"
+      ? inventory.blockRlsActivationApplied
+      : blockRlsActivationExpected(inventory);
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1603,6 +1701,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !sellerEmailProjectionRetirementApplied
     && !sellerProfilePrivatePredecessorPrepared
     && !followActivated
+    && !blockActivated
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -1631,6 +1730,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(followActivated
       ? FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(blockActivated
+      ? BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -1786,6 +1888,30 @@ export async function readBlockPreparationState(client) {
     migration: BLOCK_PREPARATION_MIGRATION,
     checksum: BLOCK_PREPARATION_MIGRATION_SHA256,
     label: "Block compatible preparation",
+  });
+}
+
+export async function readBlockRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: BLOCK_RLS_ACTIVATION_MIGRATION,
+    checksum: BLOCK_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "Block RLS activation",
+  });
+}
+
+export async function readUserReportRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: USER_REPORT_RLS_ACTIVATION_MIGRATION,
+    checksum: USER_REPORT_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "UserReport RLS activation",
+  });
+}
+
+export async function readSellerFaqRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
+    checksum: SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "SellerFaq RLS activation",
   });
 }
 
@@ -2034,6 +2160,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(makerVerificationRlsActivationExpected(inventory)
       ? [MAKER_VERIFICATION_TABLE]
       : []),
+    ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
+    ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
+    ...(sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -2624,6 +2753,7 @@ export function collectConversationMessageFunctionIssues(
   );
   const expectedFunctions = conversationMessageAuthorityFunctionsForState({
     blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
+    blockActivationApplied: blockRlsActivationExpected(inventory),
   }).flatMap(
     (entry) => {
       if (entry.name !== "grainline_message_redact_for_account_deletion") {
@@ -3068,6 +3198,18 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && makerVerificationRlsActivationExpected(inventory)
     )
     || (
+      tableName === BLOCK_TABLE
+      && blockRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === USER_REPORT_TABLE
+      && userReportRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === SELLER_FAQ_TABLE
+      && sellerFaqRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3172,6 +3314,12 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? followRlsForceExpected(inventory)
         : tableName === MAKER_VERIFICATION_TABLE
           ? makerVerificationRlsForceExpected(inventory)
+        : tableName === BLOCK_TABLE
+          ? blockRlsForceExpected(inventory)
+        : tableName === USER_REPORT_TABLE
+          ? userReportRlsForceExpected(inventory)
+        : tableName === SELLER_FAQ_TABLE
+          ? sellerFaqRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE
@@ -3533,6 +3681,14 @@ export async function auditLiveDatabase({
   issues.push(...followRlsActivation.issues);
   const blockPreparation = await readBlockPreparationState(client);
   issues.push(...blockPreparation.issues);
+  const blockRlsActivation = await readBlockRlsActivationState(client);
+  issues.push(...blockRlsActivation.issues);
+  const userReportRlsActivation =
+    await readUserReportRlsActivationState(client);
+  issues.push(...userReportRlsActivation.issues);
+  const sellerFaqRlsActivation =
+    await readSellerFaqRlsActivationState(client);
+  issues.push(...sellerFaqRlsActivation.issues);
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -3662,6 +3818,9 @@ export async function auditLiveDatabase({
     sellerProfileRlsForceApplied: sellerProfilePublicForce.applied,
     followRlsActivationApplied: followRlsActivation.applied,
     blockPreparationApplied: blockPreparation.applied,
+    blockRlsActivationApplied: blockRlsActivation.applied,
+    userReportRlsActivationApplied: userReportRlsActivation.applied,
+    sellerFaqRlsActivationApplied: sellerFaqRlsActivation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,
@@ -4309,6 +4468,7 @@ export async function auditLiveDatabase({
   const conversationMessageFunctionNames = new Set(
     conversationMessageAuthorityFunctionsForState({
       blockPreparationApplied: blockPreparation.applied,
+      blockActivationApplied: blockRlsActivation.applied,
     }).map((entry) => entry.name),
   );
   if (

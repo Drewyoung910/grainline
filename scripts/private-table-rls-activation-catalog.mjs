@@ -20,6 +20,8 @@ const OWNER_USER_ID_QUAL =
   "(\"userId\" = NULLIF(current_setting('app.user_id'::text, true), ''::text))";
 const OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT =
   "0c0e9e67081c2ad7b27d97bc3f5956ecd2090549";
+const BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT =
+  "47cec35f29d3bdea3376e10a52659f6587ca7af5";
 const PREDECESSOR_CRUD = Object.freeze([
   "SELECT",
   "INSERT",
@@ -38,12 +40,18 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
   follow_v1: "FOLLOW_RLS_ACTIVATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH",
+  block_v1: "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -108,6 +116,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
           name: "grainline_user_follower_notification_page",
           arguments: "text, text, integer",
           sourceMd5: "471b1caf9907d6d370ec1cb8ea5aa718",
+          securityDefiner: true,
           predecessorExecuteRole: "runtime",
           activatedExecuteRole: "none",
         }),
@@ -175,6 +184,93 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
   }),
+  block_v1: Object.freeze({
+    preparationReleaseId: "block_v1",
+    minimumCompatibleAppCommit: BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261030040000_activate_block_rls",
+    migrationSha256:
+      "cec9c1c6345225304fcae3b2d433ade6c73e1d6d98f0d461126390f7f0c29e73",
+    rollbackPath: "docs/rls-drafts/block-activation-rollback.sql",
+    rollbackSha256:
+      "e1d0d020ca072149e441c7db5110209579d7d2449692cc3728b98b920c7bea28",
+    table: "Block",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/block-report-seller-faq-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: Object.freeze({
+      retained: Object.freeze([
+        Object.freeze({
+          name: "grainline_conversation_inbox",
+          arguments: "text, boolean, text, timestamp without time zone, text, integer",
+          sourceMd5: "4b2884765f4ca0db432c4678f98b1bdd",
+          securityDefiner: false,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+        Object.freeze({
+          name: "grainline_message_unread_count",
+          arguments: "text",
+          sourceMd5: "6465832d045b72cc2762907f66a461f3",
+          securityDefiner: false,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+      ]),
+      replacements: Object.freeze([]),
+      additions: Object.freeze([]),
+    }),
+  }),
+  user_report_v1: Object.freeze({
+    preparationReleaseId: "user_report_v1",
+    minimumCompatibleAppCommit: BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261030050000_activate_user_report_rls",
+    migrationSha256:
+      "0c488a187a0f2389d32c2860f03e39d6a93dede288a9caf43483fe87c1f626fc",
+    rollbackPath: "docs/rls-drafts/user-report-activation-rollback.sql",
+    rollbackSha256:
+      "db500b9c9f25092946c9742ee4fbe5ab20d069741dd4a43d157c4ddb6514c1dc",
+    table: "UserReport",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/block-report-seller-faq-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  seller_faq_v1: Object.freeze({
+    preparationReleaseId: "seller_faq_v1",
+    minimumCompatibleAppCommit: BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261030060000_activate_seller_faq_rls",
+    migrationSha256:
+      "d79661da61c150e893e927ea389afcaede307ad3c8b45b95977ce38e26634154",
+    rollbackPath: "docs/rls-drafts/seller-faq-activation-rollback.sql",
+    rollbackSha256:
+      "877666c051dacca7ef4e9ff169437fde8d01360b972966d6914bd79ebfb45150",
+    table: "SellerFaq",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/block-report-seller-faq-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
@@ -183,6 +279,11 @@ export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+  ]),
+  block_report_seller_faq_v1: Object.freeze([
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
   ]),
 });
 
@@ -459,6 +560,7 @@ export function verifyPrivateTableRlsActivationSource(
       !activation.sql.includes(literal)
       || !rollback.sql.includes(literal)
       || !/^[0-9a-f]{32}$/u.test(change.sourceMd5)
+      || typeof change.securityDefiner !== "boolean"
     ) {
       throw stopped(`retained function transition drifted for ${literal}`);
     }
