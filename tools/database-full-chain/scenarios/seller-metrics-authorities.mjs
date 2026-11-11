@@ -357,8 +357,12 @@ export async function proveSellerMetricsPreparedAuthorities({
     assertMetricsRow(initial[0], seller.sellerProfileId);
 
     await database.query(
-      `INSERT INTO public."User" (id, "clerkId", email, banned, "updatedAt")
-       VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP)`,
+      `INSERT INTO public."User" (
+         id, "clerkId", email, banned, "createdAt", "updatedAt"
+       ) VALUES (
+         $1, $2, $3, true,
+         pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+       )`,
       [
         parityReviewerId,
         `${parityReviewerId}_clerk`,
@@ -367,15 +371,19 @@ export async function proveSellerMetricsPreparedAuthorities({
     );
     await database.query(
       `INSERT INTO public."Listing" (
-         id, "sellerId", title, description, "priceCents", status, "updatedAt"
+         id, "sellerId", title, description, "priceCents", status,
+         "createdAt", "updatedAt"
        ) VALUES ($1, $2, 'Metrics parity listing', 'Metrics parity fixture', 100,
-                 'ACTIVE'::public."ListingStatus", CURRENT_TIMESTAMP)`,
+                 'ACTIVE'::public."ListingStatus",
+                 pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
       [parityListingId, seller.sellerProfileId],
     );
     await database.query(
       `INSERT INTO public."Review" (
-         id, "listingId", "reviewerId", "ratingX2", "updatedAt"
-       ) VALUES ($1, $2, $3, 10, CURRENT_TIMESTAMP)`,
+         id, "listingId", "reviewerId", "ratingX2",
+         "createdAt", "updatedAt"
+       ) VALUES ($1, $2, $3, 10,
+                 pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
       [parityReviewId, parityListingId, parityReviewerId],
     );
 
@@ -387,7 +395,8 @@ export async function proveSellerMetricsPreparedAuthorities({
     );
     await database.query(
       `UPDATE public."User"
-          SET banned = false, "updatedAt" = CURRENT_TIMESTAMP
+          SET banned = false,
+              "updatedAt" = pg_catalog.clock_timestamp()
         WHERE id = $1`,
       [parityReviewerId],
     );
