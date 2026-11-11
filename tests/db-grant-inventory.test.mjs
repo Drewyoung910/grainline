@@ -4227,7 +4227,12 @@ describe("database grant inventory guardrails", () => {
       157 // historical-prefix baseline before the currently staged successors
         + (orderItemQuoteRuntimeLockMigrationPresent ? 1 : 0)
         + (serviceReferenceLeastPrivilegeMigrationPresent ? 1 : 0)
-        + (emailServiceLeastPrivilegePrepared ? 20 : 0)
+        + (emailServiceLeastPrivilegePrepared
+          ? EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES.length
+            // The delivery-ledger preparation already contributes the same
+            // PUBLIC revoke for the provider-attempt authority.
+            - (emailDeliveryLedgerPrepared ? 1 : 0)
+          : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)

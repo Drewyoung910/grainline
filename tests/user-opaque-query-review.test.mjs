@@ -49,17 +49,19 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // return 404 or noindex), and C-1890 removed the tag-word spread residual.
   // UserReport validation moves three public target factories behind its
   // actor-bound SQL authority.
-  assert.equal(report.opaqueShapes.length, 141);
-  assert.equal(reviewedFactories.length, 106);
-  assert.equal(reviewedResidual.length, 35);
+  // Email-service least privilege removes eight more app-side query shapes
+  // by moving their bounded behavior behind fixed SQL authorities.
+  assert.equal(report.opaqueShapes.length, 133);
+  assert.equal(reviewedFactories.length, 102);
+  assert.equal(reviewedResidual.length, 31);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 85,
-    sha256: "dab378b98bf6869fa9db178cdda09c1d12152f8ec1ac9dfbc351cbddd9686b35",
+    unique: 82,
+    sha256: "00128cb518eafe7687e8a28ac85c7745b33dca57dd7b9e465192e87f687def62",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 29,
-    sha256: "32e0d139683910269f168d9f1dbcdc5158e621dd54a179b46a658c30a5341f84",
+    unique: 26,
+    sha256: "ea4a1ba9a5e2f37b48fd4ee6ab3e33e020bf5d3ce442b51b98dc06859a6229c2",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,
