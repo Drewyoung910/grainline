@@ -157,10 +157,7 @@ export async function inspectPrivilegeReleaseProduction(
                         ORDER BY pg_catalog.format('%I:%s', attribute.attname,
                           pg_catalog.upper(acl.privilege_type)))
                  FROM pg_catalog.pg_attribute AS attribute
-                 CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(
-                        attribute.attacl,
-                        ARRAY[]::aclitem[]
-                      )) AS acl
+                 CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
                 WHERE attribute.attrelid = target.oid
                   AND attribute.attnum > 0
                   AND NOT attribute.attisdropped
