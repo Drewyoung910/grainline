@@ -3,6 +3,18 @@ import { randomUUID } from "node:crypto";
 
 export const EMAIL_SERVICE_LEAST_PRIVILEGE_PREPARATION_MIGRATION =
   "20261101080000_prepare_email_service_least_privilege";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION =
+  "20261101090000_activate_email_service_least_privilege";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER =
+  "GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1";
+
+const EMAIL_SERVICE_TABLES = Object.freeze([
+  "NewsletterSubscriber",
+  "EmailSuppression",
+  "ResendWebhookEvent",
+  "EmailOutbox",
+  "EmailFailureCount",
+]);
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -1241,4 +1253,178 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
     boundedRetention: true,
     maintenanceIsolation: true,
   });
+}
+
+export async function proveEmailServiceLeastPrivilegeActivation({ database }) {
+  const rows = rowsOf(await database.query(`
+    SELECT class.relname AS name,
+           class.relrowsecurity AS "rlsEnabled",
+           class.relforcerowsecurity AS "rlsForced",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS "runtimeSelect",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS "runtimeInsert",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS "runtimeUpdate",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS "runtimeDelete",
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS "policyCount",
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_attribute AS attribute
+              CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+             WHERE attribute.attrelid = class.oid
+               AND attribute.attnum > 0
+               AND NOT attribute.attisdropped
+               AND acl.grantee IN (
+                 0::oid,
+                 (SELECT oid FROM pg_catalog.pg_roles
+                   WHERE rolname = 'grainline_app_runtime'),
+                 (SELECT oid FROM pg_catalog.pg_roles
+                   WHERE rolname = 'grainline_staff_read_runtime')
+               )) AS "columnAclCount"
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = ANY($1::text[])
+       AND class.relkind = 'r'
+     ORDER BY class.relname
+  `, [EMAIL_SERVICE_TABLES]));
+  assert.deepEqual(rows.map((row) => row.name), [...EMAIL_SERVICE_TABLES].sort());
+  for (const row of rows) {
+    assert.deepEqual(row, {
+      name: row.name,
+      rlsEnabled: false,
+      rlsForced: false,
+      runtimeSelect: false,
+      runtimeInsert: false,
+      runtimeUpdate: false,
+      runtimeDelete: false,
+      policyCount: 0,
+      columnAclCount: 0,
+    }, row.name);
+  }
+
+  assert.equal(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."EmailFailureCount"`,
+  ))[0]?.count, 0);
+  assert.equal(rowsOf(await runtimeQuery(
+    database,
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public.grainline_email_service_ops_health(
+         '2026-10-01', '2026-10-01'
+       )`,
+  ))[0]?.count, 1, "fixed email-service operations must remain executable");
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      `SELECT pg_catalog.count(*) FROM public."EmailOutbox"`,
+    ),
+    (error) => error?.code === "42501",
+    "ordinary runtime must have zero direct email-table access",
+  );
+}
+
+export async function proveEmailServiceLeastPrivilegeRollback({ database }) {
+  const ledger = rowsOf(await database.query(
+    `SELECT checksum, finished_at, rolled_back_at, applied_steps_count, logs
+       FROM public._prisma_migrations
+      WHERE migration_name = $1`,
+    [EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION],
+  ));
+  assert.equal(ledger.length, 1, "rollback must retain one exact activation ledger row");
+  assert.equal(
+    ledger[0].checksum,
+    "4c9c30b2b95854f5dfe587532ecfb98a0698e54c2c50cf49cfdb4fdf0c8f02cf",
+  );
+  assert.ok(ledger[0].finished_at);
+  assert.equal(
+    ledger[0].rolled_back_at,
+    null,
+    "rollback must leave activation recorded so Prisma cannot reapply it",
+  );
+  assert.ok([0, 1].includes(Number(ledger[0].applied_steps_count)));
+  assert.ok(
+    String(ledger[0].logs ?? "").includes(
+      EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER,
+    ),
+    "rollback must record the durable emergency marker",
+  );
+  const rows = rowsOf(await database.query(`
+    SELECT class.relname AS name,
+           class.relrowsecurity AS "rlsEnabled",
+           class.relforcerowsecurity AS "rlsForced",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS "runtimeSelect",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS "runtimeInsert",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS "runtimeUpdate",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS "runtimeDelete",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'TRUNCATE'
+           ) AS "runtimeTruncate",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'REFERENCES'
+           ) AS "runtimeReferences",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'TRIGGER'
+           ) AS "runtimeTrigger",
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS "policyCount"
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = ANY($1::text[])
+       AND class.relkind = 'r'
+     ORDER BY class.relname
+  `, [EMAIL_SERVICE_TABLES]));
+  assert.deepEqual(rows.map((row) => row.name), [...EMAIL_SERVICE_TABLES].sort());
+  for (const row of rows) {
+    assert.deepEqual(row, {
+      name: row.name,
+      rlsEnabled: false,
+      rlsForced: false,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      runtimeTruncate: false,
+      runtimeReferences: false,
+      runtimeTrigger: false,
+      policyCount: 0,
+    }, row.name);
+  }
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT pg_catalog.has_function_privilege(
+             'grainline_app_runtime',
+             'public.grainline_account_deletion_email_key_core(text)',
+             'EXECUTE'
+           ) AS "runtimeExecute",
+           pg_catalog.has_function_privilege(
+             'grainline_staff_read_runtime',
+             'public.grainline_account_deletion_email_key_core(text)',
+             'EXECUTE'
+           ) AS "staffExecute"
+  `)), [{ runtimeExecute: true, staffExecute: false }],
+  "rollback must restore only the predecessor runtime helper authority");
+  assert.equal(rowsOf(await runtimeQuery(
+    database,
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."EmailOutbox"`,
+  ))[0]?.count >= 0, true, "rollback must restore predecessor direct reads");
 }

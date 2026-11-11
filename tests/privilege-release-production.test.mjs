@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
@@ -10,6 +11,10 @@ import {
   verifyPrivilegeReleaseSource,
 } from "../scripts/privilege-release-catalog.mjs";
 import {
+  verifyPrivateTablePreparationSource,
+} from "../scripts/private-table-preparation-catalog.mjs";
+import {
+  classifyPrivilegeReleaseFunctions,
   inspectPrivilegeReleaseProduction,
 } from "../scripts/privilege-release-production-inspect.mjs";
 
@@ -45,8 +50,11 @@ function tableRows(posture, partial = false) {
         ? ["DELETE", "INSERT", "SELECT", "UPDATE"]
         : successor,
       public_privileges: [],
+      staff_privileges: [],
       runtime_grant_options: [],
+      staff_grant_options: [],
       runtime_column_privileges: [],
+      staff_column_privileges: [],
     }));
 }
 
@@ -133,6 +141,146 @@ test("catalog byte-seals the reviewed reusable privilege release", () => {
   assert.throws(() => privilegeRelease("unreviewed"), /release id is not reviewed/u);
 });
 
+test("catalog byte-seals the reviewed email-service activation boundary", () => {
+  const emailRelease = privilegeRelease("email_service_v1");
+  const stagedMigrationPath =
+    process.env.EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_PATH;
+  const verified = verifyPrivilegeReleaseSource(
+    "email_service_v1",
+    rootDir,
+    stagedMigrationPath || undefined,
+  );
+  assert.equal(verified.digest, emailRelease.migrationSha256);
+  assert.equal(verified.rollbackDigest, emailRelease.rollback.sha256);
+  assert.equal(
+    emailRelease.preparationMigration.name,
+    "20261101080000_prepare_email_service_least_privilege",
+  );
+  assert.equal(
+    emailRelease.preparationMigration.sha256,
+    "3ee5f2769129a94e5b82036a225c9017846c1b0d024afb57c064743a2a6d3047",
+  );
+  assert.equal(
+    emailRelease.minimumCompatibleAppCommit,
+    "d6e576aff2838df4c773119ad63252ba1c63d232",
+  );
+  assert.deepEqual(emailRelease.emptyTables, ["EmailFailureCount"]);
+  assert.deepEqual(emailRelease.laterPendingMigrations, []);
+  assert.deepEqual(emailRelease.predecessorRuntimeFunctions, [
+    "public.grainline_account_deletion_email_key_core(text)",
+  ]);
+  assert.deepEqual(Object.keys(emailRelease.functions).sort(), [
+    "public.grainline_email_account_deletion_suppression_clear(text)",
+    "public.grainline_email_hard_suppression_apply(text,text,\"EmailSuppressionReason\",text,text,jsonb)",
+    "public.grainline_email_one_click_suppression_clear(text)",
+    "public.grainline_email_outbox_account_deletion_fence(text,text[])",
+    "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)",
+    "public.grainline_email_outbox_cancel_seller_broadcast(text)",
+    "public.grainline_email_outbox_claim_batch(integer)",
+    "public.grainline_email_outbox_claim_one(text)",
+    "public.grainline_email_outbox_complete(text,bigint,uuid,text)",
+    "public.grainline_email_outbox_defer(text,bigint,uuid,text)",
+    "public.grainline_email_outbox_enqueue_legacy(text,text,text,text,text,integer,text,text,text,text,text)",
+    "public.grainline_email_outbox_fail(text,bigint,uuid,text,text)",
+    "public.grainline_email_outbox_redact_deleted_seller(text)",
+    "public.grainline_email_outbox_retention_delete_batch(timestamp without time zone,timestamp without time zone,integer)",
+    "public.grainline_email_outbox_skip(text,bigint,uuid,text)",
+    "public.grainline_email_service_account_deletion_apply(text,bigint,uuid)",
+    "public.grainline_email_service_ops_health(timestamp without time zone,timestamp without time zone)",
+    "public.grainline_email_service_owner_export()",
+    "public.grainline_email_suppression_exists(text,text)",
+    "public.grainline_email_unsubscribe_apply(text,jsonb)",
+    "public.grainline_newsletter_confirm(text,timestamp without time zone)",
+    "public.grainline_newsletter_confirmation_valid(text,timestamp without time zone)",
+    "public.grainline_newsletter_expired_unconfirmed_delete_batch(timestamp without time zone,integer)",
+    "public.grainline_newsletter_signup_release(text,text)",
+    "public.grainline_newsletter_signup_reserve(text,text,text,timestamp without time zone,timestamp without time zone,timestamp without time zone)",
+    "public.grainline_newsletter_token_superseded(text,timestamp without time zone)",
+    "public.grainline_resend_webhook_event_complete(text,bigint,uuid,timestamp without time zone)",
+    "public.grainline_resend_webhook_event_fail(text,bigint,uuid,text,timestamp without time zone)",
+    "public.grainline_resend_webhook_event_reserve(text,text,timestamp without time zone,timestamp without time zone,uuid)",
+    "public.grainline_resend_webhook_event_retention_delete_batch(timestamp without time zone,integer)",
+  ]);
+  assert.deepEqual(emailRelease.tables, {
+    EmailFailureCount: [],
+    EmailOutbox: [],
+    EmailSuppression: [],
+    NewsletterSubscriber: [],
+    ResendWebhookEvent: [],
+  });
+});
+
+test("email activation pins every function body installed by its preparation", () => {
+  const emailRelease = privilegeRelease("email_service_v1");
+  const preparation = verifyPrivateTablePreparationSource(
+    "email_service_v1",
+    rootDir,
+  );
+  for (const entry of preparation.release.functions) {
+    const argumentsSql = entry.arguments.replace(/,\s+/gu, ",");
+    const signature = `public.${entry.name}(${argumentsSql})`;
+    const source = preparation.functionSources.get(entry.name);
+    assert.equal(typeof source, "string", `${signature} preparation source is missing`);
+    assert.equal(
+      createHash("sha256").update(source).digest("hex"),
+      emailRelease.functions[signature],
+      `${signature} activation source pin drifted from preparation`,
+    );
+  }
+});
+
+test("production inspector retires predecessor-only function authority with the table boundary", () => {
+  const source = "BEGIN RETURN 1; END";
+  const digest = createHash("sha256").update(source).digest("hex");
+  const mockRelease = {
+    functions: {
+      "public.retained()": digest,
+    },
+    predecessorRuntimeFunctions: ["public.compat(text)"],
+  };
+  const row = (signature, runtimeExecute) => ({
+    signature,
+    exists: true,
+    source,
+    security_definer: true,
+    configuration: ["search_path=pg_catalog"],
+    owner_bypasses_rls: true,
+    public_execute: false,
+    runtime_execute: runtimeExecute,
+  });
+  const predecessorRows = [
+    row("public.retained()", true),
+    row("public.compat(text)", true),
+  ];
+  const predecessor = classifyPrivilegeReleaseFunctions(
+    predecessorRows,
+    mockRelease,
+    "predecessor",
+  );
+  assert.equal(predecessor[0].predecessorOnly, true);
+  assert.equal(predecessor[0].runtimeExecute, true);
+
+  const successorRows = [
+    row("public.compat(text)", false),
+    row("public.retained()", true),
+  ];
+  const successor = classifyPrivilegeReleaseFunctions(
+    successorRows,
+    mockRelease,
+    "successor",
+  );
+  assert.equal(successor[0].predecessorOnly, true);
+  assert.equal(successor[0].runtimeExecute, false);
+  assert.throws(
+    () => classifyPrivilegeReleaseFunctions(
+      predecessorRows,
+      mockRelease,
+      "successor",
+    ),
+    /public\.compat\(text\) runtime EXECUTE drifted/u,
+  );
+});
+
 test("production inspector recognizes all three restart-safe release states", async () => {
   const directory = mkdtempSync(join(tmpdir(), "grainline-privilege-release-"));
   try {
@@ -201,15 +349,11 @@ test("workflow is exact-main, serialized, restart-safe, and evidence preserving"
   assert.equal(parsed.concurrency["cancel-in-progress"], false);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    [releaseId],
+    ["email_service_v1", releaseId],
   );
   assert.match(source, /github\.ref == 'refs\/heads\/main'/u);
   assert.match(source, /main\.commit\.sha !== sha/u);
   assert.match(source, /Exact-main push workflows are not all green/u);
-  assert.match(source, /compatible_app_commit:/u);
-  assert.match(source, /production_deployment_id:/u);
-  assert.match(source, /superseded_app_deployment_id:/u);
-  assert.match(source, /superseded_app_commit:/u);
   assert.match(source, /Compatible app predates the reviewed privilege minimum/u);
   assert.match(source, /Compatible app commit is not an ancestor of privilege release/u);
   assert.match(source, /Compatible app does not succeed the reviewed predecessor/u);
