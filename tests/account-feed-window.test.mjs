@@ -8,7 +8,7 @@ const path = "src/app/api/account/feed/route.ts";
 const DAY = 24 * 60 * 60 * 1000;
 
 function fixture() {
-  const state = { wheres: [] };
+  const state = { wheres: [], broadcastCutoffs: [] };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const capture = async ({ where }) => {
     state.wheres.push(where);
@@ -44,6 +44,12 @@ function fixture() {
     "@/lib/sellerProfileParticipantAccess": {
       sellerActorAccountFeedCards: async () => [{ id: "seller", displayName: "Shop", guildLevel: "NONE" }],
     },
+    "@/lib/sellerBroadcastAccess": {
+      actorSellerBroadcastFeedPage: async (_actorId, input) => {
+        state.broadcastCutoffs.push(input.cutoff);
+        return [];
+      },
+    },
   };
   const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -60,7 +66,7 @@ test("scrolling stops at the 90 days the Terms promise", async () => {
   const subject = fixture();
   const cursor = new Date(Date.now() - 200 * DAY).toISOString();
   await subject.exports.GET(new Request(`https://example.test/api/account/feed?cursor=${encodeURIComponent(cursor)}`));
-  assert.equal(subject.state.wheres.length, 3);
+  assert.equal(subject.state.wheres.length, 2);
   for (const where of subject.state.wheres) {
     const cutoffs = where.AND.flatMap((clause) => Object.values(clause))
       .filter((value) => value?.gte instanceof Date || (value?.gte && typeof value.gte.getTime === "function"));
@@ -68,4 +74,7 @@ test("scrolling stops at the 90 days the Terms promise", async () => {
     const age = Date.now() - cutoffs[0].gte.getTime();
     assert.ok(Math.abs(age - 90 * DAY) < 60_000);
   }
+  assert.equal(subject.state.broadcastCutoffs.length, 1);
+  const broadcastAge = Date.now() - subject.state.broadcastCutoffs[0].getTime();
+  assert.ok(Math.abs(broadcastAge - 90 * DAY) < 60_000);
 });
