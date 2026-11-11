@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 
 const {
   VALID_EMAIL_PREFERENCE_KEYS,
@@ -54,10 +55,7 @@ describe("notification preference keys", () => {
 
   it("keeps optional unsubscribe preferences aligned with the database boundary", () => {
     const migration = fs.readFileSync(
-      new URL(
-        "../prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
-        import.meta.url,
-      ),
+      emailServiceLeastPrivilegeMigrationPath(),
       "utf8",
     );
     const functionBody = migration.match(

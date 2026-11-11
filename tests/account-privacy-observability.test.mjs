@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
@@ -237,7 +238,7 @@ describe("account and privacy route observability guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
     const migration = source(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
     );
 
     assert.match(suppression, /clearOneClickEmailSuppressionAuthority\(client, normalized\)/);

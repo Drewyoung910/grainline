@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
@@ -159,7 +160,7 @@ describe("account-state residue hardening", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
     const migration = source(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
     );
     const helperStart = deletion.indexOf("async function cleanupDeletedSellerFanoutRows");
     const helper = deletion.slice(

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const notificationRetention = await import("../src/lib/notificationRetentionState.ts");
@@ -44,7 +45,7 @@ describe("retention and ops-health follow-ups", () => {
     const cutoff = webhookRetention.webhookEventRetentionCutoff(now);
     const source = readFileSync("src/lib/webhookEventRetention.ts", "utf8");
     const emailServiceAuthority = readFileSync(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
       "utf8",
     );
 
@@ -138,7 +139,7 @@ describe("retention and ops-health follow-ups", () => {
   it("surfaces webhook and account-deletion side-effect piles in ops-health", () => {
     const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
     const emailServiceAuthority = readFileSync(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
       "utf8",
     );
     const warningStart = source.indexOf("if (");

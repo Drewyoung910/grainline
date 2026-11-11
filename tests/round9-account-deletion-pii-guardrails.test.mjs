@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
@@ -269,7 +270,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
     const emailServiceMigration = source(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
     );
     const sellerDeletionAuthority = source(
       sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
@@ -316,7 +317,7 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("does not let one hard provider suppression block account-deletion suppressions for other aliases", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const migration = source(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
     );
 
     assert.match(deletion, /applyEmailServiceAccountDeletion\(tx, \{/);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
@@ -314,7 +315,7 @@ describe("account export privacy coverage", () => {
     const route = source("src/app/api/account/export/route.ts");
     const access = source("src/lib/emailServiceAccess.ts");
     const migration = source(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
     );
 
     assert.match(route, /ownerUserAccountEmailAddressState/);
@@ -333,7 +334,7 @@ describe("account export privacy coverage", () => {
     const notificationAccess = source("src/lib/notificationOwnerAccess.ts");
     const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
     const migration = source(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
     );
     const payload = source("src/lib/accountExportPayload.ts");
 

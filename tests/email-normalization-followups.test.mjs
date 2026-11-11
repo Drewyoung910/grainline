@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 
 const { emailSuppressionLookupForEmails } = await import("../src/lib/emailAddressNormalization.ts");
 
@@ -45,7 +46,7 @@ describe("email normalization follow-ups", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
     const emailServiceMigration = source(
-      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      emailServiceLeastPrivilegeMigrationPath(),
     );
     const newsletter = source("src/app/api/newsletter/route.ts");
     const unsubscribe = source("src/lib/unsubscribeToken.ts");
