@@ -164,7 +164,11 @@ describe("security lifecycle follow-ups", () => {
   it("removes seller-derived state and seller-authored replies during account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(deletion, /sellerMetrics\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
+    assert.match(
+      deletion,
+      /clearSellerMetricsForAccountDeletion\(tx, \{\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\}\)/s,
+    );
+    assert.doesNotMatch(deletion, /tx\.sellerMetrics\./);
     assert.match(deletion, /sellerRatingSummary\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /review\.updateMany\(\{\s*where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \},\s*data: \{ sellerReply: null, sellerReplyAt: null \},\s*\}\)/s);
     assert.match(deletion, /redactUserReportsForAccountDeletion\(tx, \{/);
