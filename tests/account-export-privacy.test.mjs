@@ -74,12 +74,9 @@ describe("account export privacy coverage", () => {
     const payload = source("src/lib/accountExportPayload.ts");
 
     for (const model of [
-      "block",
-      "userReport",
       "emailSuppression",
       "emailOutbox",
       "emailFailureCount",
-      "sellerFaq",
       "newsletterSubscriber",
       "sellerBroadcast",
     ]) {
@@ -87,9 +84,32 @@ describe("account export privacy coverage", () => {
     }
     assert.match(
       route,
+      /ownerBlockExportRows\(user\.id\)/,
+      "account export must query blocks through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.block\./);
+    assert.match(
+      route,
       /exportOwnerMakerVerification\(user\.id\)/,
       "account export must query maker verification through its owner authority",
     );
+    assert.match(
+      route,
+      /exportSubmittedUserReports\(user\.id\)/,
+      "account export must query submitted reports through its owner authority",
+    );
+    assert.match(
+      route,
+      /exportReceivedUserReports\(user\.id\)/,
+      "account export must query received reports through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.userReport\./);
+    assert.match(
+      route,
+      /ownerSellerFaqExportRows\(user\.id\)/,
+      "account export must query seller FAQs through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.sellerFaq\./);
     assert.match(
       route,
       /exportOwnerSupportRequests\(user\.id\)/,

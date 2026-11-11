@@ -150,14 +150,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      // UI workspace/search work adds two publicListingWhere reads for the
-      // search panel. Both remain inside the reviewed public-listing filter.
-      // The 2026-11-04 fix branch removes seven build-time factory reads with
-      // generateStaticParams (C-1882) and adds three to empty-page metadata
-      // (C-261), so 122 becomes 118. The plural-search rewrite (C-1890)
-      // removes one residual spread, so 27 becomes 26. Same deltas as the
-      // User opaque-query digest test; no SellerProfile shape is added.
-      || reviewedNonTargetFactoryCalls.length !== 118
+      // The UI/search baseline has 118 reviewed non-target factory calls.
+      // UserReport preparation moves three target-validation calls behind its
+      // actor-bound SQL authority without adding SellerProfile access.
+      || reviewedNonTargetFactoryCalls.length !== 115
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
