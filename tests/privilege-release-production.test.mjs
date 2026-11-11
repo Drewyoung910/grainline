@@ -208,6 +208,15 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
     NewsletterSubscriber: [],
     ResendWebhookEvent: [],
   });
+  assert.deepEqual(
+    emailRelease.functions[
+      "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)"
+    ],
+    [
+      "acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e",
+      "ef145be432a0ffcbbf02e6dc9419d90d7b0ec3dec23a9d1eb0a83aff0a16393a",
+    ],
+  );
 });
 
 test("email activation pins every function body installed by its preparation", () => {
@@ -221,9 +230,12 @@ test("email activation pins every function body installed by its preparation", (
     const signature = `public.${entry.name}(${argumentsSql})`;
     const source = preparation.functionSources.get(entry.name);
     assert.equal(typeof source, "string", `${signature} preparation source is missing`);
-    assert.equal(
-      createHash("sha256").update(source).digest("hex"),
-      emailRelease.functions[signature],
+    const sourceSha256 = createHash("sha256").update(source).digest("hex");
+    const reviewedSources = Array.isArray(emailRelease.functions[signature])
+      ? emailRelease.functions[signature]
+      : [emailRelease.functions[signature]];
+    assert.ok(
+      reviewedSources.includes(sourceSha256),
       `${signature} activation source pin drifted from preparation`,
     );
   }
@@ -241,16 +253,18 @@ test("production inspector retires predecessor-only function authority with the 
   );
   const source = "BEGIN RETURN 1; END";
   const digest = createHash("sha256").update(source).digest("hex");
+  const laterSource = "BEGIN RETURN 2; END";
+  const laterDigest = createHash("sha256").update(laterSource).digest("hex");
   const mockRelease = {
     functions: {
-      "public.retained()": digest,
+      "public.retained()": [digest, laterDigest],
     },
     predecessorRuntimeFunctions: ["public.compat(text)"],
   };
-  const row = (signature, runtimeExecute) => ({
+  const row = (signature, runtimeExecute, rowSource = source) => ({
     signature,
     exists: true,
-    source,
+    source: rowSource,
     security_definer: true,
     configuration: ["search_path=pg_catalog"],
     owner_bypasses_rls: true,
@@ -280,6 +294,15 @@ test("production inspector retires predecessor-only function authority with the 
   );
   assert.equal(successor[0].predecessorOnly, true);
   assert.equal(successor[0].runtimeExecute, false);
+  const laterSuccessor = classifyPrivilegeReleaseFunctions(
+    [
+      row("public.compat(text)", false),
+      row("public.retained()", true, laterSource),
+    ],
+    mockRelease,
+    "successor",
+  );
+  assert.equal(laterSuccessor[1].sourceSha256, laterDigest);
   assert.throws(
     () => classifyPrivilegeReleaseFunctions(
       predecessorRows,
@@ -287,6 +310,17 @@ test("production inspector retires predecessor-only function authority with the 
       "successor",
     ),
     /public\.compat\(text\) runtime EXECUTE drifted/u,
+  );
+  assert.throws(
+    () => classifyPrivilegeReleaseFunctions(
+      [
+        row("public.compat(text)", false),
+        row("public.retained()", true, "BEGIN RETURN 3; END"),
+      ],
+      mockRelease,
+      "successor",
+    ),
+    /public\.retained\(\) source drifted/u,
   );
 });
 
