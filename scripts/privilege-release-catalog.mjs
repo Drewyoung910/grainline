@@ -18,6 +18,9 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     sourceTests: Object.freeze([
       "tests/service-reference-least-privilege.test.mjs",
     ]),
+    laterPendingMigrations: Object.freeze([
+      "20261101080000_prepare_email_service_least_privilege",
+    ]),
     tables: Object.freeze({
       FoundingMakerGrant: Object.freeze(["SELECT"]),
       Metro: Object.freeze(["INSERT", "SELECT", "UPDATE"]),
@@ -75,6 +78,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.stdout.write(`${verified.release.sourceTests.join("\n")}\n`);
     } else if (option === "--minimum-compatible-app-commit") {
       process.stdout.write(`${verified.release.minimumCompatibleAppCommit}\n`);
+    } else if (option === "--later-pending-migrations") {
+      if (verified.release.laterPendingMigrations.length > 0) {
+        process.stdout.write(
+          `${verified.release.laterPendingMigrations.join("\n")}\n`,
+        );
+      }
     } else if (option === undefined) {
       process.stdout.write(`${verified.release.migration}\n`);
     } else {

@@ -14,6 +14,7 @@ import {
   PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION,
   privateTablePreparationMigrationOverride,
   privateTableRlsActivation,
+  privateTableRlsActivationLaterPendingMigrations,
   privateTableRlsActivationMigrationOverride,
   privateTableRlsActivationReleaseIds,
   verifyPrivateTableRlsActivationSource,
@@ -92,6 +93,22 @@ test("catalog orders and byte-seals the owner social verification activation bat
     assert.equal(entry.migrationDigest, entry.release.migrationSha256);
     assert.equal(entry.rollbackDigest, entry.release.rollbackSha256);
   }
+});
+
+test("catalog pins the exact reviewed suffix after the block/report/FAQ batch", () => {
+  assert.deepEqual(
+    privateTableRlsActivationLaterPendingMigrations(
+      "block_report_seller_faq_v1",
+    ),
+    [
+      "20261101020000_narrow_service_reference_runtime_privileges",
+      "20261101080000_prepare_email_service_least_privilege",
+    ],
+  );
+  assert.deepEqual(
+    privateTableRlsActivationLaterPendingMigrations("favorite_v1"),
+    [],
+  );
 });
 
 test("batch source verification prefers each release's staged paths", () => {

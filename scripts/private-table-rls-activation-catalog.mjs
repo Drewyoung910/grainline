@@ -287,6 +287,13 @@ export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
   ]),
 });
 
+const PRIVATE_TABLE_RLS_ACTIVATION_LATER_PENDING = Object.freeze({
+  block_report_seller_faq_v1: Object.freeze([
+    "20261101020000_narrow_service_reference_runtime_privileges",
+    "20261101080000_prepare_email_service_least_privilege",
+  ]),
+});
+
 function stopped(message) {
   return new Error(`private-table RLS activation stopped: ${message}`);
 }
@@ -351,6 +358,12 @@ export function privateTableRlsActivationReleaseIds(selectionId) {
     throw stopped("batch minimum compatible app commits differ");
   }
   return batch;
+}
+
+export function privateTableRlsActivationLaterPendingMigrations(selectionId) {
+  privateTableRlsActivationReleaseIds(selectionId);
+  return PRIVATE_TABLE_RLS_ACTIVATION_LATER_PENDING[selectionId]
+    ?? Object.freeze([]);
 }
 
 export function privateTableRlsActivationMigrationPath(release) {
@@ -612,6 +625,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       ).join("\n")}\n`);
     } else if (process.argv.includes("--migrations")) {
       process.stdout.write(`${verified.map((entry) => entry.release.migration).join("\n")}\n`);
+    } else if (process.argv.includes("--later-pending-migrations")) {
+      const migrations = privateTableRlsActivationLaterPendingMigrations(selection);
+      if (migrations.length > 0) process.stdout.write(`${migrations.join("\n")}\n`);
     } else if (process.argv.includes("--tests")) {
       process.stdout.write(`${[...new Set(verified.flatMap(
         (entry) => entry.release.sourceTests,
