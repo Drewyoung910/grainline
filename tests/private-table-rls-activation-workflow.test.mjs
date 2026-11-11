@@ -202,9 +202,6 @@ test("workflow binds reviewed activations to exact main and Production", async (
     "review_vote_v1",
     "maker_verification_v1",
     "owner_social_verification_v1",
-    "block_v1",
-    "user_report_v1",
-    "seller_faq_v1",
     "block_report_seller_faq_v1",
   ]);
   assert.match(workflow, new RegExp(PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION, "u"));

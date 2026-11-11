@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -14,6 +15,14 @@ import {
 
 const releaseIds = ["block_v1", "user_report_v1", "seller_faq_v1"];
 
+function sourceFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) return sourceFiles(absolute);
+    return /\.(?:ts|tsx)$/u.test(entry.name) ? [absolute] : [];
+  });
+}
+
 test("Block, UserReport, and SellerFaq use one reviewed policyless activation batch", () => {
   assert.deepEqual(
     privateTableRlsActivationReleaseIds("block_report_seller_faq_v1"),
@@ -22,6 +31,18 @@ test("Block, UserReport, and SellerFaq use one reviewed policyless activation ba
   assert.deepEqual(
     releaseIds.map((releaseId) => privateTableRlsActivation(releaseId).table),
     ["Block", "UserReport", "SellerFaq"],
+  );
+});
+
+test("application source has no direct Block, UserReport, or SellerFaq ORM access", () => {
+  const directRelationAccess = /\.(?:block|userReport|sellerFaq)\s*\.\s*(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|groupBy|update|updateMany|upsert)\b/u;
+  const offenders = sourceFiles("src").filter((file) => (
+    directRelationAccess.test(readFileSync(file, "utf8"))
+  ));
+  assert.deepEqual(
+    offenders,
+    [],
+    "policyless activation requires every application caller to use a reviewed fixed operation",
   );
 });
 
