@@ -939,6 +939,36 @@ test("email service least privilege is proved, isolated, and restored around his
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
+test("final Production build applies email service after its required email corrections", () => {
+  const finalBuild = step(
+    "Apply complete public SellerProfile chain for final Production build",
+  );
+  const fullChain = finalBuild.indexOf(
+    "node tools/database-full-chain/apply-ci-chain.mjs",
+  );
+  const emailServiceHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$email_service_migration" "$holding/migrations/$email_service_migration"',
+  );
+  const lockOrderRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$lock_order_correction_migration"',
+  );
+  const emailServiceRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$email_service_migration"',
+  );
+
+  assert.ok(emailServiceHold >= 0);
+  assert.ok(emailServiceHold < fullChain);
+  assert.ok(lockOrderRestore < emailServiceRestore);
+  assert.ok(
+    finalBuild.indexOf('rmdir "$holding/migrations" "$holding"')
+      > emailServiceRestore,
+  );
+  assert.match(
+    finalBuild.slice(emailServiceRestore),
+    /npx prisma migrate deploy[\s\S]*npm run audit:db-grants/,
+  );
+});
+
 test("Favorite preparation and activation are proved, isolated, and restored around historical guards", () => {
   const verifyName = "Verify Favorite source packages";
   const isolateName = "Isolate Favorite source packages until historical release guards pass";
