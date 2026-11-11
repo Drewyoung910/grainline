@@ -476,8 +476,9 @@ BEGIN
            OR (blocked_pair."blockerId" = seller."userId"
                AND blocked_pair."blockedId" = actor_id)
      )
+     AND broadcast."sentAt" >= p_cutoff
      AND (
-       (p_cursor IS NULL AND broadcast."sentAt" >= p_cutoff)
+       p_cursor IS NULL
        OR (p_cursor IS NOT NULL AND (
          broadcast."sentAt" < p_cursor
          OR (p_same_timestamp_mode = 'all' AND broadcast."sentAt" = p_cursor)
