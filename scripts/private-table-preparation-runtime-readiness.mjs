@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
@@ -62,15 +63,18 @@ export function privateTableRuntimeReadinessFunctionsForSelections(
         privateTableRuntimeReadinessMigrationOverride(releaseId),
       );
       for (const entry of verified.release.functions) {
-        const readiness = Object.freeze({
-          identity: `${entry.name}(${entry.arguments})`,
-          executeRole: entry.executeRole ?? "runtime",
-          sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
-        });
-        latestByRoleAndIdentity.set(
-          `${readiness.executeRole}\u0000${readiness.identity}`,
-          readiness,
-        );
+        for (const executeRole of privateTableFunctionExecuteRoles(entry)) {
+          if (executeRole !== "runtime" && executeRole !== "staff") continue;
+          const readiness = Object.freeze({
+            identity: `${entry.name}(${entry.arguments})`,
+            executeRole,
+            sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
+          });
+          latestByRoleAndIdentity.set(
+            `${readiness.executeRole}\u0000${readiness.identity}`,
+            readiness,
+          );
+        }
       }
     }
   }
