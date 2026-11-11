@@ -71,6 +71,7 @@ function route(controls = {}) {
     },
     "@/lib/webhookFailureSpike": { recordWebhookFailureSpike: async () => {} },
     "@/lib/emailOutboxSanitize": { sanitizeEmailOutboxError: () => "sanitized" },
+    "@/lib/emailServiceAccess": { clearAccountDeletionEmailSuppressions: unexpected },
   };
   dependencies["@/lib/clerkUserLifecycle"] = {
     getCurrentClerkUserIdentity: async id => {

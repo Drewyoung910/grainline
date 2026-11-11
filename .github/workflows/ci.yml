@@ -369,6 +369,15 @@ jobs:
           tests/privilege-release-production.test.mjs
           tests/rls-coverage-matrix.test.mjs
           tests/service-reference-least-privilege.test.mjs
+      - name: Verify email service least-privilege source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/account-export-privacy.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/email-normalization-followups.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/retention-and-ops-followups.test.mjs
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
@@ -547,6 +556,15 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate email service least-privilege migration until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-service-least-privilege"
+          migration=20261101080000_prepare_email_service_least_privilege
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -7126,6 +7144,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email service least-privilege migration after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-service-least-privilege"
+          migration=20261101080000_prepare_email_service_least_privilege
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
@@ -7251,11 +7278,13 @@ jobs:
           eligibility_migration=20261025030000_fence_email_provider_and_eligibility_changes
           correction_migration=20261027020000_correct_email_outbox_contracts
           lock_order_correction_migration=20261027030000_correct_email_eligibility_lock_order
+          email_service_migration=20261101080000_prepare_email_service_least_privilege
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$deletion_migration" "$holding/migrations/$deletion_migration"
           mv "prisma/migrations/$eligibility_migration" "$holding/migrations/$eligibility_migration"
           mv "prisma/migrations/$correction_migration" "$holding/migrations/$correction_migration"
           mv "prisma/migrations/$lock_order_correction_migration" "$holding/migrations/$lock_order_correction_migration"
+          mv "prisma/migrations/$email_service_migration" "$holding/migrations/$email_service_migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
@@ -7336,8 +7365,24 @@ jobs:
           mv \
             "$holding/migrations/$lock_order_correction_migration" \
             "prisma/migrations/$lock_order_correction_migration"
-          rmdir "$holding/migrations" "$holding"
           echo "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          npx prisma migrate deploy
+          npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
+
+          # The email-service preparation depends on the outbox and lock-order
+          # corrections above. Restore it only after those Production-order
+          # predecessors are applied, then prove the final candidate schema.
+          mv \
+            "$holding/migrations/$email_service_migration" \
+            "prisma/migrations/$email_service_migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH=" >> "$GITHUB_ENV"
           npx prisma migrate deploy
           npx prisma migrate status
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \

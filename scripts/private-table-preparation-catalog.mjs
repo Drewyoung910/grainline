@@ -360,6 +360,100 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  email_service_v1: Object.freeze({
+    migration: "20261101080000_prepare_email_service_least_privilege",
+    migrationSha256: "0cf146d85e0fd79a1c7849e27e4a909564b35447ee23573de42e79066b621695",
+    // The preparation installs one fixed-purpose boundary across five related
+    // service tables. EmailOutbox is the representative predecessor table for
+    // the generic inspector; the migration itself verifies all five tables.
+    table: "EmailOutbox",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/account-export-privacy.test.mjs",
+      "tests/account-state-residue-followups.test.mjs",
+      "tests/clerk-webhook-receipt.test.mjs",
+      "tests/email-outbox-worker.test.mjs",
+      "tests/email-normalization-followups.test.mjs",
+      "tests/newsletter-double-opt-in.test.mjs",
+      "tests/retention-and-ops-followups.test.mjs",
+      "tests/seller-broadcast-delivery-state.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({ name: "grainline_email_suppression_exists", arguments: "text, text" }),
+      Object.freeze({ name: "grainline_email_one_click_suppression_clear", arguments: "text" }),
+      Object.freeze({
+        name: "grainline_newsletter_signup_reserve",
+        arguments: "text, text, text, timestamp without time zone, timestamp without time zone, timestamp without time zone",
+      }),
+      Object.freeze({ name: "grainline_newsletter_signup_release", arguments: "text, text" }),
+      Object.freeze({
+        name: "grainline_newsletter_confirmation_valid",
+        arguments: "text, timestamp without time zone",
+      }),
+      Object.freeze({
+        name: "grainline_newsletter_confirm",
+        arguments: "text, timestamp without time zone",
+      }),
+      Object.freeze({
+        name: "grainline_newsletter_token_superseded",
+        arguments: "text, timestamp without time zone",
+      }),
+      Object.freeze({ name: "grainline_email_unsubscribe_apply", arguments: "text, jsonb" }),
+      Object.freeze({ name: "grainline_email_account_deletion_suppression_clear", arguments: "text" }),
+      Object.freeze({ name: "grainline_email_service_owner_export", arguments: "" }),
+      Object.freeze({
+        name: "grainline_email_service_account_deletion_apply",
+        arguments: "text, bigint, uuid",
+      }),
+      Object.freeze({
+        name: "grainline_resend_webhook_event_reserve",
+        arguments: "text, text, timestamp without time zone, timestamp without time zone, uuid",
+      }),
+      Object.freeze({
+        name: "grainline_resend_webhook_event_complete",
+        arguments: "text, bigint, uuid, timestamp without time zone",
+      }),
+      Object.freeze({
+        name: "grainline_resend_webhook_event_fail",
+        arguments: "text, bigint, uuid, text, timestamp without time zone",
+      }),
+      Object.freeze({
+        name: "grainline_email_outbox_begin_provider_attempt",
+        arguments: "text, bigint, uuid",
+        predecessorSourceSha256:
+          "06c8df2412ad8809f2564a886074f95c5190e9238bb6224bbe22cab131aa8436",
+      }),
+      Object.freeze({
+        name: "grainline_newsletter_expired_unconfirmed_delete_batch",
+        arguments: "timestamp without time zone, integer",
+      }),
+      Object.freeze({
+        name: "grainline_email_outbox_retention_delete_batch",
+        arguments: "timestamp without time zone, timestamp without time zone, integer",
+      }),
+      Object.freeze({
+        name: "grainline_resend_webhook_event_retention_delete_batch",
+        arguments: "timestamp without time zone, integer",
+      }),
+      Object.freeze({
+        name: "grainline_email_service_ops_health",
+        arguments: "timestamp without time zone, timestamp without time zone",
+      }),
+      Object.freeze({ name: "grainline_email_outbox_cancel_seller_broadcast", arguments: "text" }),
+      Object.freeze({ name: "grainline_email_outbox_redact_deleted_seller", arguments: "text" }),
+    ]),
+  }),
   block_v1: Object.freeze({
     migration: "20261030010000_prepare_block_authorities",
     migrationSha256: "f62bcebf43fa9fccd220aa3cdd3bab41544730f77e72c12ec6884937e0d3cddd",

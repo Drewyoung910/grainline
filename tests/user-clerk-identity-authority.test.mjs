@@ -88,7 +88,6 @@ describe("User Clerk identity authority", () => {
       "src/app/account/saved-searches/page.tsx",
       "src/app/admin/actions.ts",
       "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/layout.tsx",
       "src/app/admin/orders/[id]/refundReconciliationActions.ts",
       "src/app/admin/verification/page.tsx",
@@ -125,7 +124,7 @@ describe("User Clerk identity authority", () => {
       );
       return count + (text.match(/userClerkGate\(prisma,\s*(?:userId|uid|clerkId)\)/g) ?? []).length;
     }, 0);
-    assert.equal(gateCalls, 42);
+    assert.equal(gateCalls, 41);
 
     const supportActions = source("src/app/admin/support/actions.ts");
     assert.match(
@@ -133,6 +132,13 @@ describe("User Clerk identity authority", () => {
       /import \{[^}]*\brequireAdminPageAccess\b[^}]*\} from ["']@\/lib\/adminPageAccess["']/,
     );
     assert.doesNotMatch(supportActions, /\bprisma\.user\./);
+
+    const adminBroadcasts = source("src/app/admin/broadcasts/page.tsx");
+    assert.match(
+      adminBroadcasts,
+      /import \{[^}]*\brequireAdminPageAccess\b[^}]*\} from ["']@\/lib\/adminPageAccess["']/,
+    );
+    assert.doesNotMatch(adminBroadcasts, /\bprisma\.user\./);
 
     const idCallers = [
       "src/app/account/commissions/page.tsx",

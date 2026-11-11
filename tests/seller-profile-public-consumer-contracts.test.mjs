@@ -22,11 +22,13 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   // C-261 adds three to empty-page metadata and C-1890 removes one residual.
   // UserReport preparation moves three target-validation factories behind its
   // actor-bound SQL authority.
-  assert.equal(result.reviewedOpaqueShapes, 141);
+  // Email-service least privilege removes eight additional app-side query
+  // shapes by moving their bounded behavior behind fixed SQL authorities.
+  assert.equal(result.reviewedOpaqueShapes, 133);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 115);
-  assert.equal(result.opaqueNonTargetResiduals, 26);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 111);
+  assert.equal(result.opaqueNonTargetResiduals, 22);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,
     PUBLIC_ELIGIBILITY: 0,

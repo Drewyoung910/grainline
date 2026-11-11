@@ -726,6 +726,13 @@ async function proveSourceOwnerAndAnonymousAlias({
      VALUES ($1, $2, 'Email deletion fence source proof', now(), 1)`,
     [broadcastId, seller.sellerProfileId],
   );
+  await database.query(
+    `INSERT INTO public."Follow"
+       (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT ("followerId", "sellerProfileId") DO NOTHING`,
+    [id("source_recipient_follow"), recipient.userId, seller.sellerProfileId],
+  );
   const sourceJob = await enqueue(database, {
     suffix: "source_owner",
     recipientEmail: recipient.email,
@@ -746,7 +753,11 @@ async function proveSourceOwnerAndAnonymousAlias({
   } finally {
     await database.query("ROLLBACK");
   }
-
+  await database.query(
+    `DELETE FROM public."Follow"
+      WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
+    [recipient.userId, seller.sellerProfileId],
+  );
   const gmailOwner = await seedUser(database, "gmailowner", { gmail: true });
   const alias = `${PREFIX.replaceAll("_", "")}.gmail.owner+deletion@googlemail.com`;
   const anonymousJob = await enqueue(database, {

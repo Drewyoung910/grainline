@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 
 const { emailSuppressionLookupForEmails } = await import("../src/lib/emailAddressNormalization.ts");
 
@@ -43,7 +44,10 @@ describe("email normalization follow-ups", () => {
     const ensureUser = source("src/lib/ensureUser.ts");
     const identityAuthority = source(userClerkIdentityMigrationPath);
     const deletion = source("src/lib/accountDeletion.ts");
-    const outboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
+    const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
+    const emailServiceMigration = source(
+      emailServiceLeastPrivilegeMigrationPath(),
+    );
     const newsletter = source("src/app/api/newsletter/route.ts");
     const unsubscribe = source("src/lib/unsubscribeToken.ts");
     const suppression = source("src/lib/emailSuppression.ts");
@@ -56,17 +60,11 @@ describe("email normalization follow-ups", () => {
       identityAuthority,
       /placeholder_email := CASE[\s\S]*p_clerk_id = pg_catalog\.lower\(p_clerk_id\)[\s\S]*pg_catalog\.md5\(p_clerk_id\)[\s\S]*'@placeholder\.invalid'/,
     );
-    assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
-    assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
-    assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
-    assert.match(
-      deletion,
-      /accountEmailOutboxWhere\(\s*user\.id,\s*suppressionEmailMatches,?\s*\)/,
-    );
-    assert.match(
-      outboxLifecycle,
-      /userId: null,[\s\S]*recipientEmail: \{ in: fallbackEmailKeys \}/,
-    );
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx, \{/);
+    assert.doesNotMatch(deletion, /tx\.(?:emailOutbox|emailSuppression|emailFailureCount|newsletterSubscriber)\./);
+    assert.match(emailServiceAccess, /public\.grainline_email_service_account_deletion_apply/);
+    assert.match(emailServiceMigration, /grainline_user_email_fallback_addresses\(\)/);
+    assert.match(emailServiceMigration, /grainline_account_deletion_email_key_core\(fallback\.email\)/);
     assert.match(newsletter, /parsed\.email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
     assert.match(unsubscribe, /email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
 
@@ -78,11 +76,8 @@ describe("email normalization follow-ups", () => {
     assert.match(normalization, /export function normalizeEmailSuppressionAddress/);
     assert.match(normalization, /export function emailSuppressionAddressKeys/);
     assert.match(normalization, /export function emailSuppressionLookupForEmails/);
-    assert.match(suppression, /emailSuppressionLookupForEmails\(\[email\]\)/);
-    assert.match(suppression, /function emailSuppressionMatchWhereSql/);
-    assert.match(suppression, /lower\(split_part\(\$\{emailColumn\}, '@', 2\)\) IN \('gmail\.com', 'googlemail\.com'\)/);
-    assert.match(suppression, /replace\(split_part\(lower\(split_part\(\$\{emailColumn\}, '@', 1\)\), '\+', 1\), '\.', ''\) IN/);
-    assert.match(suppression, /WHERE \$\{emailSuppressionMatchWhereSql\(lookup\)\}/);
+    assert.match(suppression, /emailSuppressionExistsAuthority\(prisma, \{ email: normalized, mode \}\)/);
+    assert.match(suppression, /clearOneClickEmailSuppressionAuthority\(client, normalized\)/);
     assert.match(suppression, /const email = normalizeEmailSuppressionAddress\(opts\.email\)/);
   });
 });

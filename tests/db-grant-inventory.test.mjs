@@ -342,6 +342,31 @@ const EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES = [
   ...EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES,
   ...EMAIL_DELIVERY_LEDGER_RUNTIME_FUNCTION_NAMES,
 ];
+const EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION =
+  "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql";
+const EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES = [
+  "grainline_email_suppression_exists",
+  "grainline_email_one_click_suppression_clear",
+  "grainline_newsletter_signup_reserve",
+  "grainline_newsletter_signup_release",
+  "grainline_newsletter_confirmation_valid",
+  "grainline_newsletter_confirm",
+  "grainline_newsletter_token_superseded",
+  "grainline_email_unsubscribe_apply",
+  "grainline_email_account_deletion_suppression_clear",
+  "grainline_email_service_owner_export",
+  "grainline_email_service_account_deletion_apply",
+  "grainline_resend_webhook_event_reserve",
+  "grainline_resend_webhook_event_complete",
+  "grainline_resend_webhook_event_fail",
+  "grainline_email_outbox_begin_provider_attempt",
+  "grainline_newsletter_expired_unconfirmed_delete_batch",
+  "grainline_email_outbox_retention_delete_batch",
+  "grainline_resend_webhook_event_retention_delete_batch",
+  "grainline_email_service_ops_health",
+  "grainline_email_outbox_cancel_seller_broadcast",
+  "grainline_email_outbox_redact_deleted_seller",
+];
 const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH =
   "prisma/migrations/20261025020000_fence_email_provider_and_account_deletion/migration.sql";
 const EMAIL_PROVIDER_DELETION_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
@@ -3934,6 +3959,12 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_DELIVERY_LEDGER_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailServiceLeastPrivilegePrepared = existsSync(
+      EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION,
+    ) && EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailProviderDeletionFencePrepared = existsSync(
       EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH,
     ) && EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES.every((functionName) =>
@@ -4165,6 +4196,9 @@ describe("database grant inventory guardrails", () => {
       ...(emailProviderEligibilityFencePrepared
         ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
         : []),
+      ...(emailServiceLeastPrivilegePrepared
+        ? EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -4193,6 +4227,12 @@ describe("database grant inventory guardrails", () => {
       157 // historical-prefix baseline before the currently staged successors
         + (orderItemQuoteRuntimeLockMigrationPresent ? 1 : 0)
         + (serviceReferenceLeastPrivilegeMigrationPresent ? 1 : 0)
+        + (emailServiceLeastPrivilegePrepared
+          ? EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES.length
+            // The delivery-ledger preparation already contributes the same
+            // PUBLIC revoke for the provider-attempt authority.
+            - (emailDeliveryLedgerPrepared ? 1 : 0)
+          : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)
@@ -4921,11 +4961,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 5);
+    assert.equal(auditMatches.length, 6);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 5);
+    assert.equal(combinedStaffStageMatches.length, 6);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -4962,6 +5002,28 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreCorrection,
     );
+    const correctionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyCorrection,
+    );
+    const restoreLockOrderCorrection = stagedProof.indexOf(
+      '"$holding/migrations/$lock_order_correction_migration" \\\n            "prisma/migrations/$lock_order_correction_migration"',
+    );
+    const applyLockOrderCorrection = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreLockOrderCorrection,
+    );
+    const lockOrderCorrectionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyLockOrderCorrection,
+    );
+    const restoreEmailService = stagedProof.indexOf(
+      '"$holding/migrations/$email_service_migration" \\\n            "prisma/migrations/$email_service_migration"',
+    );
+    const applyEmailService = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreEmailService,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -4978,7 +5040,17 @@ describe("database grant inventory guardrails", () => {
     assert.ok(
       eligibilityFenceAudit < restoreCorrection
       && restoreCorrection < applyCorrection
-      && applyCorrection < finalAudit,
+      && applyCorrection < correctionAudit,
+    );
+    assert.ok(
+      correctionAudit < restoreLockOrderCorrection
+      && restoreLockOrderCorrection < applyLockOrderCorrection
+      && applyLockOrderCorrection < lockOrderCorrectionAudit,
+    );
+    assert.ok(
+      lockOrderCorrectionAudit < restoreEmailService
+      && restoreEmailService < applyEmailService
+      && applyEmailService < finalAudit,
     );
   });
 

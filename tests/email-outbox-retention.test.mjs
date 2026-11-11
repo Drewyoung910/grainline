@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 
 const {
   EMAIL_OUTBOX_DEAD_RETENTION_DAYS,
@@ -29,9 +30,20 @@ describe("email outbox retention", () => {
 
   it("surfaces dead outbox jobs in ops health", () => {
     const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
+    const access = readFileSync("src/lib/emailServiceAccess.ts", "utf8");
+    const migration = readFileSync(
+      emailServiceLeastPrivilegeMigrationPath(),
+      "utf8",
+    );
 
     assert.match(source, /deadEmailOutboxCount/);
-    assert.match(source, /status:\s*"DEAD"/);
+    assert.match(source, /emailServiceOpsHealth\(prisma,/);
+    assert.match(source, /deadEmailOutboxCount:\s*emailServiceHealth\.deadEmailCount/);
+    assert.match(access, /grainline_email_service_ops_health/);
+    assert.match(
+      migration,
+      /FROM public\."EmailOutbox" AS outbox[\s\S]*outbox\.status = 'DEAD'[\s\S]*outbox\."acknowledgedAt" IS NULL/,
+    );
   });
 
   it("keeps a status+updatedAt index for the terminal-row retention query", () => {

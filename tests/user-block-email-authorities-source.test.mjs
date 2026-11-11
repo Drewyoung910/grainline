@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import yaml from "js-yaml";
 
 import { USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
+import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -73,6 +74,11 @@ describe("User block and email authority source boundary", () => {
   it("keeps email-history fallback owner-scoped and argument-free", () => {
     const emailAccess = read("src/lib/userEmailAddresses.ts");
     const ownerAccess = read("src/lib/userEmailAddressOwnerAccess.ts");
+    const emailServiceAccess = read("src/lib/emailServiceAccess.ts");
+    const emailServiceAuthority = readFileSync(
+      emailServiceLeastPrivilegeMigrationPath(),
+      "utf8",
+    );
     const accountExport = read("src/app/api/account/export/route.ts");
     const deletion = read("src/lib/accountDeletion.ts");
 
@@ -82,7 +88,15 @@ describe("User block and email authority source boundary", () => {
       /accountEmailFallbackEmailsForUser\(\s*client: UserEmailOwnerClient,\s*\)/,
     );
     assert.match(ownerAccess, /withDbUserContext\(\s*userId/);
-    assert.match(accountExport, /ownerAccountEmailFallbackEmails\(user\.id\)/);
+    assert.match(emailServiceAccess, /grainline_email_service_owner_export\(\)/);
+    assert.match(
+      emailServiceAuthority,
+      /grainline_email_service_owner_export\(\)[\s\S]*grainline_user_email_fallback_addresses\(\)/,
+    );
+    assert.match(
+      accountExport,
+      /withDbUserContext\(user\.id, \(tx\) => exportOwnerEmailServiceData\(tx\)\)/,
+    );
     assert.match(deletion, /accountEmailFallbackEmailsForUser\(tx\)/);
   });
 

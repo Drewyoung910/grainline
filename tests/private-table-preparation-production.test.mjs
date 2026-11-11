@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import yaml from "js-yaml";
 
 import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
+  functionSourceFromMigration,
   privateTablePreparation,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
@@ -29,6 +31,9 @@ const workflow = readFileSync(
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
 const bindingScript = parsed.jobs.prepare.steps.find(
   (step) => step.name === "Bind preparation to exact main and every exact-main push workflow",
+).with.script;
+const ownerWriteBindingScript = parsed.jobs.prepare.steps.find(
+  (step) => step.name === "Reconfirm exact main at the owner-write boundary",
 ).with.script;
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
@@ -84,6 +89,23 @@ async function runBinding(auxiliaryConclusion = "success") {
     { sha, repo: { owner: "test", repo: "grainline" } },
     { env: { REVIEWED_RELEASE_COMMIT: sha, REVIEWED_MAIN_CI_RUN_ID: "101" } },
   );
+}
+
+async function runOwnerWriteBinding(mainSha = "a".repeat(40)) {
+  const sha = "a".repeat(40);
+  const github = {
+    rest: {
+      repos: { getBranch: async () => ({ data: { commit: { sha: mainSha } } }) },
+    },
+  };
+  return new AsyncFunction(
+    "github",
+    "context",
+    "process",
+    ownerWriteBindingScript,
+  )(github, { repo: { owner: "owner", repo: "repo" }, sha }, {
+    env: { REVIEWED_RELEASE_COMMIT: sha },
+  });
 }
 
 function acceptedMigration() {
@@ -292,6 +314,37 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("email service preparation is byte-sealed and remains compatible", () => {
+  const emailService = verifyPrivateTablePreparationSource("email_service_v1");
+  assert.equal(emailService.release.table, "EmailOutbox");
+  assert.equal(emailService.functionSources.size, 21);
+  assert.deepEqual(emailService.release.addedColumns, []);
+  const sql = readFileSync(emailService.migrationPath, "utf8");
+  assert.match(sql, /grainline_email_service_owner_export/u);
+  assert.match(sql, /grainline_email_service_account_deletion_apply/u);
+  assert.match(sql, /grainline_resend_webhook_event_reserve/u);
+  assert.match(sql, /grainline_email_outbox_begin_provider_attempt/u);
+  const providerAttempt = emailService.release.functions.find(
+    (entry) => entry.name === "grainline_email_outbox_begin_provider_attempt",
+  );
+  assert.ok(providerAttempt?.predecessorSourceSha256);
+  const predecessorSql = readFileSync(
+    "prisma/migrations/20261025020000_fence_email_provider_and_account_deletion/migration.sql",
+    "utf8",
+  );
+  const predecessorSource = functionSourceFromMigration(
+    predecessorSql,
+    providerAttempt.name,
+  );
+  assert.equal(
+    createHash("sha256").update(predecessorSource, "utf8").digest("hex"),
+    providerAttempt.predecessorSourceSha256,
+  );
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("owner social and verification preparation batch is exact and ordered", () => {
   const releaseIds = privateTablePreparationReleaseIds(
     "owner_social_verification_v1",
@@ -414,6 +467,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "block_v1",
     "user_report_v1",
     "seller_faq_v1",
+    "email_service_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -441,6 +495,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "follow_v1",
       "review_vote_v1",
       "maker_verification_v1",
+      "email_service_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
     ],
@@ -454,6 +509,11 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(runBinding("failure"), /push workflows are not all green/u);
+  await assert.doesNotReject(runOwnerWriteBinding());
+  await assert.rejects(
+    runOwnerWriteBinding("b".repeat(40)),
+    /main advanced before owner write/u,
+  );
 });
 
 test("Production workflow keeps preparation additive, restart-safe, and sole-pending", () => {
@@ -471,9 +531,15 @@ test("Production workflow keeps preparation additive, restart-safe, and sole-pen
   const sourceCheck = workflow.indexOf("Verify reviewed preparation source before owner access");
   const boundary = workflow.indexOf("Verify owner connection boundary");
   const preflight = workflow.indexOf("Inspect restart-safe preparation state");
+  const ownerWriteBinding = workflow.indexOf("Reconfirm exact main at the owner-write boundary");
   const apply = workflow.indexOf("Apply reviewed preparation transactions outside Prisma's ledger");
   const record = workflow.indexOf("Record the committed preparations in Prisma's ledger");
   const postflight = workflow.indexOf("Read back exact compatible preparation catalogs");
   assert.ok(sourceCheck >= 0 && sourceCheck < boundary && boundary < preflight);
-  assert.ok(preflight < apply && apply < record && record < postflight);
+  assert.ok(
+    preflight < ownerWriteBinding
+      && ownerWriteBinding < apply
+      && apply < record
+      && record < postflight,
+  );
 });

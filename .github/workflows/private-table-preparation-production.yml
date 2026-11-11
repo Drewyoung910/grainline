@@ -14,6 +14,7 @@ on:
           - follow_v1
           - review_vote_v1
           - maker_verification_v1
+          - email_service_v1
           - owner_social_verification_v1
           - block_report_seller_faq_v1
       release_commit:
@@ -200,6 +201,21 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Reconfirm exact main at the owner-write boundary
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const {data: main} = await github.rest.repos.getBranch({
+              ...context.repo,
+              branch: 'main',
+            });
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') ||
+                sha !== context.sha || main.commit.sha !== sha) {
+              throw new Error('Private-table preparation main advanced before owner write');
+            }
       - name: Apply reviewed preparation transactions outside Prisma's ledger
         shell: bash
         env:

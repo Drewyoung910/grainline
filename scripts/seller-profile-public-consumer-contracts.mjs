@@ -153,7 +153,9 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // The UI/search baseline has 118 reviewed non-target factory calls.
       // UserReport preparation moves three target-validation calls behind its
       // actor-bound SQL authority without adding SellerProfile access.
-      || reviewedNonTargetFactoryCalls.length !== 115
+      // Email-service least privilege moves four additional reviewed factory
+      // calls behind fixed SQL authorities without adding SellerProfile access.
+      || reviewedNonTargetFactoryCalls.length !== 111
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
@@ -170,7 +172,9 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // The Workshop listing pager contributes one owner-scoped Listing
       // helper (sellerId + archivedAt + a bounded filter). Keeping the helper
       // avoids duplicating and drifting the ownership predicate.
-      || reviewedNonTargetResiduals.length !== 26) {
+      // The same boundary removes four app-side residual query shapes whose
+      // behavior is pinned by the executed email-service authority proofs.
+      || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,
