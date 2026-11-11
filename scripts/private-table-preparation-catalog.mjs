@@ -422,25 +422,44 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       "tests/seller-broadcast-consumer-contracts.test.mjs",
     ]),
     functions: Object.freeze([
-      Object.freeze({ name: "grainline_seller_broadcast_owner_cooldown", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_cooldown",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_create",
         arguments: "text, text, text, integer",
       }),
-      Object.freeze({ name: "grainline_seller_broadcast_owner_count", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_count",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_page",
         arguments: "integer, integer",
+        volatility: "s",
       }),
-      Object.freeze({ name: "grainline_seller_broadcast_owner_export", arguments: "" }),
-      Object.freeze({ name: "grainline_seller_broadcast_public_latest", arguments: "text" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_export",
+        arguments: "",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_public_latest",
+        arguments: "text",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_seller_broadcast_actor_feed_page",
         arguments: "text[], timestamp without time zone, timestamp without time zone, text, text, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_delivery_source",
         arguments: "text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_record_delivery",
@@ -450,11 +469,13 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_seller_broadcast_staff_count",
         arguments: "text, text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_staff_page",
         arguments: "text, text, integer, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_staff_delete",
