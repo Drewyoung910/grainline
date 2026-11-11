@@ -336,6 +336,8 @@ test(
       let emailServiceLeastPrivilegeFixture;
       let emailServiceLeastPrivilegePreparationProved = false;
       let emailServiceLeastPrivilegeActivationPreflightPath;
+      let emailServiceLeastPrivilegeActivationPostflightClosed = false;
+      let emailServiceLeastPrivilegeActivationPostflight;
       let followRollbackReapplyProven = false;
       let sellerBroadcastPredecessorEligibilityGap;
       const privateActivationPreflightPaths = new Map();
@@ -510,6 +512,30 @@ test(
             emailServiceLeastPrivilegePreparationProved = true;
           }
           if (artifact.name === SELLER_BROADCAST_PREPARATION_MIGRATION) {
+            assert.ok(
+              emailServiceLeastPrivilegeActivationPreflightPath,
+              "email-service activation preflight must precede SellerBroadcast preparation",
+            );
+            const activationPostflight = await inspectPrivilegeReleaseProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVILEGE_RELEASE_ID: "email_service_v1",
+                PRIVILEGE_RELEASE_PHASE: "postflight",
+                PRIVILEGE_RELEASE_EVIDENCE_PATH: join(
+                  preparationEvidenceDirectory,
+                  "email-service-least-privilege-activation-postflight.json",
+                ),
+                PRIVILEGE_RELEASE_PREVIOUS_EVIDENCE_PATH:
+                  emailServiceLeastPrivilegeActivationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(activationPostflight.state, "applied");
+            assert.equal(activationPostflight.catalog.posture, "successor");
+            assert.equal(activationPostflight.functions.length, 31);
+            emailServiceLeastPrivilegeActivationPostflight = activationPostflight;
+            emailServiceLeastPrivilegeActivationPostflightClosed = true;
             assert.ok(
               fixture,
               "seller fixture must exist before SellerBroadcast predecessor proof",
@@ -1456,26 +1482,13 @@ test(
           emailServiceLeastPrivilegeActivationPreflightPath,
           "email-service activation preflight must run before migration",
         );
-        const activationPostflight = await inspectPrivilegeReleaseProduction(
-          {
-            DIRECT_URL: proofDatabaseUrl,
-            PRIVILEGE_RELEASE_ID: "email_service_v1",
-            PRIVILEGE_RELEASE_PHASE: "postflight",
-            PRIVILEGE_RELEASE_EVIDENCE_PATH: join(
-              preparationEvidenceDirectory,
-              "email-service-least-privilege-activation-postflight.json",
-            ),
-            PRIVILEGE_RELEASE_PREVIOUS_EVIDENCE_PATH:
-              emailServiceLeastPrivilegeActivationPreflightPath,
-            PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
-          },
-          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
-        );
-        assert.equal(activationPostflight.state, "applied");
-        assert.equal(activationPostflight.catalog.posture, "successor");
-        assert.equal(activationPostflight.functions.length, 31);
         assert.equal(
-          activationPostflight.functions.find(
+          emailServiceLeastPrivilegeActivationPostflightClosed,
+          true,
+          "email-service activation postflight must close before later function replacements",
+        );
+        assert.equal(
+          emailServiceLeastPrivilegeActivationPostflight?.functions.find(
             (entry) => entry.signature
               === "public.grainline_account_deletion_email_key_core(text)",
           )?.runtimeExecute,

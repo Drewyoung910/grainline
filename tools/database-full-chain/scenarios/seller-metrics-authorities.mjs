@@ -339,8 +339,12 @@ export async function proveSellerMetricsPreparedAuthorities({
     assertMetricsRow(initial[0], seller.sellerProfileId);
 
     await database.query(
-      `INSERT INTO public."User" (id, "clerkId", email)
-       VALUES ($1, $2, $3)`,
+      `INSERT INTO public."User" (
+         id, "clerkId", email, banned, "createdAt", "updatedAt"
+       ) VALUES (
+         $1, $2, $3, true,
+         pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+       )`,
       [
         parityReviewerId,
         `${parityReviewerId}_clerk`,
@@ -349,15 +353,19 @@ export async function proveSellerMetricsPreparedAuthorities({
     );
     await database.query(
       `INSERT INTO public."Listing" (
-         id, "sellerId", title, description, "priceCents", status
+         id, "sellerId", title, description, "priceCents", status,
+         "createdAt", "updatedAt"
        ) VALUES ($1, $2, 'Metrics parity listing', 'Metrics parity fixture', 100,
-                 'ACTIVE'::public."ListingStatus")`,
+                 'ACTIVE'::public."ListingStatus",
+                 pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
       [parityListingId, seller.sellerProfileId],
     );
     await database.query(
       `INSERT INTO public."Review" (
-         id, "listingId", "reviewerId", "reviewerAccountActive", "ratingX2"
-       ) VALUES ($1, $2, $3, false, 10)`,
+         id, "listingId", "reviewerId", "reviewerAccountActive", "ratingX2",
+         "createdAt", "updatedAt"
+       ) VALUES ($1, $2, $3, false, 10,
+                 pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
       [parityReviewId, parityListingId, parityReviewerId],
     );
 
@@ -368,10 +376,11 @@ export async function proveSellerMetricsPreparedAuthorities({
       "inactive reviewer rows must remain excluded from Guild metrics",
     );
     await database.query(
-      `UPDATE public."Review"
-          SET "reviewerAccountActive" = true
+      `UPDATE public."User"
+          SET banned = false,
+              "updatedAt" = pg_catalog.clock_timestamp()
         WHERE id = $1`,
-      [parityReviewId],
+      [parityReviewerId],
     );
     const activeReview = await ownerMetrics(first, seller.userId, { force: true });
     assert.equal(
@@ -385,7 +394,7 @@ export async function proveSellerMetricsPreparedAuthorities({
     assertMetricsRow(cached[0], seller.sellerProfileId);
     assert.equal(
       cached[0].calculatedAt.getTime(),
-      initial[0].calculatedAt.getTime(),
+      activeReview[0].calculatedAt.getTime(),
       "a fresh cache read must not recalculate",
     );
 
