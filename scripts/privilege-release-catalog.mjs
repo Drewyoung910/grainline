@@ -48,6 +48,7 @@ export const PRIVILEGE_RELEASES = Object.freeze({
       "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)": Object.freeze([
         "acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e",
         "ef145be432a0ffcbbf02e6dc9419d90d7b0ec3dec23a9d1eb0a83aff0a16393a",
+        "52ae9eafd81f3776610dbc066de0364b134086f0f2b46cd45db290e00bec4ef8",
       ]),
       "public.grainline_email_outbox_cancel_seller_broadcast(text)": "8c0fc3a6975c1d4735741ae58062b4e55b3674ff2b898bbd17f2f951285a7f63",
       "public.grainline_email_outbox_claim_batch(integer)": "821da02132dba680a82444eae5bd2fb1a3690309996cc222a0a10234b199bd22",

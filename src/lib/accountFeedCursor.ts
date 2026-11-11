@@ -29,6 +29,11 @@ function validDate(value: unknown): Date | null {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
+function validId(value: unknown): value is string {
+  return typeof value === "string"
+    && /^[A-Za-z0-9._:-]{1,191}$/u.test(value);
+}
+
 export function buildAccountFeedCursor(item: AccountFeedCursorItem) {
   if (!item.id) return item.date;
   const payload = JSON.stringify({ d: item.date, i: item.id, k: item.kind });
@@ -45,7 +50,7 @@ export function parseAccountFeedCursor(raw: string | null): AccountFeedCursor | 
       k?: unknown;
     };
     const date = validDate(decoded.d);
-    if (date && typeof decoded.i === "string" && isAccountFeedKind(decoded.k)) {
+    if (date && validId(decoded.i) && isAccountFeedKind(decoded.k)) {
       return { date, id: decoded.i, kind: decoded.k, legacy: false };
     }
   } catch {

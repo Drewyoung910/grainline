@@ -428,18 +428,6 @@ export async function emailServiceOpsHealth(
   };
 }
 
-export async function cancelSellerBroadcastEmails(
-  client: EmailServiceClient,
-  broadcastId: string,
-): Promise<number> {
-  const rows = await client.$queryRaw<Array<{ result: unknown }>>`
-    SELECT public.grainline_email_outbox_cancel_seller_broadcast(
-      ${broadcastId}::text
-    )::integer AS result
-  `;
-  return scalarCount(rows, "Seller broadcast email cancellation authority");
-}
-
 export async function redactDeletedSellerEmailOutbox(
   client: EmailServiceClient,
   sellerProfileId: string,

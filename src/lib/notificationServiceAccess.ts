@@ -269,16 +269,6 @@ export async function deleteBlogCommentNotificationServiceRows(
   return notificationServiceCount(rows);
 }
 
-export async function deleteSellerBroadcastNotificationServiceRows(
-  db: ContextualNotificationServiceClient,
-  broadcastId: string,
-) {
-  const rows = await db.$queryRaw<Array<{ count: number | bigint | null }>>`
-    SELECT public.grainline_notification_delete_seller_broadcast(${broadcastId}::text) AS count
-  `;
-  return notificationServiceCount(rows);
-}
-
 export async function pruneReadNotificationServiceBatch() {
   const rows = await prisma.$queryRaw<Array<{ count: number | bigint | null }>>`
     SELECT public.grainline_notification_prune_read_batch() AS count

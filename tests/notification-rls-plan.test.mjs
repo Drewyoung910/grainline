@@ -212,7 +212,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal((blog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 2);
     assert.match(blog, /deleteBlogCommentNotificationServiceRows\(tx, deleted\.id\)/);
     assert.doesNotMatch(blog, /tx\.notification\./);
-    assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
+    assert.match(broadcasts, /deleteStaffSellerBroadcast\(staffClient,/);
+    assert.doesNotMatch(broadcasts, /deleteSellerBroadcastNotificationServiceRows/);
     assert.doesNotMatch(broadcasts, /tx\.notification\./);
     assert.match(favorite, /sourceType: NOTIFICATION_SOURCE_TYPES\.FAVORITE,\s*sourceId: listingId/);
     assert.match(follow, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOW,\s*sourceId: sellerId/);
@@ -437,7 +438,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(serviceAccess, /notification create family is not implemented for a source-less event/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_for_account\(/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_blog_comment\(/);
-    assert.match(serviceAccess, /public\.grainline_notification_delete_seller_broadcast\(/);
+    assert.doesNotMatch(serviceAccess, /public\.grainline_notification_delete_seller_broadcast\(/);
     assert.match(serviceAccess, /public\.grainline_notification_prune_read_batch\(\)/);
     assert.match(serviceAccess, /public\.grainline_notification_prune_unread_batch\(\)/);
     assert.match(serviceAccess, /Pick<DbUserContextTransactionClient, "\$queryRaw">/);

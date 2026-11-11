@@ -905,7 +905,6 @@ BEGIN
        WHERE source_broadcast.id = identity_row."sourceId"
          AND source_seller."userId" = initial_source_user_id
          AND source_seller."chargesEnabled" = true
-         AND source_seller."vacationMode" = false
          AND source_seller."stripeAccountSupported" = true
          AND source_user.banned = false
          AND source_user."deletedAt" IS NULL
@@ -935,6 +934,7 @@ BEGIN
        WHERE source_listing.id = identity_row."sourceId"
          AND source_listing.status = 'ACTIVE'
          AND source_listing."isPrivate" = false
+         AND source_listing."archivedAt" IS NULL
          AND source_seller."userId" = initial_source_user_id
          AND source_seller."chargesEnabled" = true
          AND source_seller."vacationMode" = false

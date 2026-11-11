@@ -20,6 +20,8 @@ import {
   safeRateLimit,
   sellerBroadcastReadRatelimit,
 } from "@/lib/ratelimit";
+import { resetRateLimitTokens } from "@/lib/ratelimitPolicy";
+import { logServerError } from "@/lib/serverErrorLogger";
 import {
   sanitizeText,
   truncateText,
@@ -197,6 +199,18 @@ export async function POST(req: NextRequest) {
       rateLimitResponse(reset, "You can send one broadcast per week."),
     );
 
+  const refundWeeklyBroadcastToken = async () => {
+    await resetRateLimitTokens(
+      broadcastRatelimit,
+      seller.sellerProfileId,
+    ).catch((error) => {
+      logServerError(error, {
+        source: "seller_broadcast_token_refund",
+        extra: { sellerProfileId: seller.sellerProfileId },
+      });
+    });
+  };
+
   // Create broadcast record, rechecking the durable DB cooldown inside the
   // transaction so the Redis weekly limiter is not the only concurrency guard.
   let broadcastResult: Awaited<ReturnType<typeof createOwnerSellerBroadcast>>;
@@ -217,6 +231,7 @@ export async function POST(req: NextRequest) {
       return created;
     });
   } catch (error) {
+    await refundWeeklyBroadcastToken();
     if (getPrismaRawSqlState(error) === "42501") {
       return privateJson(
         { error: "Your shop must be active before sending broadcasts." },
@@ -227,6 +242,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!broadcastResult.created) {
+    await refundWeeklyBroadcastToken();
     return privateJson(
       {
         error: "You can send one broadcast per week.",

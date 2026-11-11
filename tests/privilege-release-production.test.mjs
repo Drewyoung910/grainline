@@ -215,6 +215,7 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
     [
       "acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e",
       "ef145be432a0ffcbbf02e6dc9419d90d7b0ec3dec23a9d1eb0a83aff0a16393a",
+      "52ae9eafd81f3776610dbc066de0364b134086f0f2b46cd45db290e00bec4ef8",
     ],
   );
 });
