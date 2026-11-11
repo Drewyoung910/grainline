@@ -69,25 +69,9 @@ BEGIN
        'public.grainline_seller_metrics_owner_state(integer,boolean)'
      ) IS NOT NULL
      OR pg_catalog.to_regprocedure(
-       'public.grainline_seller_metrics_guild_refresh(text,integer)'
-     ) IS NOT NULL
-     OR pg_catalog.to_regprocedure(
        'public.grainline_seller_metrics_account_deletion_clear(text,bigint,uuid)'
-     ) IS NOT NULL
-     OR pg_catalog.to_regprocedure(
-       'public.grainline_seller_metrics_inactive_owner_cleanup()'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'SellerMetrics prepared function catalog already exists';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM pg_catalog.pg_trigger AS trigger_row
-     WHERE trigger_row.tgrelid = 'public."SellerProfile"'::pg_catalog.regclass
-       AND trigger_row.tgname = 'grainline_seller_metrics_inactive_owner_cleanup'
-       AND NOT trigger_row.tgisinternal
-  ) THEN
-    RAISE EXCEPTION 'SellerMetrics inactive-owner cleanup trigger already exists';
   END IF;
 
   IF pg_catalog.to_regprocedure(
@@ -220,47 +204,39 @@ BEGIN
      OR p_period_months NOT BETWEEN 1 AND 12
      OR p_reuse_fresh IS NULL
      OR p_authority IS NULL
-     OR p_authority NOT IN ('OWNER', 'GUILD_SERVICE') THEN
+     OR p_authority <> 'OWNER' THEN
     RAISE EXCEPTION 'Seller metrics refresh input is invalid'
       USING ERRCODE = '22023';
+  END IF;
+
+  IF request_user_id IS NULL
+     OR request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Seller metrics owner source is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Keep every refresh, deletion clear, and Guild mutation on the established
+  -- SellerProfile -> SellerMetrics lock order. This row lock is acquired before
+  -- the metrics advisory lock so account deletion cannot form a lock cycle.
+  PERFORM 1
+    FROM public."SellerProfile" AS seller
+    JOIN public."User" AS actor
+      ON actor.id = seller."userId"
+   WHERE seller.id = p_seller_profile_id
+     AND seller."userId" = request_user_id
+     AND seller."ownerAccountActive" = true
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+   FOR KEY SHARE OF seller;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Seller metrics owner source is not authorized'
+      USING ERRCODE = '42501';
   END IF;
 
   PERFORM pg_catalog.pg_advisory_xact_lock(
     913344,
     pg_catalog.hashtext(p_seller_profile_id)
   );
-
-  IF p_authority = 'OWNER' THEN
-    IF request_user_id IS NULL
-       OR request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-       OR NOT EXISTS (
-         SELECT 1
-           FROM public."SellerProfile" AS seller
-           JOIN public."User" AS actor
-             ON actor.id = seller."userId"
-          WHERE seller.id = p_seller_profile_id
-            AND seller."userId" = request_user_id
-            AND seller."ownerAccountActive" = true
-            AND actor.banned = false
-            AND actor."deletedAt" IS NULL
-       ) THEN
-      RAISE EXCEPTION 'Seller metrics owner source is not authorized'
-        USING ERRCODE = '42501';
-    END IF;
-  ELSIF NOT EXISTS (
-    SELECT 1
-      FROM public."SellerProfile" AS seller
-     WHERE seller.id = p_seller_profile_id
-       AND seller."ownerAccountActive" = true
-       AND seller."guildLevel" IN (
-         'GUILD_MEMBER'::public."GuildLevel",
-         'GUILD_MASTER'::public."GuildLevel"
-       )
-       AND seller."vacationMode" = false
-  ) THEN
-    RAISE EXCEPTION 'Seller metrics Guild source is not authorized'
-      USING ERRCODE = '42501';
-  END IF;
 
   IF p_reuse_fresh THEN
     RETURN QUERY
@@ -576,7 +552,8 @@ BEGIN
   SELECT seller.id
     INTO source_seller_profile_id
     FROM public."SellerProfile" AS seller
-   WHERE seller."userId" = request_user_id;
+   WHERE seller."userId" = request_user_id
+   FOR KEY SHARE OF seller;
   IF NOT FOUND THEN
     RETURN 0;
   END IF;
@@ -609,37 +586,6 @@ BEGIN
 END
 $grainline_seller_metrics_account_deletion_clear$;
 
-CREATE FUNCTION public.grainline_seller_metrics_inactive_owner_cleanup()
-RETURNS trigger
-LANGUAGE plpgsql
-VOLATILE
-PARALLEL UNSAFE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $grainline_seller_metrics_inactive_owner_cleanup$
-BEGIN
-  PERFORM pg_catalog.pg_advisory_xact_lock(
-    913344,
-    pg_catalog.hashtext(NEW.id)
-  );
-
-  DELETE FROM public."SellerMetrics"
-   WHERE "sellerProfileId" = NEW.id;
-
-  RETURN NULL;
-END
-$grainline_seller_metrics_inactive_owner_cleanup$;
-
-CREATE TRIGGER grainline_seller_metrics_inactive_owner_cleanup
-AFTER UPDATE OF "ownerAccountActive"
-ON public."SellerProfile"
-FOR EACH ROW
-WHEN (
-  OLD."ownerAccountActive" = true
-  AND NEW."ownerAccountActive" = false
-)
-EXECUTE FUNCTION public.grainline_seller_metrics_inactive_owner_cleanup();
-
 REVOKE ALL ON FUNCTION public.grainline_seller_metrics_refresh_prepared_impl(
   text, integer, boolean, text
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
@@ -649,8 +595,6 @@ REVOKE ALL ON FUNCTION public.grainline_seller_metrics_owner_state(
 REVOKE ALL ON FUNCTION public.grainline_seller_metrics_account_deletion_clear(
   text, bigint, uuid
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
-REVOKE ALL ON FUNCTION public.grainline_seller_metrics_inactive_owner_cleanup()
-  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 
 GRANT EXECUTE ON FUNCTION public.grainline_seller_metrics_owner_state(
   integer, boolean
@@ -717,8 +661,7 @@ BEGIN
       VALUES
         ('public.grainline_seller_metrics_refresh_prepared_impl(text,integer,boolean,text)'::pg_catalog.regprocedure, false),
         ('public.grainline_seller_metrics_owner_state(integer,boolean)'::pg_catalog.regprocedure, true),
-        ('public.grainline_seller_metrics_account_deletion_clear(text,bigint,uuid)'::pg_catalog.regprocedure, true),
-        ('public.grainline_seller_metrics_inactive_owner_cleanup()'::pg_catalog.regprocedure, false)
+        ('public.grainline_seller_metrics_account_deletion_clear(text,bigint,uuid)'::pg_catalog.regprocedure, true)
     ) AS expected(function_oid, runtime_execute)
     JOIN pg_catalog.pg_proc AS function_row
       ON function_row.oid = expected.function_oid
@@ -744,22 +687,8 @@ BEGIN
      AND pg_catalog.has_function_privilege(
        'grainline_app_runtime', function_row.oid, 'EXECUTE'
      ) = expected.runtime_execute;
-  IF unexpected_count <> 4 THEN
+  IF unexpected_count <> 3 THEN
     RAISE EXCEPTION 'SellerMetrics prepared function posture drifted: %', unexpected_count;
-  END IF;
-
-  SELECT pg_catalog.count(*)
-    INTO unexpected_count
-    FROM pg_catalog.pg_trigger AS trigger_row
-   WHERE trigger_row.tgrelid = 'public."SellerProfile"'::pg_catalog.regclass
-     AND trigger_row.tgname = 'grainline_seller_metrics_inactive_owner_cleanup'
-     AND trigger_row.tgfoid =
-       'public.grainline_seller_metrics_inactive_owner_cleanup()'::pg_catalog.regprocedure
-     AND trigger_row.tgenabled = 'O'
-     AND trigger_row.tgtype = 17
-     AND NOT trigger_row.tgisinternal;
-  IF unexpected_count <> 1 THEN
-    RAISE EXCEPTION 'SellerMetrics inactive-owner cleanup trigger drifted';
   END IF;
 END
 $grainline_seller_metrics_postflight$;

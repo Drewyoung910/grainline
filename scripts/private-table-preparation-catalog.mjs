@@ -769,7 +769,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   seller_metrics_v1: Object.freeze({
     migration: "20261102030000_prepare_seller_metrics_authorities",
-    migrationSha256: "e94503581bd391c88f7c072e2ae1237026339ee1769c89952fdf6c5d98299801",
+    migrationSha256: "36d862f03f1f49631f35ae2770f63d621ed20338fb02af6375f558fb9d3a07d9",
     table: "SellerMetrics",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -815,21 +815,8 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_seller_metrics_account_deletion_clear",
         arguments: "text, bigint, uuid",
       }),
-      Object.freeze({
-        name: "grainline_seller_metrics_inactive_owner_cleanup",
-        arguments: "",
-        executeRoles: Object.freeze([]),
-      }),
     ]),
-    addedTriggers: Object.freeze([
-      Object.freeze({
-        name: "grainline_seller_metrics_inactive_owner_cleanup",
-        function: "grainline_seller_metrics_inactive_owner_cleanup",
-        table: "SellerProfile",
-        enabled: "O",
-        type: 17,
-      }),
-    ]),
+    addedTriggers: Object.freeze([]),
     retainedFunctions: Object.freeze([
       Object.freeze({
         name: "grainline_seller_guild_metrics_apply",

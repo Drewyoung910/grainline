@@ -128,6 +128,16 @@ async function finalizeDeletion(client, seller, sideEffectId, claimToken) {
   assert.equal(finalized.rows[0]?.userId, seller.userId);
 }
 
+async function pauseDeletion(client, seller, sideEffectId, claimToken) {
+  const paused = await client.query(
+    `SELECT public.grainline_seller_account_deletion_pause(
+       $1, NULL, $2, 1, $3::uuid
+     ) AS paused`,
+    [seller.userId, sideEffectId, claimToken],
+  );
+  assert.equal(paused.rows[0]?.paused, true);
+}
+
 async function cleanupDeletedFixture(database, seller, sideEffectId) {
   await database.query(
     'DELETE FROM public."AccountDeletionSideEffect" WHERE id = $1',
@@ -167,15 +177,22 @@ async function proveRefreshWinsDeletionRace({
     assertMetricsRow(refreshed.rows[0], seller.sellerProfileId);
 
     await beginActor(deletion, seller.userId);
-    const clearing = deletion.query(
+    const pausing = pauseDeletion(
+      deletion,
+      seller,
+      sideEffectId,
+      claimToken,
+    );
+    await waitForLockWait(database, "seller_metrics_deletion_waiter");
+    await refresh.query("COMMIT");
+    await pausing;
+    const clearing = await deletion.query(
       `SELECT public.grainline_seller_metrics_account_deletion_clear(
          $1, 1, $2::uuid
        ) AS removed`,
       [sideEffectId, claimToken],
     );
-    await waitForLockWait(database, "seller_metrics_deletion_waiter");
-    await refresh.query("COMMIT");
-    assert.equal(Number((await clearing).rows[0]?.removed), 1);
+    assert.equal(Number(clearing.rows[0]?.removed), 1);
     await finalizeDeletion(deletion, seller, sideEffectId, claimToken);
     await deletion.query("COMMIT");
 
@@ -219,6 +236,7 @@ async function proveDeletionWinsRefreshRace({
   try {
     await ownerMetrics(deletion, seller.userId, { force: true });
     await beginActor(deletion, seller.userId);
+    await pauseDeletion(deletion, seller, sideEffectId, claimToken);
     const cleared = await deletion.query(
       `SELECT public.grainline_seller_metrics_account_deletion_clear(
          $1, 1, $2::uuid
@@ -425,7 +443,7 @@ export async function proveSellerMetricsPreparedAuthorities({
          FROM public."SellerMetrics"
         WHERE "sellerProfileId" = $1`,
       [seller.sellerProfileId],
-    ))[0]?.count ?? -1), 0, "inactive-owner transition must remove cached metrics");
+    ))[0]?.count ?? -1), 1, "a temporary ban must preserve recomputable cached metrics");
     await database.query(
       `UPDATE public."User"
           SET banned = $2,

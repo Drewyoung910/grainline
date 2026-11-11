@@ -3,7 +3,23 @@ import test from "node:test";
 import { Prisma } from "@prisma/client";
 import { loadWithStubs } from "./helpers/load-with-stubs.mjs";
 
-async function getAnalytics(range, { topListings = [], archivedIds = [], viewGroups = [] } = {}) {
+async function getAnalytics(range, {
+  topListings = [],
+  archivedIds = [],
+  viewGroups = [],
+  metrics = {
+    sellerProfileId: "seller-1",
+    calculatedAt: new Date("2026-01-01T00:00:00Z"),
+    averageRating: 0,
+    reviewCount: 0,
+    onTimeShippingRate: 0,
+    responseRate: 0,
+    accountAgeDays: 0,
+    totalSalesCents: 0,
+    activeCaseCount: 0,
+  },
+  guildCriteria = { allMet: false },
+} = {}) {
   const emptyAggregate = async () => ({ _sum: {} });
   const route = loadWithStubs("src/app/api/seller/analytics/route.ts", {
     "@prisma/client": { Prisma },
@@ -41,8 +57,12 @@ async function getAnalytics(range, { topListings = [], archivedIds = [], viewGro
       readSellerOrderTopListings: async () => topListings,
     },
     "@/lib/metrics": {
-      getFreshSellerMetrics: async () => ({ averageRating: 0, reviewCount: 0, onTimeShippingRate: 0, responseRate: 0, accountAgeDays: 0, totalSalesCents: 0, activeCaseCount: 0 }),
-      meetsGuildMasterRequirements: () => ({ allMet: false }),
+      floorMetric: (value, decimals = 1) => {
+        const factor = 10 ** decimals;
+        return Math.floor(value * factor + 1e-9) / factor;
+      },
+      getFreshSellerMetrics: async () => metrics,
+      meetsGuildMasterRequirements: () => guildCriteria,
     },
     "@/lib/money": { formatCurrencyCents: (cents) => String(cents) },
   });
@@ -82,4 +102,36 @@ test("the views chart sums views per day in the database, not one row per listin
   });
   const totals = chartData.reduce((sum, bucket) => [sum[0] + bucket.views, sum[1] + bucket.clicks], [0, 0]);
   assert.deepEqual(totals, [7, 3]);
+});
+
+test("failing Guild metrics are floored so the copy never displays a passing threshold", async () => {
+  const { guildMasterFailures } = await getAnalytics("last30", {
+    metrics: {
+      sellerProfileId: "seller-1",
+      calculatedAt: new Date("2026-01-01T00:00:00Z"),
+      averageRating: 4.499,
+      reviewCount: 25,
+      onTimeShippingRate: 0.9499,
+      responseRate: 0.8999,
+      accountAgeDays: 180,
+      totalSalesCents: 100_000,
+      activeCaseCount: 0,
+    },
+    guildCriteria: {
+      ratingMet: false,
+      reviewsMet: true,
+      shippingMet: false,
+      responseMet: false,
+      ageMet: true,
+      salesMet: true,
+      casesMet: true,
+      allMet: false,
+    },
+  });
+
+  assert.deepEqual(guildMasterFailures, [
+    "Average rating < 4.5 (currently 4.4)",
+    "On-time shipping < 95% (currently 94.9%)",
+    "Response rate < 90% (currently 89.9%)",
+  ]);
 });

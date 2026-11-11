@@ -80,7 +80,6 @@ test("private-table readiness catalog covers the exact reviewed preparation batc
   );
   for (const ownerOnlyIdentity of [
     "grainline_seller_metrics_refresh_prepared_impl(text, integer, boolean, text)",
-    "grainline_seller_metrics_inactive_owner_cleanup()",
     "grainline_seller_guild_metrics_apply_prepared_impl(text, timestamp without time zone)",
   ]) {
     assert.equal(identities.has(ownerOnlyIdentity), false);

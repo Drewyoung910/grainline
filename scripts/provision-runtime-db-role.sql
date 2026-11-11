@@ -6152,8 +6152,7 @@ WITH seller_metrics_functions(function_signature) AS (
   VALUES
     ('public."grainline_seller_metrics_refresh_prepared_impl"(text, integer, boolean, text)'),
     ('public."grainline_seller_metrics_owner_state"(integer, boolean)'),
-    ('public."grainline_seller_metrics_account_deletion_clear"(text, bigint, uuid)'),
-    ('public."grainline_seller_metrics_inactive_owner_cleanup"()')
+    ('public."grainline_seller_metrics_account_deletion_clear"(text, bigint, uuid)')
 )
 SELECT pg_catalog.format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

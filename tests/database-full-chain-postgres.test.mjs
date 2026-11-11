@@ -1029,14 +1029,8 @@ test(
           { Client: DisposableOwnerClient, rootDir: repositoryRoot },
         );
       assert.equal(sellerMetricsPreparationPostflight.state, "applied");
-      assert.equal(sellerMetricsPreparationPostflight.catalog.functions.length, 4);
-      assert.deepEqual(sellerMetricsPreparationPostflight.catalog.triggers, [{
-        name: "grainline_seller_metrics_inactive_owner_cleanup",
-        function: "grainline_seller_metrics_inactive_owner_cleanup",
-        table: "SellerProfile",
-        enabled: "O",
-        type: 17,
-      }]);
+      assert.equal(sellerMetricsPreparationPostflight.catalog.functions.length, 3);
+      assert.deepEqual(sellerMetricsPreparationPostflight.catalog.triggers, []);
       assert.ok(fixture, "seller fixture must exist before SellerMetrics proof");
       await proveSellerMetricsPreparedAuthorities({
         connectionString: proofDatabaseUrl,

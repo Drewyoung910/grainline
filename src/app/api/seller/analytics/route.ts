@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import {
+  floorMetric,
   getFreshSellerMetrics,
   meetsGuildMasterRequirements,
 } from "@/lib/metrics";
@@ -476,10 +477,10 @@ export async function GET(req: Request) {
       .map(([k]) => k);
 
     const humanFailures: Record<string, string> = {
-      ratingMet: `Average rating < 4.5 (currently ${metrics.averageRating.toFixed(1)})`,
+      ratingMet: `Average rating < 4.5 (currently ${floorMetric(metrics.averageRating).toFixed(1)})`,
       reviewsMet: `Reviews < 25 (currently ${metrics.reviewCount})`,
-      shippingMet: `On-time shipping < 95% (currently ${(metrics.onTimeShippingRate * 100).toFixed(1)}%)`,
-      responseMet: `Response rate < 90% (currently ${(metrics.responseRate * 100).toFixed(1)}%)`,
+      shippingMet: `On-time shipping < 95% (currently ${floorMetric(metrics.onTimeShippingRate * 100).toFixed(1)}%)`,
+      responseMet: `Response rate < 90% (currently ${floorMetric(metrics.responseRate * 100).toFixed(1)}%)`,
       ageMet: `Account age < 180 days (currently ${metrics.accountAgeDays} days)`,
       salesMet: `Sales < $1,000 (currently ${formatCurrencyCents(metrics.totalSalesCents)})`,
       casesMet: `Open cases: ${metrics.activeCaseCount}`,

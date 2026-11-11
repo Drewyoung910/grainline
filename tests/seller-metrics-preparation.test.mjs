@@ -14,17 +14,11 @@ const migrationPath =
   "prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql";
 
 describe("SellerMetrics compatible preparation", () => {
-  it("binds the inactive-owner cleanup trigger to SellerProfile in the generic release catalog", () => {
+  it("keeps the generic release catalog free of unnecessary cache triggers", () => {
     const release = privateTablePreparation("seller_metrics_v1");
 
     assert.equal(release.table, "SellerMetrics");
-    assert.deepEqual(release.addedTriggers, [{
-      name: "grainline_seller_metrics_inactive_owner_cleanup",
-      function: "grainline_seller_metrics_inactive_owner_cleanup",
-      table: "SellerProfile",
-      enabled: "O",
-      type: 17,
-    }]);
+    assert.deepEqual(release.addedTriggers, []);
 
     const inspector = source(
       "scripts/private-table-preparation-production-inspect.mjs",
@@ -58,7 +52,6 @@ describe("SellerMetrics compatible preparation", () => {
       "grainline_seller_metrics_refresh_prepared_impl",
       "grainline_seller_metrics_owner_state",
       "grainline_seller_metrics_account_deletion_clear",
-      "grainline_seller_metrics_inactive_owner_cleanup",
     ]) {
       assert.match(
         migration,
@@ -79,9 +72,19 @@ describe("SellerMetrics compatible preparation", () => {
     );
     assert.match(migration, /effect\."claimGeneration" = p_claim_generation/u);
     assert.match(migration, /effect\."claimToken" = p_claim_token/u);
+    assert.doesNotMatch(migration, /grainline_seller_metrics_inactive_owner_cleanup/u);
+    assert.doesNotMatch(migration, /GUILD_SERVICE/u);
     assert.match(
       migration,
-      /CREATE TRIGGER grainline_seller_metrics_inactive_owner_cleanup[\s\S]*AFTER UPDATE OF "ownerAccountActive"/u,
+      /FOR KEY SHARE OF seller;[\s\S]*pg_advisory_xact_lock\(\s*913344,\s*pg_catalog\.hashtext\(p_seller_profile_id\)/u,
+    );
+    const accountDeletionClear = migration.slice(
+      migration.indexOf("CREATE FUNCTION public.grainline_seller_metrics_account_deletion_clear"),
+    );
+    assert.ok(
+      accountDeletionClear.indexOf("FOR KEY SHARE OF seller") <
+        accountDeletionClear.indexOf("pg_advisory_xact_lock"),
+      "account deletion must lock SellerProfile before the seller metrics advisory lock",
     );
     assert.match(migration, /seller\."ownerAccountActive" = true/u);
     assert.match(migration, /SellerMetrics contains invalid predecessor rows/u);

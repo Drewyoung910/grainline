@@ -70,7 +70,10 @@ Guild evidence.
 
 ## Complete source and installed-function inventory
 
-The reviewed application has five direct table operations in three files.
+The reviewed predecessor application had five direct table operations in three
+files. The compatible conversion also includes the staff Guild approval caller,
+which can request a refresh only with the server-resolved seller user id from
+the isolated verification-target projection.
 There is no public, buyer, webhook, message, support or notification read.
 
 | Consumer | Current operation | Principal | Required final boundary |
@@ -110,7 +113,7 @@ SellerMetrics access.
 | Operation | Seller owner | Guild cron/service | Isolated staff | Other user / public |
 | --- | --- | --- | --- | --- |
 | Read current metrics | own seller only | exact eligible target needed for processing | only through retained bounded projections | deny |
-| Refresh metrics | own seller, forced or read-through | currently active Guild cohort only | no current direct refresh need | deny |
+| Refresh metrics | own seller, forced or read-through | currently active Guild cohort only | approval may reuse the same owner authority with the isolated projection's server-resolved user id | deny |
 | Apply Guild transition | no generic authority | retained exact transition only | retained reviewed action paths | deny |
 | Account-deletion cleanup | exact active deletion claim only | deny | deny | deny |
 | Direct table SELECT/INSERT/UPDATE/DELETE | deny after activation | deny | deny | deny |
@@ -177,12 +180,12 @@ to JavaScript must be within its safe numeric bounds.
    arbitrary-seller metrics function to the ordinary runtime role. A dedicated
    service credential remains future hardening.
 6. **Account deletion uses direct DELETE.** Replace it with the same active
-   `LOCAL_ANONYMIZE` claim and seller-row lock pattern used by seller daily
-   analytics cleanup. Because a predecessor deployment can still issue its old
-   direct DELETE during a compatible rollout, also delete the cache when the
-   maintained `ownerAccountActive` mirror transitions to false. The cleanup
-   uses the same seller advisory key as refresh, so either lock order ends with
-   no inactive seller cache.
+   `LOCAL_ANONYMIZE` claim used by seller daily analytics cleanup. Refresh and
+   deletion must both lock `SellerProfile` before the metrics advisory lock so
+   deletion cannot deadlock with refresh or Guild mutation. Do not delete this
+   recomputable cache on a temporary ban; the explicit deletion claim and hard
+   SellerProfile cascade cover actual deletion without adding a hot-table
+   trigger.
 7. **Five retained functions cross FORCE.** Pin exact overload, owner,
    `SECURITY DEFINER`, search path, volatility/parallel mode, source digest and
    role ACL. Refuse every unreviewed installed reader/writer at activation.
@@ -215,8 +218,8 @@ to JavaScript must be within its safe numeric bounds.
 
 The isolated compatible implementation is complete on branch
 `codex/seller-metrics-pre-rls-audit-20261102`. It adds nine validated value
-constraints, four fixed database functions and one inactive-owner cleanup
-trigger. It converts every reviewed direct application operation while leaving
+constraints and three fixed database functions, with no cache-cleanup trigger.
+It converts every reviewed direct application operation while leaving
 RLS off and retaining predecessor runtime CRUD.
 
 Executed evidence on 2026-11-02:
@@ -224,7 +227,7 @@ Executed evidence on 2026-11-02:
 - the failing-first source test failed before the migration and caller
   conversion, then passed after them;
 - the selected generic preparation catalog accepted the exact migration digest,
-  source tests, function ACLs, retained-function hashes and trigger identity;
+  source tests, function ACLs and retained-function hashes;
 - focused cache, analytics, identity, grant-inventory and preparation tests
   passed;
 - `npx tsc --noEmit` passed;
@@ -233,7 +236,7 @@ Executed evidence on 2026-11-02:
 - the purpose-built scenario passed against a disposable fully migrated
   PostgreSQL 17 clone using direct `grainline_app_runtime` login sessions; and
 - the complete 465-migration PostgreSQL 17 chain passed with owner cache reuse,
-  forced refresh, owner-bound Guild refresh, inactive-owner denial/cleanup,
+  forced refresh, owner-bound Guild refresh, inactive-owner denial with cache preservation,
   value-constraint denial, exact-claim deletion, concurrent refresh, both
   refresh/deletion lock orders, and downstream fixture isolation.
 

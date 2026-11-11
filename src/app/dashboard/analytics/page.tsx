@@ -7,6 +7,7 @@ import { Eye, Heart, Bell, MousePointer } from "@/components/icons";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { floorMetric } from "@/lib/metricsState";
 import { clampTooltipCenter } from "./chartLayout";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -106,6 +107,10 @@ function fmtExact(cents: number, currency = DEFAULT_CURRENCY) {
 
 function pct(val: number, decimals = 1) {
   return val.toFixed(decimals) + "%";
+}
+
+function guildPct(val: number) {
+  return floorMetric(val).toFixed(1) + "%";
 }
 
 function colorRate(val: number, greenThresh: number, amberThresh: number) {
@@ -921,18 +926,18 @@ export default function AnalyticsPage() {
                   label: "Average Rating",
                   value:
                     data.guildMetrics.reviewCount > 0
-                      ? `${data.guildMetrics.averageRating.toFixed(1)} ★ (${data.guildMetrics.reviewCount} review${data.guildMetrics.reviewCount === 1 ? "" : "s"})`
+                      ? `${floorMetric(data.guildMetrics.averageRating).toFixed(1)} ★ (${data.guildMetrics.reviewCount} review${data.guildMetrics.reviewCount === 1 ? "" : "s"})`
                       : "No reviews yet",
                   className: "",
                 },
                 {
                   label: "On-Time Shipping",
-                  value: pct(data.guildMetrics.onTimeShippingRate * 100),
+                  value: guildPct(data.guildMetrics.onTimeShippingRate * 100),
                   className: colorRate(data.guildMetrics.onTimeShippingRate, 0.95, 0.8),
                 },
                 {
                   label: "Response Rate",
-                  value: pct(data.guildMetrics.responseRate * 100),
+                  value: guildPct(data.guildMetrics.responseRate * 100),
                   className: colorRate(data.guildMetrics.responseRate, 0.9, 0.7),
                 },
                 {

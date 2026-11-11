@@ -1677,7 +1677,6 @@ describe("database grant inventory guardrails", () => {
           ]
         : []),
       "grainline_seller_metrics_refresh_prepared_impl",
-      "grainline_seller_metrics_inactive_owner_cleanup",
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
