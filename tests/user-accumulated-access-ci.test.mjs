@@ -131,6 +131,8 @@ const serviceReferenceLeastPrivilegeMigration =
   "20261101020000_narrow_service_reference_runtime_privileges";
 const emailServiceLeastPrivilegeMigration =
   "20261101080000_prepare_email_service_least_privilege";
+const emailServiceLeastPrivilegeActivationMigration =
+  "20261101090000_activate_email_service_least_privilege";
 const favoritePreparationMigration =
   "20261028010000_prepare_favorite_authorities";
 const followPreparationMigration =
@@ -594,6 +596,22 @@ function emailServiceLeastPrivilegeMigrationSourcePath() {
   return path.dirname(stagedPath);
 }
 
+function emailServiceLeastPrivilegeActivationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    emailServiceLeastPrivilegeActivationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath =
+    process.env.EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated email service least-privilege activation migration",
+  );
+  return path.dirname(stagedPath);
+}
+
 function favoriteActivationMigrationSourcePath() {
   const stagedPath = process.env.FAVORITE_RLS_ACTIVATION_MIGRATION_PATH?.trim() ?? "";
   if (stagedPath !== "") {
@@ -933,7 +951,23 @@ test("email service least privilege is proved, isolated, and restored around his
   const isolate = step(isolateName);
   const restore = step(restoreName);
   assert.match(isolate, new RegExp(emailServiceLeastPrivilegeMigration));
+  assert.match(
+    isolate,
+    new RegExp(emailServiceLeastPrivilegeActivationMigration),
+  );
+  assert.match(
+    isolate,
+    /EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_PATH/u,
+  );
   assert.match(restore, new RegExp(emailServiceLeastPrivilegeMigration));
+  assert.match(
+    restore,
+    new RegExp(emailServiceLeastPrivilegeActivationMigration),
+  );
+  assert.match(
+    restore,
+    /EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_PATH=/u,
+  );
   assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
   assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
@@ -949,22 +983,35 @@ test("final Production build applies email service after its required email corr
   const emailServiceHold = finalBuild.indexOf(
     'mv "prisma/migrations/$email_service_migration" "$holding/migrations/$email_service_migration"',
   );
+  const emailServiceActivationHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$email_service_activation_migration" "$holding/migrations/$email_service_activation_migration"',
+  );
   const lockOrderRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$lock_order_correction_migration"',
   );
   const emailServiceRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$email_service_migration"',
   );
+  const emailServiceActivationRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$email_service_activation_migration"',
+  );
 
   assert.ok(emailServiceHold >= 0);
+  assert.ok(emailServiceActivationHold >= 0);
   assert.ok(emailServiceHold < fullChain);
+  assert.ok(emailServiceActivationHold < fullChain);
   assert.ok(lockOrderRestore < emailServiceRestore);
+  assert.ok(emailServiceRestore < emailServiceActivationRestore);
   assert.ok(
     finalBuild.indexOf('rmdir "$holding/migrations" "$holding"')
-      > emailServiceRestore,
+      > emailServiceActivationRestore,
   );
   assert.match(
     finalBuild.slice(emailServiceRestore),
+    /npx prisma migrate deploy[\s\S]*npm run audit:db-grants/,
+  );
+  assert.match(
+    finalBuild.slice(emailServiceActivationRestore),
     /npx prisma migrate deploy[\s\S]*npm run audit:db-grants/,
   );
 });
@@ -1354,6 +1401,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const emailServiceLeastPrivilegeActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      emailServiceLeastPrivilegeActivationMigration,
+    );
+    if (!existsSync(emailServiceLeastPrivilegeActivationTarget)) {
+      cpSync(
+        emailServiceLeastPrivilegeActivationMigrationSourcePath(),
+        emailServiceLeastPrivilegeActivationTarget,
+        { recursive: true },
+      );
+    }
     const favoriteActivationTarget = path.join(
       root,
       "prisma",
@@ -1422,6 +1482,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${serviceReferenceLeastPrivilegeMigration}/migration.sql`;
     const emailServiceLeastPrivilegePath =
       `prisma/migrations/${emailServiceLeastPrivilegeMigration}/migration.sql`;
+    const emailServiceLeastPrivilegeActivationPath =
+      `prisma/migrations/${emailServiceLeastPrivilegeActivationMigration}/migration.sql`;
     const favoritePreparationPath =
       `prisma/migrations/${favoritePreparationMigration}/migration.sql`;
     const followPreparationPath =
@@ -1460,6 +1522,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       sellerFaqActivationPath,
       serviceReferenceLeastPrivilegePath,
       emailServiceLeastPrivilegePath,
+      emailServiceLeastPrivilegeActivationPath,
       favoritePreparationPath,
       followPreparationPath,
       reviewVotePreparationPath,
@@ -1543,6 +1606,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, sellerFaqActivationPath)), false);
     assert.equal(existsSync(path.join(root, serviceReferenceLeastPrivilegePath)), false);
     assert.equal(existsSync(path.join(root, emailServiceLeastPrivilegePath)), false);
+    assert.equal(
+      existsSync(path.join(root, emailServiceLeastPrivilegeActivationPath)),
+      false,
+    );
     assert.equal(existsSync(path.join(root, favoritePreparationPath)), false);
     assert.equal(existsSync(path.join(root, followPreparationPath)), false);
     assert.equal(existsSync(path.join(root, reviewVotePreparationPath)), false);

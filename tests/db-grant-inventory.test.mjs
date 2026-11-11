@@ -4059,6 +4059,9 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailServiceLeastPrivilegeActivationPresent = existsSync(
+      "prisma/migrations/20261101090000_activate_email_service_least_privilege/migration.sql",
+    );
     const emailProviderDeletionFencePrepared = existsSync(
       EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH,
     ) && EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES.every((functionName) =>
@@ -4329,6 +4332,9 @@ describe("database grant inventory guardrails", () => {
             // Predecessor indexed writes temporarily execute the otherwise
             // private canonical email helper.
             + 1
+          : 0)
+        + (emailServiceLeastPrivilegeActivationPresent
+          ? 2 // table boundary plus temporary indexed-write helper
           : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
@@ -5058,11 +5064,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 6);
+    assert.equal(auditMatches.length, 7);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 6);
+    assert.equal(combinedStaffStageMatches.length, 7);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -5121,6 +5127,17 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreEmailService,
     );
+    const emailServiceAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyEmailService,
+    );
+    const restoreEmailServiceActivation = stagedProof.indexOf(
+      '"$holding/migrations/$email_service_activation_migration" \\\n            "prisma/migrations/$email_service_activation_migration"',
+    );
+    const applyEmailServiceActivation = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreEmailServiceActivation,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -5147,7 +5164,10 @@ describe("database grant inventory guardrails", () => {
     assert.ok(
       lockOrderCorrectionAudit < restoreEmailService
       && restoreEmailService < applyEmailService
-      && applyEmailService < finalAudit,
+      && applyEmailService < emailServiceAudit
+      && emailServiceAudit < restoreEmailServiceActivation
+      && restoreEmailServiceActivation < applyEmailServiceActivation
+      && applyEmailServiceActivation < finalAudit,
     );
   });
 
@@ -6585,6 +6605,9 @@ describe("database grant inventory guardrails", () => {
     const serviceReferenceLeastPrivilegeProvisioningPresent = provision.includes(
       "grainline_service_reference_least_privilege_applied",
     );
+    const emailServiceLeastPrivilegeProvisioningPresent = provision.includes(
+      "grainline_email_service_least_privilege_applied",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6596,7 +6619,8 @@ describe("database grant inventory guardrails", () => {
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
         + Number(reviewVoteProvisioningPresent)
-        + Number(serviceReferenceLeastPrivilegeProvisioningPresent),
+        + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
+        + Number(emailServiceLeastPrivilegeProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
