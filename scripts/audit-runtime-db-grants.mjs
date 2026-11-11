@@ -2822,17 +2822,25 @@ export function collectConversationMessageFunctionIssues(
   const accountDeletionActive = accountDeletionSideEffectRlsActivationExpected(
     inventory,
   );
+  const emailServicePredecessorCompatibility =
+    inventory?.emailServicePreparationApplied === true
+    && inventory?.emailServiceLeastPrivilegeActivationApplied !== true;
   const expectedFunctions = conversationMessageAuthorityFunctionsForState({
     blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
     blockActivationApplied: blockRlsActivationExpected(inventory),
   }).flatMap(
     (entry) => {
+      const stateEntry =
+        entry.name === "grainline_account_deletion_email_key_core"
+        && emailServicePredecessorCompatibility
+          ? { ...entry, runtimeExecute: true }
+          : entry;
       if (entry.name !== "grainline_message_redact_for_account_deletion") {
-        return [entry];
+        return [stateEntry];
       }
       const legacy = {
-        ...entry,
-        runtimeExecute: accountDeletionActive ? false : entry.runtimeExecute,
+        ...stateEntry,
+        runtimeExecute: accountDeletionActive ? false : stateEntry.runtimeExecute,
       };
       return accountDeletionClaimFencePresent
         ? [

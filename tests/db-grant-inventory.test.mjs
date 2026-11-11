@@ -3215,6 +3215,40 @@ describe("database grant inventory guardrails", () => {
       [],
       "source-only preparation files must not change live predecessor expectations",
     );
+    const emailHelperName = "grainline_account_deletion_email_key_core";
+    const emailPreparedRows = exactRows.map((row) => (
+      row.function_name === emailHelperName
+        ? { ...row, execute_priv: true, runtime_direct_execute: true }
+        : row
+    ));
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        emailPreparedRows,
+        runtimeRole,
+        migrationRole,
+        {
+          ...livePredecessorInventory,
+          emailServicePreparationApplied: true,
+          emailServiceLeastPrivilegeActivationApplied: false,
+        },
+      ),
+      [],
+      "email preparation temporarily grants the indexed-write helper",
+    );
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        exactRows,
+        runtimeRole,
+        migrationRole,
+        {
+          ...livePredecessorInventory,
+          emailServicePreparationApplied: true,
+          emailServiceLeastPrivilegeActivationApplied: true,
+        },
+      ),
+      [],
+      "email activation restores the indexed-write helper to runtime-private",
+    );
     if (typeof readBlockPreparationState === "function") {
       assert.deepEqual(
         collectConversationMessageFunctionIssues(
