@@ -337,8 +337,8 @@ export async function proveSellerMetricsPreparedAuthorities({
     assertMetricsRow(initial[0], seller.sellerProfileId);
 
     await database.query(
-      `INSERT INTO public."User" (id, "clerkId", email)
-       VALUES ($1, $2, $3)`,
+      `INSERT INTO public."User" (id, "clerkId", email, banned, "updatedAt")
+       VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP)`,
       [
         parityReviewerId,
         `${parityReviewerId}_clerk`,
@@ -347,15 +347,15 @@ export async function proveSellerMetricsPreparedAuthorities({
     );
     await database.query(
       `INSERT INTO public."Listing" (
-         id, "sellerId", title, description, "priceCents", status
+         id, "sellerId", title, description, "priceCents", status, "updatedAt"
        ) VALUES ($1, $2, 'Metrics parity listing', 'Metrics parity fixture', 100,
-                 'ACTIVE'::public."ListingStatus")`,
+                 'ACTIVE'::public."ListingStatus", CURRENT_TIMESTAMP)`,
       [parityListingId, seller.sellerProfileId],
     );
     await database.query(
       `INSERT INTO public."Review" (
-         id, "listingId", "reviewerId", "reviewerAccountActive", "ratingX2"
-       ) VALUES ($1, $2, $3, false, 10)`,
+         id, "listingId", "reviewerId", "ratingX2", "updatedAt"
+       ) VALUES ($1, $2, $3, 10, CURRENT_TIMESTAMP)`,
       [parityReviewId, parityListingId, parityReviewerId],
     );
 
@@ -366,10 +366,10 @@ export async function proveSellerMetricsPreparedAuthorities({
       "inactive reviewer rows must remain excluded from Guild metrics",
     );
     await database.query(
-      `UPDATE public."Review"
-          SET "reviewerAccountActive" = true
+      `UPDATE public."User"
+          SET banned = false, "updatedAt" = CURRENT_TIMESTAMP
         WHERE id = $1`,
-      [parityReviewId],
+      [parityReviewerId],
     );
     const activeReview = await ownerMetrics(first, seller.userId, { force: true });
     assert.equal(
@@ -383,7 +383,7 @@ export async function proveSellerMetricsPreparedAuthorities({
     assertMetricsRow(cached[0], seller.sellerProfileId);
     assert.equal(
       cached[0].calculatedAt.getTime(),
-      initial[0].calculatedAt.getTime(),
+      activeReview[0].calculatedAt.getTime(),
       "a fresh cache read must not recalculate",
     );
 
