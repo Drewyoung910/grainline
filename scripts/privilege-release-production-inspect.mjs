@@ -301,7 +301,7 @@ export async function inspectPrivilegeReleaseProduction(
         LEFT JOIN pg_catalog.pg_roles AS owner ON owner.oid = routine.proowner
         CROSS JOIN pg_catalog.pg_roles AS runtime_role
        WHERE runtime_role.rolname = 'grainline_app_runtime'
-       ORDER BY expected.signature
+       ORDER BY expected.signature COLLATE "C"
     `, [functionSignatures])).rows;
     const functions = classifyPrivilegeReleaseFunctions(
       functionRows,

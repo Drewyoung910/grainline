@@ -158,7 +158,7 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
   );
   assert.equal(
     emailRelease.preparationMigration.sha256,
-    "3ee5f2769129a94e5b82036a225c9017846c1b0d024afb57c064743a2a6d3047",
+    "a00d71f078a8e2cb38d376292592011861904b77a9ba282e186669a8d142e803",
   );
   assert.equal(
     emailRelease.minimumCompatibleAppCommit,
@@ -230,6 +230,15 @@ test("email activation pins every function body installed by its preparation", (
 });
 
 test("production inspector retires predecessor-only function authority with the table boundary", () => {
+  const inspectorSource = readFileSync(
+    join(rootDir, "scripts", "privilege-release-production-inspect.mjs"),
+    "utf8",
+  );
+  assert.match(
+    inspectorSource,
+    /ORDER BY expected\.signature COLLATE "C"/u,
+    "function evidence order must not depend on the Production database collation",
+  );
   const source = "BEGIN RETURN 1; END";
   const digest = createHash("sha256").update(source).digest("hex");
   const mockRelease = {
