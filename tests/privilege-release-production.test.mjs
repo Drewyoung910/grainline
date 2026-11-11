@@ -106,6 +106,9 @@ test("catalog byte-seals the reviewed reusable privilege release", () => {
   assert.deepEqual(release.sourceTests, [
     "tests/service-reference-least-privilege.test.mjs",
   ]);
+  assert.deepEqual(release.laterPendingMigrations, [
+    "20261101080000_prepare_email_service_least_privilege",
+  ]);
   assert.equal(
     release.minimumCompatibleAppCommit,
     "b56e226d327347fe155aa07ded0bde999ca929be",
@@ -203,6 +206,14 @@ test("workflow is exact-main, serialized, restart-safe, and evidence preserving"
   assert.match(source, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(source, /guard-production-migration-runner\.mjs/u);
   assert.match(source, /assert-reviewed-pending-migrations\.mjs/u);
+  assert.match(source, /assert-reviewed-migration-tail\.mjs/u);
+  assert.match(source, /--later-pending-migrations/u);
+  assert.match(source, /steps\.preflight\.outputs\.expected_pending/u);
+  assert.match(source, /steps\.preflight\.outputs\.later_pending/u);
+  assert.match(
+    source,
+    /if \[ "\$\{#later_pending\[@\]\}" -gt 0 \]; then/u,
+  );
   assert.match(source, /steps\.preflight\.outputs\.state == 'pending'/u);
   assert.match(source, /steps\.preflight\.outputs\.state != 'applied'/u);
   assert.match(source, /prisma migrate resolve --applied/u);

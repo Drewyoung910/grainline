@@ -189,7 +189,18 @@ jobs:
         run: |
           set -euo pipefail
           migration="$(node scripts/privilege-release-catalog.mjs)"
+          mapfile -t later_pending < <(
+            node scripts/privilege-release-catalog.mjs \
+              --later-pending-migrations
+          )
           test -n "$migration"
+          later_pending_csv=""
+          if [ "${#later_pending[@]}" -gt 0 ]; then
+            later_pending_csv="$(IFS=,; echo "${later_pending[*]}")"
+          fi
+          REVIEWED_RELEASE_MIGRATIONS="$migration" \
+          REVIEWED_LATER_PENDING_MIGRATIONS="$later_pending_csv" \
+            node scripts/assert-reviewed-migration-tail.mjs
           mapfile -t release_tests < <(node scripts/privilege-release-catalog.mjs --tests)
           test "${#release_tests[@]}" -gt 0
           node --test tests/privilege-release-production.test.mjs "${release_tests[@]}"
@@ -215,11 +226,28 @@ jobs:
           migration="$(node scripts/privilege-release-catalog.mjs)"
           echo "state=$state" >> "$GITHUB_OUTPUT"
           echo "migration=$migration" >> "$GITHUB_OUTPUT"
-          if [ "$state" = applied ]; then echo "pending=" >> "$GITHUB_OUTPUT"; else echo "pending=$migration" >> "$GITHUB_OUTPUT"; fi
+          mapfile -t later_pending < <(
+            node scripts/privilege-release-catalog.mjs \
+              --later-pending-migrations
+          )
+          later_pending_csv=""
+          if [ "${#later_pending[@]}" -gt 0 ]; then
+            later_pending_csv="$(IFS=,; echo "${later_pending[*]}")"
+          fi
+          if [ "$state" = applied ]; then
+            expected_pending="$later_pending_csv"
+          elif [ -n "$later_pending_csv" ]; then
+            expected_pending="$migration,$later_pending_csv"
+          else
+            expected_pending="$migration"
+          fi
+          echo "pending=$migration" >> "$GITHUB_OUTPUT"
+          echo "expected_pending=$expected_pending" >> "$GITHUB_OUTPUT"
+          echo "later_pending=$later_pending_csv" >> "$GITHUB_OUTPUT"
       - name: Require only the reviewed privilege migration pending
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.expected_pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Apply reviewed privilege transaction outside Prisma's ledger
         if: steps.preflight.outputs.state == 'pending'
@@ -241,13 +269,15 @@ jobs:
           PRIVILEGE_RELEASE_EVIDENCE_PATH: ${{ runner.temp }}/privilege-release-${{ github.sha }}-postflight.json
           PRIVILEGE_RELEASE_PREVIOUS_EVIDENCE_PATH: ${{ runner.temp }}/privilege-release-${{ github.sha }}-preflight.json
         run: node scripts/privilege-release-production-inspect.mjs
-      - name: Require no migrations pending after release
+      - name: Require only reviewed later migrations pending after release
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          REVIEWED_PENDING_MIGRATIONS: ""
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.later_pending }}
         run: |
           node scripts/assert-reviewed-pending-migrations.mjs
-          npx prisma migrate status
+          if [ -z "$REVIEWED_PENDING_MIGRATIONS" ]; then
+            npx prisma migrate status
+          fi
       - name: Audit global runtime grants after release
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

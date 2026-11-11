@@ -251,6 +251,16 @@ test("workflow downloads one exact non-expired preparation artifact", async () =
 test("workflow is sole-pending, restart-aware, readback-bound, and evidence-retaining", () => {
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
+  assert.match(workflow, /assert-reviewed-migration-tail\.mjs/u);
+  assert.match(workflow, /--later-pending-migrations/u);
+  assert.match(workflow, /steps\.preflight\.outputs\.expected_pending/u);
+  assert.match(workflow, /steps\.preflight\.outputs\.later_pending/u);
+  assert.doesNotMatch(workflow, /latest=.*tail -n 1/u);
+  assert.match(
+    workflow,
+    /if \[ "\$\{#later_pending\[@\]\}" -gt 0 \]; then/u,
+  );
+  assert.match(workflow, /expected_pending_csv="\$pending_csv\$later_pending_csv"/u);
   assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
   assert.match(workflow, /psql "\$DIRECT_URL"/u);
   assert.match(workflow, /npx prisma migrate resolve --applied "\$migration"/u);

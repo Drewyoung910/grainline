@@ -335,9 +335,19 @@ jobs:
           mapfile -t migrations < <(
             node scripts/private-table-rls-activation-catalog.mjs --migrations
           )
-          latest="$(ls -1d prisma/migrations/*/ | sed 's#/$##; s#.*/##' | LC_ALL=C sort | tail -n 1)"
+          mapfile -t later_pending < <(
+            node scripts/private-table-rls-activation-catalog.mjs \
+              --later-pending-migrations
+          )
           test "${#migrations[@]}" -gt 0
-          test "$latest" = "${migrations[-1]}"
+          release_migrations_csv="$(IFS=,; echo "${migrations[*]}")"
+          later_pending_csv=""
+          if [ "${#later_pending[@]}" -gt 0 ]; then
+            later_pending_csv="$(IFS=,; echo "${later_pending[*]}")"
+          fi
+          REVIEWED_RELEASE_MIGRATIONS="$release_migrations_csv" \
+          REVIEWED_LATER_PENDING_MIGRATIONS="$later_pending_csv" \
+            node scripts/assert-reviewed-migration-tail.mjs
           mapfile -t release_tests < <(
             node scripts/private-table-rls-activation-catalog.mjs --tests
           )
@@ -392,12 +402,30 @@ jobs:
             esac
             printf '%s\t%s\t%s\n' "$release_id" "$migration" "$state" >> "$state_file"
           done
-          pending_csv="$(IFS=,; echo "${pending[*]}")"
+          pending_csv=""
+          if [ "${#pending[@]}" -gt 0 ]; then
+            pending_csv="$(IFS=,; echo "${pending[*]}")"
+          fi
+          mapfile -t later_pending < <(
+            node scripts/private-table-rls-activation-catalog.mjs \
+              --later-pending-migrations
+          )
+          later_pending_csv=""
+          if [ "${#later_pending[@]}" -gt 0 ]; then
+            later_pending_csv="$(IFS=,; echo "${later_pending[*]}")"
+          fi
+          if [ -n "$pending_csv" ] && [ -n "$later_pending_csv" ]; then
+            expected_pending_csv="$pending_csv,$later_pending_csv"
+          else
+            expected_pending_csv="$pending_csv$later_pending_csv"
+          fi
           echo "pending=$pending_csv" >> "$GITHUB_OUTPUT"
+          echo "expected_pending=$expected_pending_csv" >> "$GITHUB_OUTPUT"
+          echo "later_pending=$later_pending_csv" >> "$GITHUB_OUTPUT"
       - name: Require only the reviewed private-table activation pending
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.expected_pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Apply reviewed private-table activation outside Prisma's ledger
         shell: bash
@@ -442,13 +470,15 @@ jobs:
             PRIVATE_TABLE_RLS_ACTIVATION_PREVIOUS_EVIDENCE_PATH="$RUNNER_TEMP/private-table-rls-${GITHUB_SHA}-${release_id}-preflight.json" \
               node scripts/private-table-rls-activation-production-inspect.mjs
           done < "$RUNNER_TEMP/private-table-rls-activation-state.tsv"
-      - name: Require no migrations pending after activation
+      - name: Require only reviewed later migrations pending after activation
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          REVIEWED_PENDING_MIGRATIONS: ""
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.later_pending }}
         run: |
           node scripts/assert-reviewed-pending-migrations.mjs
-          npx prisma migrate status
+          if [ -z "$REVIEWED_PENDING_MIGRATIONS" ]; then
+            npx prisma migrate status
+          fi
       - name: Audit global runtime grants after activation
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
