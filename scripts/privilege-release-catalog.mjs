@@ -16,7 +16,7 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     preparationMigration: Object.freeze({
       name: "20261101080000_prepare_email_service_least_privilege",
       sha256:
-        "3ee5f2769129a94e5b82036a225c9017846c1b0d024afb57c064743a2a6d3047",
+        "a00d71f078a8e2cb38d376292592011861904b77a9ba282e186669a8d142e803",
     }),
     minimumCompatibleAppCommit:
       "d6e576aff2838df4c773119ad63252ba1c63d232",
@@ -42,8 +42,8 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     ]),
     functions: Object.freeze({
       "public.grainline_email_hard_suppression_apply(text,text,\"EmailSuppressionReason\",text,text,jsonb)": "26b56879c36244c42a16eeae66f06813d1c5d53fad5b0eb59a71410910dc942b",
-      "public.grainline_email_account_deletion_suppression_clear(text)": "6f5898c1b30fdc1e11deae0ef2320b1912bfb9d602187616ccbf062aee59ccfa",
-      "public.grainline_email_one_click_suppression_clear(text)": "c149130950709ea50e05c69533ec63f7e27a2c3bb966dfa4e562c7aebc4d5b1f",
+      "public.grainline_email_account_deletion_suppression_clear(text)": "2a4e35437f915c3fcf9877f79dd32ea4abeebc1741b92d6c1e15a0fc8029c05a",
+      "public.grainline_email_one_click_suppression_clear(text)": "a4ebf17c34f920a2e715a62dee22df036ddfd32e2e08188e5bba865e6937aa56",
       "public.grainline_email_outbox_account_deletion_fence(text,text[])": "d6ee02f559fec2fd3e2dbf9c9925dcfecf6988e97b8c7595895585b25851eb8e",
       "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)": "acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e",
       "public.grainline_email_outbox_cancel_seller_broadcast(text)": "8c0fc3a6975c1d4735741ae58062b4e55b3674ff2b898bbd17f2f951285a7f63",
@@ -60,13 +60,13 @@ export const PRIVILEGE_RELEASES = Object.freeze({
       "public.grainline_email_service_ops_health(timestamp without time zone,timestamp without time zone)": "78cc50d4b586d3af14b98cf84a9daeaf1ab24b7688c87afa3b259d692a68c3fc",
       "public.grainline_email_service_owner_export()": "93c059bc2d45af771cd2d57265538b0fca157c01a22ed05ac5dfecaeb1e30143",
       "public.grainline_email_suppression_exists(text,text)": "c920bc1309cdbe46902c831d3f00b7b3bc023ac7ddeb2fe135ac33658b8c57dd",
-      "public.grainline_email_unsubscribe_apply(text,jsonb)": "15000f8b25f00aae839203136f89c12dabdbb9a95fae505b3d087c6182373e60",
+      "public.grainline_email_unsubscribe_apply(text,jsonb)": "02c5cbc6684514e1a1d0f663c567812158920cfffdd5a36d28472149c0ff1a79",
       "public.grainline_newsletter_confirm(text,timestamp without time zone)": "6b963b1a927edab5b206c43c38a5a21cb025a8f6b01df700152ef40f6d129bbe",
       "public.grainline_newsletter_confirmation_valid(text,timestamp without time zone)": "524a0d7765a1e839b7926e85d87da735f5aa40ca19a0bc08f64e65fab9094a25",
       "public.grainline_newsletter_expired_unconfirmed_delete_batch(timestamp without time zone,integer)": "92a323901d50e1bad2fa54168ccea655de3a051a040e925c95a4dc2bb55046fb",
       "public.grainline_newsletter_signup_release(text,text)": "ce36db1c305ae3c194231034642590ea32e0b1101c272b7816e983f13d1997a6",
       "public.grainline_newsletter_signup_reserve(text,text,text,timestamp without time zone,timestamp without time zone,timestamp without time zone)": "bf00f56a9e43fc9e7a932af7677743ac090af0c9f0ca465425816ce23fd7b404",
-      "public.grainline_newsletter_token_superseded(text,timestamp without time zone)": "c8f7e151ec4c479d430693f9450906d9e54aacf0b57b83a358c626a2f99f30c8",
+      "public.grainline_newsletter_token_superseded(text,timestamp without time zone)": "fba314d8e03139b26bb59921e7784af89d683234a5ca51e32a5f95ac2298ed42",
       "public.grainline_resend_webhook_event_complete(text,bigint,uuid,timestamp without time zone)": "cf83773b769a3383253536cd64234cb41531bf6dca81bc646e97af4c6d72bdfd",
       "public.grainline_resend_webhook_event_fail(text,bigint,uuid,text,timestamp without time zone)": "688957102e0d875e0660b178fd6d0d0f111c5c9d5a42f87b0daf8f32dc6219bd",
       "public.grainline_resend_webhook_event_reserve(text,text,timestamp without time zone,timestamp without time zone,uuid)": "5db829b64af5a9749204ce9aafdcee27c1a8026e2caa7a8c9a7130fbb9715dd0",
