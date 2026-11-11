@@ -138,9 +138,13 @@ const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
 const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_faq_v1");
+const SELLER_BROADCAST_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("seller_broadcast_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
+export const SELLER_BROADCAST_TABLE =
+  SELLER_BROADCAST_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -1721,6 +1725,22 @@ export function sellerFaqRlsForceExpected(inventory) {
   );
 }
 
+export function sellerBroadcastRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    SELLER_BROADCAST_TABLE,
+    "sellerBroadcastRlsActivationApplied",
+  );
+}
+
+export function sellerBroadcastRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    SELLER_BROADCAST_TABLE,
+    "sellerBroadcastRlsActivationApplied",
+  );
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -2299,6 +2319,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
     ...(sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+    ...(sellerBroadcastRlsActivationExpected(inventory)
+      ? [SELLER_BROADCAST_TABLE]
+      : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -3361,6 +3384,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     || (
       tableName === SELLER_FAQ_TABLE
       && sellerFaqRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === SELLER_BROADCAST_TABLE
+      && sellerBroadcastRlsActivationExpected(inventory)
     )
     || (
       tableName === SELLER_PROFILE_TABLE

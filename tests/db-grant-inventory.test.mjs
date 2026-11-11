@@ -576,6 +576,9 @@ const {
   userReportRlsForceExpected,
   sellerFaqRlsActivationExpected,
   sellerFaqRlsForceExpected,
+  sellerBroadcastRlsActivationExpected,
+  sellerBroadcastRlsForceExpected,
+  SELLER_BROADCAST_TABLE,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1407,6 +1410,60 @@ describe("database grant inventory guardrails", () => {
         );
       }
     }
+    const sellerBroadcastPredecessorInventory = {
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const sellerBroadcastActivatedInventory = {
+      rlsEnableTables: [SELLER_BROADCAST_TABLE],
+      rlsForceTables: [SELLER_BROADCAST_TABLE],
+      rlsPolicyTables: [],
+    };
+    assert.equal(
+      sellerBroadcastRlsActivationExpected(
+        sellerBroadcastPredecessorInventory,
+      ),
+      false,
+    );
+    assert.equal(
+      sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SELLER_BROADCAST_TABLE,
+        sellerBroadcastPredecessorInventory,
+      ),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.equal(
+      sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
+      true,
+    );
+    assert.equal(
+      sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
+      true,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SELLER_BROADCAST_TABLE,
+        sellerBroadcastActivatedInventory,
+      ),
+      [],
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(
+        sellerBroadcastActivatedInventory,
+      ).includes(SELLER_BROADCAST_TABLE),
+      true,
+    );
+    assert.deepEqual(collectPolicylessServiceRlsIssues([{
+      table_name: SELLER_BROADCAST_TABLE,
+      rls_enabled: true,
+      rls_forced: true,
+      policy_count: 0,
+    }], sellerBroadcastActivatedInventory), []);
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
       rls_enabled: true,
