@@ -32,6 +32,9 @@ const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
 const bindingScript = parsed.jobs.prepare.steps.find(
   (step) => step.name === "Bind preparation to exact main and every exact-main push workflow",
 ).with.script;
+const ownerWriteBindingScript = parsed.jobs.prepare.steps.find(
+  (step) => step.name === "Reconfirm exact main at the owner-write boundary",
+).with.script;
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 function exactPushRuns(sha, conclusion = "success") {
@@ -86,6 +89,23 @@ async function runBinding(auxiliaryConclusion = "success") {
     { sha, repo: { owner: "test", repo: "grainline" } },
     { env: { REVIEWED_RELEASE_COMMIT: sha, REVIEWED_MAIN_CI_RUN_ID: "101" } },
   );
+}
+
+async function runOwnerWriteBinding(mainSha = "a".repeat(40)) {
+  const sha = "a".repeat(40);
+  const github = {
+    rest: {
+      repos: { getBranch: async () => ({ data: { commit: { sha: mainSha } } }) },
+    },
+  };
+  return new AsyncFunction(
+    "github",
+    "context",
+    "process",
+    ownerWriteBindingScript,
+  )(github, { repo: { owner: "owner", repo: "repo" }, sha }, {
+    env: { REVIEWED_RELEASE_COMMIT: sha },
+  });
 }
 
 function acceptedMigration() {
@@ -489,6 +509,11 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(runBinding("failure"), /push workflows are not all green/u);
+  await assert.doesNotReject(runOwnerWriteBinding());
+  await assert.rejects(
+    runOwnerWriteBinding("b".repeat(40)),
+    /main advanced before owner write/u,
+  );
 });
 
 test("Production workflow keeps preparation additive, restart-safe, and sole-pending", () => {
@@ -506,9 +531,15 @@ test("Production workflow keeps preparation additive, restart-safe, and sole-pen
   const sourceCheck = workflow.indexOf("Verify reviewed preparation source before owner access");
   const boundary = workflow.indexOf("Verify owner connection boundary");
   const preflight = workflow.indexOf("Inspect restart-safe preparation state");
+  const ownerWriteBinding = workflow.indexOf("Reconfirm exact main at the owner-write boundary");
   const apply = workflow.indexOf("Apply reviewed preparation transactions outside Prisma's ledger");
   const record = workflow.indexOf("Record the committed preparations in Prisma's ledger");
   const postflight = workflow.indexOf("Read back exact compatible preparation catalogs");
   assert.ok(sourceCheck >= 0 && sourceCheck < boundary && boundary < preflight);
-  assert.ok(preflight < apply && apply < record && record < postflight);
+  assert.ok(
+    preflight < ownerWriteBinding
+      && ownerWriteBinding < apply
+      && apply < record
+      && record < postflight,
+  );
 });

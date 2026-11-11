@@ -362,7 +362,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   email_service_v1: Object.freeze({
     migration: "20261101080000_prepare_email_service_least_privilege",
-    migrationSha256: "44105965bd9e7ed29361ad59a38bae4fc5e6b8cc2d4d8b8fda48632e7f7c4721",
+    migrationSha256: "0cf146d85e0fd79a1c7849e27e4a909564b35447ee23573de42e79066b621695",
     // The preparation installs one fixed-purpose boundary across five related
     // service tables. EmailOutbox is the representative predecessor table for
     // the generic inspector; the migration itself verifies all five tables.

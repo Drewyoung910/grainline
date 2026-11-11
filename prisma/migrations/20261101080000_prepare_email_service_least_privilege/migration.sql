@@ -44,6 +44,26 @@ BEGIN
 END
 $preflight$;
 
+-- Canonical address comparisons are part of the email-service authority, so
+-- keep them indexable rather than making public newsletter checks and
+-- account-deletion cleanup scan the service tables as they grow.
+CREATE INDEX IF NOT EXISTS "EmailSuppression_canonical_email_idx"
+  ON public."EmailSuppression" (
+    public.grainline_account_deletion_email_key_core(email::text)
+  );
+CREATE INDEX IF NOT EXISTS "EmailFailureCount_canonical_email_idx"
+  ON public."EmailFailureCount" (
+    public.grainline_account_deletion_email_key_core(email::text)
+  );
+CREATE INDEX IF NOT EXISTS "NewsletterSubscriber_canonical_email_idx"
+  ON public."NewsletterSubscriber" (
+    public.grainline_account_deletion_email_key_core(email::text)
+  );
+CREATE INDEX IF NOT EXISTS "EmailOutbox_canonical_recipient_email_idx"
+  ON public."EmailOutbox" (
+    public.grainline_account_deletion_email_key_core("recipientEmail"::text)
+  );
+
 CREATE OR REPLACE FUNCTION public.grainline_email_suppression_exists(
   p_email text,
   p_mode text
@@ -75,12 +95,9 @@ BEGIN
   RETURN EXISTS (
     SELECT 1
       FROM public."EmailSuppression" AS suppression
-     WHERE (
-       pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = normalized_email
-       OR public.grainline_account_deletion_email_key_core(
-            suppression.email::text
-          ) = canonical_email
-     )
+     WHERE public.grainline_account_deletion_email_key_core(
+             suppression.email::text
+           ) = canonical_email
        AND suppression.source IS DISTINCT FROM 'resend_transient_failure'
        AND CASE p_mode
          WHEN 'any' THEN true
@@ -261,7 +278,10 @@ BEGIN
   );
   UPDATE public."NewsletterSubscriber" AS subscriber
      SET "confirmationTokenHash" = NULL,
-         "confirmationExpiresAt" = NULL,
+         -- Keep failed reservations eligible for the bounded retention job.
+         "confirmationExpiresAt" = (
+           pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+         )::timestamp(3),
          "confirmationSentAt" = NULL
    WHERE subscriber.email = p_email
      AND subscriber.active = false
@@ -615,7 +635,9 @@ BEGIN
                    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
                  ) AS "updatedAt"
             FROM public."EmailSuppression" AS suppression
-           WHERE suppression.email IN (SELECT email FROM email_keys)
+           WHERE public.grainline_account_deletion_email_key_core(
+                   suppression.email::text
+                 ) IN (SELECT email FROM email_keys)
         ) AS export_row
     ), '[]'::jsonb),
     'emailOutboxRows', COALESCE((
@@ -655,7 +677,9 @@ BEGIN
            WHERE outbox."userId" = actor_id
               OR (
                 outbox."userId" IS NULL
-                AND outbox."recipientEmail" IN (SELECT email FROM email_keys)
+                AND public.grainline_account_deletion_email_key_core(
+                      outbox."recipientEmail"::text
+                    ) IN (SELECT email FROM email_keys)
               )
         ) AS export_row
     ), '[]'::jsonb),
@@ -674,7 +698,9 @@ BEGIN
                  ) AS "lastFailedAt",
                  failure."lastEventId"::text AS "lastEventId"
             FROM public."EmailFailureCount" AS failure
-           WHERE failure.email IN (SELECT email FROM email_keys)
+           WHERE public.grainline_account_deletion_email_key_core(
+                   failure.email::text
+                 ) IN (SELECT email FROM email_keys)
         ) AS export_row
     ), '[]'::jsonb),
     'newsletterSubscriptions', COALESCE((
@@ -697,7 +723,9 @@ BEGIN
                    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
                  ) AS "confirmationSentAt"
             FROM public."NewsletterSubscriber" AS subscriber
-           WHERE subscriber.email IN (SELECT email FROM email_keys)
+           WHERE public.grainline_account_deletion_email_key_core(
+                   subscriber.email::text
+                 ) IN (SELECT email FROM email_keys)
         ) AS export_row
     ), '[]'::jsonb)
   ) INTO result;
@@ -736,6 +764,14 @@ BEGIN
     p_claim_token
   );
 
+  IF actor_id IS DISTINCT FROM NULLIF(
+       pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+       ''
+     ) THEN
+    RAISE EXCEPTION 'Email service account deletion actor context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
   SELECT COALESCE(pg_catalog.array_agg(DISTINCT email ORDER BY email), ARRAY[]::text[])
     INTO email_keys
     FROM (
@@ -764,7 +800,9 @@ BEGIN
      outbox."userId" = actor_id
      OR (
        outbox."userId" IS NULL
-       AND outbox."recipientEmail" = ANY(email_keys)
+       AND public.grainline_account_deletion_email_key_core(
+             outbox."recipientEmail"::text
+           ) = ANY(email_keys)
      )
    )
      AND outbox."sentAt" IS NULL
@@ -791,16 +829,22 @@ BEGIN
    WHERE outbox."userId" = actor_id
       OR (
         outbox."userId" IS NULL
-        AND outbox."recipientEmail" = ANY(email_keys)
+        AND public.grainline_account_deletion_email_key_core(
+              outbox."recipientEmail"::text
+            ) = ANY(email_keys)
       );
   GET DIAGNOSTICS redacted_outbox_count = ROW_COUNT;
 
   DELETE FROM public."EmailFailureCount" AS failure
-   WHERE failure.email = ANY(email_keys);
+   WHERE public.grainline_account_deletion_email_key_core(
+           failure.email::text
+         ) = ANY(email_keys);
   GET DIAGNOSTICS failure_count = ROW_COUNT;
 
   DELETE FROM public."NewsletterSubscriber" AS subscriber
-   WHERE subscriber.email = ANY(email_keys);
+   WHERE public.grainline_account_deletion_email_key_core(
+           subscriber.email::text
+         ) = ANY(email_keys);
   GET DIAGNOSTICS newsletter_count = ROW_COUNT;
 
   UPDATE public."EmailSuppression" AS suppression
@@ -808,7 +852,9 @@ BEGIN
          "eventId" = NULL,
          details = '{"accountDeleted":true}'::jsonb,
          "updatedAt" = source_now
-   WHERE suppression.email = ANY(email_keys)
+   WHERE public.grainline_account_deletion_email_key_core(
+           suppression.email::text
+         ) = ANY(email_keys)
      AND suppression.reason::text = 'MANUAL';
   GET DIAGNOSTICS suppression_count = ROW_COUNT;
 
@@ -1638,7 +1684,20 @@ GRANT EXECUTE ON FUNCTION public.grainline_email_outbox_redact_deleted_seller(te
 DO $postflight$
 DECLARE
   expected_signature text;
+  expected_index text;
 BEGIN
+  FOREACH expected_index IN ARRAY ARRAY[
+    'public."EmailSuppression_canonical_email_idx"',
+    'public."EmailFailureCount_canonical_email_idx"',
+    'public."NewsletterSubscriber_canonical_email_idx"',
+    'public."EmailOutbox_canonical_recipient_email_idx"'
+  ]::text[] LOOP
+    IF pg_catalog.to_regclass(expected_index) IS NULL THEN
+      RAISE EXCEPTION 'Email service canonical index % is missing',
+        expected_index;
+    END IF;
+  END LOOP;
+
   FOREACH expected_signature IN ARRAY ARRAY[
     'public.grainline_email_suppression_exists(text,text)',
     'public.grainline_email_one_click_suppression_clear(text)',

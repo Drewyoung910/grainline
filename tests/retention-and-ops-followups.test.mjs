@@ -43,6 +43,10 @@ describe("retention and ops-health follow-ups", () => {
     const now = new Date("2026-05-21T12:00:00.000Z");
     const cutoff = webhookRetention.webhookEventRetentionCutoff(now);
     const source = readFileSync("src/lib/webhookEventRetention.ts", "utf8");
+    const emailServiceAuthority = readFileSync(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      "utf8",
+    );
 
     assert.equal(webhookRetention.WEBHOOK_EVENT_RETENTION_DAYS, 90);
     assert.equal(cutoff.toISOString(), "2026-02-20T12:00:00.000Z");
@@ -55,10 +59,14 @@ describe("retention and ops-health follow-ups", () => {
     );
     assert.match(source, /pruneStripeWebhookEventServiceBatch\(effectiveBatchSize\)/);
     assert.match(source, /pruneClerkWebhookEventServiceBatch\(effectiveBatchSize\)/);
+    assert.match(source, /deleteResendWebhookEventRetentionBatch\(prisma,/);
     assert.doesNotMatch(source, /FROM "StripeWebhookEvent"/);
-    assert.match(source, /FROM "ResendWebhookEvent"/);
+    assert.doesNotMatch(source, /FROM "ResendWebhookEvent"/);
     assert.doesNotMatch(source, /FROM "ClerkWebhookEvent"/);
-    assert.match(source, /"processedAt" IS NOT NULL/);
+    assert.match(emailServiceAuthority, /CREATE OR REPLACE FUNCTION public\.grainline_resend_webhook_event_retention_delete_batch/);
+    assert.match(emailServiceAuthority, /FROM public\."ResendWebhookEvent" AS event/);
+    assert.match(emailServiceAuthority, /event\."processedAt" IS NOT NULL/);
+    assert.match(emailServiceAuthority, /INTERVAL '90 days'/);
     assert.doesNotMatch(source, /lastError/);
     const maintenanceMigration = readFileSync(
       "prisma/migrations/20260805040000_prepare_stripe_webhook_maintenance_authority/migration.sql",
@@ -129,11 +137,16 @@ describe("retention and ops-health follow-ups", () => {
 
   it("surfaces webhook and account-deletion side-effect piles in ops-health", () => {
     const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
+    const emailServiceAuthority = readFileSync(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+      "utf8",
+    );
     const warningStart = source.indexOf("if (");
     const warningCondition = source.slice(warningStart, source.indexOf("Sentry.captureMessage", warningStart));
 
     assert.match(source, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS/);
+    assert.match(source, /emailServiceOpsHealth\(prisma,/);
     assert.match(source, /stripeWebhookHealthSummary/);
     assert.match(source, /STALE_SVIX_WEBHOOK_PROCESSING_MS/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS/);
@@ -150,12 +163,13 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /clerkWebhookFailureCount/);
     assert.match(source, /accountDeletionSideEffectFailureCount/);
     assert.match(source, /lastError:\s*\{\s*not:\s*null\s*\}/);
-    assert.match(source, /processedAt:\s*null/);
-    assert.match(source, /processingStartedAt:\s*null/);
+    assert.match(emailServiceAuthority, /CREATE OR REPLACE FUNCTION public\.grainline_email_service_ops_health/);
+    assert.match(emailServiceAuthority, /event\."processedAt" IS NULL/);
+    assert.match(emailServiceAuthority, /event\."processingStartedAt" IS NULL/);
+    assert.match(emailServiceAuthority, /event\."processingStartedAt" < p_stale_svix_before/);
     assert.match(source, /stripeWebhookFailedLeaseCount/);
     assert.match(source, /stripeWebhookReleasedLeaseCount/);
     assert.match(source, /stripeWebhookStaleLeaseCount/);
-    assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleSvixWebhookBefore\s*\}/);
     assert.match(source, /status:\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.FAILED/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PENDING/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PROCESSING/);

@@ -94,6 +94,7 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
     transientEmail: `${suffix}-transient@example.test`,
     gmailEmail: `${suffix.replaceAll("_", "")}+grainline@gmail.com`,
     gmailCanonical: `${suffix.replaceAll("_", "")}@gmail.com`,
+    gmailAlias: `${suffix.replaceAll("_", "")}+other@googlemail.com`,
     actorId: `${suffix}_actor`,
     otherUserId: `${suffix}_other`,
     reclaimedUserId: `${suffix}_reclaimed`,
@@ -106,6 +107,7 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
     reusedHistoricalEmail: `${suffix}-reused@example.test`,
     outboxActorId: `${suffix}-outbox-actor`,
     outboxHistoryId: `${suffix}-outbox-history`,
+    outboxAliasId: `${suffix}-outbox-alias`,
     outboxOtherId: `${suffix}-outbox-other`,
     resendEventId: `svix_${suffix}`,
     deletionSideEffectId: `${suffix}_deletion_side_effect`,
@@ -151,11 +153,13 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
      VALUES
        ($1, $2, $3, 'proof', false, $7, $7, $7),
        ($4, $2, $5, 'proof', false, $7, $7, $7),
-       ($6, $8, $5, 'proof', true, $7, $7, $7)`,
+       ($6, $8, $5, 'proof', true, $7, $7, $7),
+       ($9, $2, $10, 'proof', false, $7, $7, $7)`,
     [
       `${suffix}-owned-history`, fixture.actorId, fixture.ownedHistoricalEmail,
       `${suffix}-reused-history`, fixture.reusedHistoricalEmail,
       `${suffix}-reused-current`, fixture.now, fixture.otherUserId,
+      `${suffix}-gmail-history`, fixture.gmailEmail,
     ],
   );
   await database.query(
@@ -194,13 +198,15 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
     `INSERT INTO public."NewsletterSubscriber"
        (id, email, name, "subscribedAt", active, "confirmedAt")
      VALUES
-       ($1, $2, 'Boundary actor', $7, true, $7),
-       ($3, $4, 'Boundary history', $7, true, $7),
-       ($5, $6, 'Boundary other', $7, true, $7)`,
+       ($1, $2, 'Boundary actor', $9, true, $9),
+       ($3, $4, 'Boundary history', $9, true, $9),
+       ($5, $6, 'Boundary other', $9, true, $9),
+       ($7, $8, 'Boundary alias', $9, true, $9)`,
     [
       `${suffix}-newsletter-actor`, fixture.plainEmail,
       `${suffix}-newsletter-history`, fixture.ownedHistoricalEmail,
       `${suffix}-newsletter-other`, fixture.reusedHistoricalEmail,
+      `${suffix}-newsletter-alias`, fixture.gmailAlias,
       fixture.now,
     ],
   );
@@ -208,13 +214,15 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
     `INSERT INTO public."EmailFailureCount"
        (email, count, "firstFailedAt", "lastFailedAt", "lastEventId")
      VALUES
-       ($1, 2, $4, $4, 'evt-actor'),
-       ($2, 3, $4, $4, 'evt-history'),
-       ($3, 4, $4, $4, 'evt-other')`,
+       ($1, 2, $5, $5, 'evt-actor'),
+       ($2, 3, $5, $5, 'evt-history'),
+       ($3, 4, $5, $5, 'evt-other'),
+       ($4, 5, $5, $5, 'evt-alias')`,
     [
       fixture.plainEmail,
       fixture.ownedHistoricalEmail,
       fixture.reusedHistoricalEmail,
+      fixture.gmailAlias,
       fixture.now,
     ],
   );
@@ -225,18 +233,22 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
         "claimGeneration", "nextAttemptAt", "createdAt", "updatedAt")
      VALUES
        ($1, $2, $3, 'EMAIL_NEW_MESSAGE', 'welcome', 1,
-        'Actor email', '<p>Actor</p>', 'OPTIONAL', $4, 'PENDING', 0, 0, $11, $11, $11),
+        'Actor email', '<p>Actor</p>', 'OPTIONAL', $4, 'PENDING', 0, 0, $14, $14, $14),
        ($5, $6, NULL, 'EMAIL_NEW_MESSAGE', 'welcome', 1,
-        'History email', '<p>History</p>', 'OPTIONAL', $7, 'PENDING', 0, 0, $11, $11, $11),
+        'History email', '<p>History</p>', 'OPTIONAL', $7, 'PENDING', 0, 0, $14, $14, $14),
        ($8, $9, NULL, 'EMAIL_NEW_MESSAGE', 'welcome', 1,
-        'Other email', '<p>Other</p>', 'OPTIONAL', $10, 'PENDING', 0, 0, $11, $11, $11)`,
+        'Other email', '<p>Other</p>', 'OPTIONAL', $10, 'PENDING', 0, 0, $14, $14, $14),
+       ($11, $12, NULL, 'EMAIL_NEW_MESSAGE', 'welcome', 1,
+        'Alias email', '<p>Alias</p>', 'OPTIONAL', $13, 'PENDING', 0, 0, $14, $14, $14)`,
     [
       fixture.outboxActorId, fixture.plainEmail, fixture.actorId,
       `${suffix}-dedup-actor`,
       fixture.outboxHistoryId, fixture.ownedHistoricalEmail,
       `${suffix}-dedup-history`,
       fixture.outboxOtherId, fixture.reusedHistoricalEmail,
-      `${suffix}-dedup-other`, fixture.now,
+      `${suffix}-dedup-other`,
+      fixture.outboxAliasId, fixture.gmailAlias,
+      `${suffix}-dedup-alias`, fixture.now,
     ],
   );
   return fixture;
@@ -550,6 +562,17 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
     `SELECT public.grainline_newsletter_signup_release($1, $2)::integer AS result`,
     [fixture.pendingEmail, fixture.tokenA],
   ))[0]?.result, 1);
+  const releasedReservation = rowsOf(await database.query(
+    `SELECT "confirmationTokenHash", "confirmationExpiresAt", "confirmationSentAt"
+       FROM public."NewsletterSubscriber" WHERE email = $1`,
+    [fixture.pendingEmail],
+  ))[0];
+  assert.equal(releasedReservation.confirmationTokenHash, null);
+  assert.ok(
+    releasedReservation.confirmationExpiresAt instanceof Date,
+    "failed newsletter delivery must remain eligible for bounded retention",
+  );
+  assert.equal(releasedReservation.confirmationSentAt, null);
 
   assert.equal(await reserve(fixture.gmailEmail, fixture.tokenC), "reserved");
   await database.query(
@@ -585,7 +608,7 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
     database,
     `SELECT public.grainline_email_unsubscribe_apply($1, $2::jsonb)::integer AS result`,
     [fixture.gmailEmail, JSON.stringify(disabledPreferences)],
-  ))[0]?.result, 1);
+  ))[0]?.result, 2, "unsubscribe must cover equivalent stored Gmail aliases");
   const unsubscribed = rowsOf(await database.query(
     `SELECT active, "confirmationTokenHash", "deactivatedAt"
        FROM public."NewsletterSubscriber" WHERE email = $1`,
@@ -632,6 +655,14 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
   assert.equal(await lookup(fixture.deletionEmail, "any"), false);
   assert.equal(await lookup(fixture.suppressedEmail, "delivery"), true);
 
+  await database.query(
+    `INSERT INTO public."EmailSuppression"
+       (id, email, reason, source, "eventId", details, "createdAt", "updatedAt")
+     VALUES ($1, $2, 'BOUNCE'::public."EmailSuppressionReason",
+             'resend', 'evt-alias', '{}'::jsonb, $3, $3)`,
+    [`${fixture.actorId}-alias-suppression`, fixture.gmailAlias, fixture.now],
+  );
+
   const ownerExport = rowsOf(await runtimeActorQuery(
     database,
     fixture.actorId,
@@ -640,18 +671,28 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
   assert.ok(ownerExport && typeof ownerExport === "object");
   assert.deepEqual(
     new Set(ownerExport.newsletterSubscriptions.map((row) => row.email)),
-    new Set([fixture.plainEmail, fixture.ownedHistoricalEmail]),
+    new Set([
+      fixture.plainEmail,
+      fixture.ownedHistoricalEmail,
+      fixture.gmailEmail,
+      fixture.gmailAlias,
+    ]),
     "owner export must include safe history and exclude a reused address",
   );
   assert.deepEqual(
     new Set(ownerExport.emailFailureCounts.map((row) => row.email)),
-    new Set([fixture.plainEmail, fixture.ownedHistoricalEmail]),
+    new Set([
+      fixture.plainEmail,
+      fixture.ownedHistoricalEmail,
+      fixture.gmailAlias,
+    ]),
   );
   assert.deepEqual(
     new Set(ownerExport.emailOutboxRows.map((row) => row.id)),
     new Set([
       fixture.outboxActorId,
       fixture.outboxHistoryId,
+      fixture.outboxAliasId,
       ...[
         "eligible_listing",
         "blocked_by_recipient",
@@ -685,6 +726,18 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
   await assert.rejects(
     runtimeActorQuery(
       database,
+      fixture.otherUserId,
+      `SELECT public.grainline_email_service_account_deletion_apply(
+         $1, 1, $2::uuid
+       ) AS result`,
+      [fixture.deletionSideEffectId, fixture.deletionClaimToken],
+    ),
+    /actor context is invalid/u,
+    "a deletion claim must not run under another account's session identity",
+  );
+  await assert.rejects(
+    runtimeActorQuery(
+      database,
       fixture.actorId,
       `SELECT public.grainline_email_service_account_deletion_apply(
          $1, 2, $2::uuid
@@ -702,10 +755,10 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
      ) AS result`,
     [fixture.deletionSideEffectId, fixture.deletionClaimToken],
   ))[0]?.result;
-  assert.equal(deletionResult.deletedFailureCount, 2);
-  assert.equal(deletionResult.deletedNewsletterCount, 2);
-  assert.equal(deletionResult.skippedOutboxCount, 4);
-  assert.equal(deletionResult.redactedOutboxCount, 9);
+  assert.equal(deletionResult.deletedFailureCount, 3);
+  assert.equal(deletionResult.deletedNewsletterCount, 4);
+  assert.equal(deletionResult.skippedOutboxCount, 5);
+  assert.equal(deletionResult.redactedOutboxCount, 10);
   const otherRows = rowsOf(await database.query(
     `SELECT
        (SELECT pg_catalog.count(*)::integer FROM public."NewsletterSubscriber" WHERE email = $1) AS newsletter,
@@ -724,11 +777,11 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
   const deletedOutboxRows = rowsOf(await database.query(
     `SELECT status, "recipientEmail", subject, html
        FROM public."EmailOutbox"
-      WHERE id IN ($1, $2)
+      WHERE id IN ($1, $2, $3)
       ORDER BY id`,
-    [fixture.outboxActorId, fixture.outboxHistoryId],
+    [fixture.outboxActorId, fixture.outboxHistoryId, fixture.outboxAliasId],
   ));
-  assert.equal(deletedOutboxRows.length, 2);
+  assert.equal(deletedOutboxRows.length, 3);
   for (const row of deletedOutboxRows) {
     assert.equal(row.status, "SKIPPED");
     assert.equal(row.recipientEmail, "deleted-account@deleted.thegrainline.local");
