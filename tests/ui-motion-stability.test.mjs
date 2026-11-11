@@ -253,7 +253,9 @@ describe("motion stability guardrails", () => {
 
   it("lets wheel-mouse visitors reach hidden cards without visible scrollbars", () => {
     const row = source("src/components/ScrollFadeRow.tsx");
-    assert.match(row, /onWheel=\{handleWheel\}/);
+    assert.match(row, /el\.addEventListener\("wheel", handleWheel, \{ passive: false \}\)/);
+    assert.match(row, /el\.removeEventListener\("wheel", handleWheel\)/);
+    assert.doesNotMatch(row, /onWheel=\{handleWheel\}/);
     assert.match(row, /el\.scrollLeft \+= event\.deltaY/);
     assert.match(row, /if \(!canMove\) return/);
     assert.match(row, /scrollbar-hidden/);
