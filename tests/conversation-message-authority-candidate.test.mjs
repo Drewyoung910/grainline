@@ -234,7 +234,7 @@ describe("Conversation and Message functions-only authority candidate", () => {
     assert.ok(staticTests > fullProof);
   });
 
-  it("keeps future role convergence aligned with the prepared public catalog and six private functions", () => {
+  it("keeps future role convergence aligned with the prepared public catalog and reviewed private-function exceptions", () => {
     for (const entry of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
       assert.match(
         provision,
@@ -242,6 +242,9 @@ describe("Conversation and Message functions-only authority candidate", () => {
       );
     }
     for (const privateName of CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES) {
+      if (privateName === "grainline_account_deletion_email_key_core") {
+        continue;
+      }
       assert.doesNotMatch(
         provision,
         new RegExp(
@@ -249,6 +252,30 @@ describe("Conversation and Message functions-only authority candidate", () => {
         ),
       );
     }
+    const temporaryEmailKeyCoreGrant = provision.match(
+      /-- The email-service preparation adds expression indexes[\s\S]*?\\gexec/,
+    );
+    assert.ok(temporaryEmailKeyCoreGrant);
+    assert.match(
+      temporaryEmailKeyCoreGrant[0],
+      /GRANT EXECUTE ON FUNCTION public\."grainline_account_deletion_email_key_core"\(text\) TO %I/,
+    );
+    for (const indexName of [
+      "EmailSuppression_canonical_email_idx",
+      "EmailFailureCount_canonical_email_idx",
+      "NewsletterSubscriber_canonical_email_idx",
+      "EmailOutbox_canonical_recipient_email_idx",
+    ]) {
+      assert.match(temporaryEmailKeyCoreGrant[0], new RegExp(indexName));
+    }
+    assert.match(
+      temporaryEmailKeyCoreGrant[0],
+      /has_table_privilege\(:'runtime_role', indexed_table\.name, 'INSERT'\)/,
+    );
+    assert.match(
+      temporaryEmailKeyCoreGrant[0],
+      /has_table_privilege\(:'runtime_role', indexed_table\.name, 'UPDATE'\)/,
+    );
     const publicCatalog = provision.match(
       /WITH conversation_message_public_authority\(function_signature\) AS \(\s+VALUES([\s\S]*?)\n\)\nSELECT format/,
     );

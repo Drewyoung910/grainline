@@ -255,6 +255,75 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
 }
 
 export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fixture }) {
+  const compatibilitySuffix = `${fixture.actorId}_predecessor_write`;
+  const compatibilityEmail = `${compatibilitySuffix}@example.test`;
+  assert.equal(rowsOf(await runtimeQuery(
+    database,
+    `SELECT pg_catalog.has_function_privilege(
+       current_user,
+       'public.grainline_account_deletion_email_key_core(text)',
+       'EXECUTE'
+     ) AS result`,
+  ))[0]?.result, true, "predecessor indexed writes need canonicalizer EXECUTE");
+  await runtimeQuery(
+    database,
+    `INSERT INTO public."EmailSuppression"
+       (id, email, reason, source, details, "createdAt", "updatedAt")
+     VALUES ($1, $2, 'MANUAL'::public."EmailSuppressionReason",
+             'compatibility_proof', '{}'::jsonb, $3, $3)`,
+    [`${compatibilitySuffix}_suppression`, compatibilityEmail, fixture.now],
+  );
+  await runtimeQuery(
+    database,
+    `INSERT INTO public."EmailFailureCount"
+       (email, count, "firstFailedAt", "lastFailedAt")
+     VALUES ($1, 1, $2, $2)`,
+    [compatibilityEmail, fixture.now],
+  );
+  await runtimeQuery(
+    database,
+    `INSERT INTO public."NewsletterSubscriber"
+       (id, email, "subscribedAt", active)
+     VALUES ($1, $2, $3, true)`,
+    [`${compatibilitySuffix}_newsletter`, compatibilityEmail, fixture.now],
+  );
+  await runtimeQuery(
+    database,
+    `INSERT INTO public."EmailOutbox"
+       (id, "recipientEmail", "templateName", subject, html, "dedupKey",
+        status, attempts, "claimGeneration", "nextAttemptAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, 'welcome', 'Compatibility', '<p>Compatibility</p>', $3,
+             'PENDING', 0, 0, $4, $4, $4)`,
+    [
+      `${compatibilitySuffix}_outbox`,
+      compatibilityEmail,
+      `${compatibilitySuffix}_dedup`,
+      fixture.now,
+    ],
+  );
+  for (const [table, predicate, updateExpression] of [
+    ["EmailSuppression", "id = $1", "email = email"],
+    ["EmailFailureCount", "email = $1", "email = email"],
+    ["NewsletterSubscriber", "id = $1", "email = email"],
+    ["EmailOutbox", "id = $1", '"recipientEmail" = "recipientEmail"'],
+  ]) {
+    const id = table === "EmailFailureCount"
+      ? compatibilityEmail
+      : `${compatibilitySuffix}_${table === "EmailSuppression"
+        ? "suppression"
+        : table === "NewsletterSubscriber" ? "newsletter" : "outbox"}`;
+    await runtimeQuery(
+      database,
+      `UPDATE public."${table}" SET ${updateExpression} WHERE ${predicate}`,
+      [id],
+    );
+    await runtimeQuery(
+      database,
+      `DELETE FROM public."${table}" WHERE ${predicate}`,
+      [id],
+    );
+  }
+
   const expectedFunctions = [
     "grainline_email_account_deletion_suppression_clear",
     "grainline_email_one_click_suppression_clear",

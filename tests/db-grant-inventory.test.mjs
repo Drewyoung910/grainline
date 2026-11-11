@@ -2099,6 +2099,21 @@ describe("database grant inventory guardrails", () => {
       ...new Set(sourceInventory.functions),
     ].sort((left, right) => left.localeCompare(right)));
     assert.equal(applied.emailServicePreparationApplied, true);
+    assert.equal(
+      runtimePrivateFunctionNames(applied).includes(
+        "grainline_account_deletion_email_key_core",
+      ),
+      false,
+      "the indexed-write helper must remain callable during predecessor compatibility",
+    );
+    assert.equal(
+      runtimePrivateFunctionNames({
+        ...applied,
+        emailServiceLeastPrivilegeActivationApplied: true,
+      }).includes("grainline_account_deletion_email_key_core"),
+      true,
+      "the zero-direct activation must make the indexed-write helper private again",
+    );
   });
 
   it("reads exact email migration ledger states including manual resolution rows", async (context) => {
@@ -3200,6 +3215,42 @@ describe("database grant inventory guardrails", () => {
       [],
       "source-only preparation files must not change live predecessor expectations",
     );
+    if (typeof withAppliedEmailServicePreparation === "function") {
+      const emailHelperName = "grainline_account_deletion_email_key_core";
+      const emailPreparedRows = exactRows.map((row) => (
+        row.function_name === emailHelperName
+          ? { ...row, execute_priv: true, runtime_direct_execute: true }
+          : row
+      ));
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          emailPreparedRows,
+          runtimeRole,
+          migrationRole,
+          {
+            ...livePredecessorInventory,
+            emailServicePreparationApplied: true,
+            emailServiceLeastPrivilegeActivationApplied: false,
+          },
+        ),
+        [],
+        "email preparation temporarily grants the indexed-write helper",
+      );
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          exactRows,
+          runtimeRole,
+          migrationRole,
+          {
+            ...livePredecessorInventory,
+            emailServicePreparationApplied: true,
+            emailServiceLeastPrivilegeActivationApplied: true,
+          },
+        ),
+        [],
+        "email activation restores the indexed-write helper to runtime-private",
+      );
+    }
     if (typeof readBlockPreparationState === "function") {
       assert.deepEqual(
         collectConversationMessageFunctionIssues(
@@ -4275,6 +4326,9 @@ describe("database grant inventory guardrails", () => {
             // The delivery-ledger preparation already contributes the same
             // PUBLIC revoke for the provider-attempt authority.
             - (emailDeliveryLedgerPrepared ? 1 : 0)
+            // Predecessor indexed writes temporarily execute the otherwise
+            // private canonical email helper.
+            + 1
           : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
@@ -6484,6 +6538,9 @@ describe("database grant inventory guardrails", () => {
   it("keeps the runtime-role provisioning SQL aligned with the grant inventory", () => {
     const inventory = deriveGrantInventory();
     const provision = source("scripts/provision-runtime-db-role.sql");
+    const emailServiceLeastPrivilegePrepared = existsSync(
+      EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION,
+    );
     const plan = source("docs/db-defense-in-depth-plan.md");
     const runbook = source("docs/runbook.md");
     const launch = source("docs/launch-checklist.md");
@@ -6794,12 +6851,20 @@ describe("database grant inventory guardrails", () => {
         new RegExp(`public\\."${functionName}"\\(`),
       );
     }
-    for (const functionName of CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES) {
+    for (const functionName of CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES.filter(
+      (name) => name !== "grainline_account_deletion_email_key_core",
+    )) {
       assert.doesNotMatch(
         provision,
         new RegExp(
           `GRANT EXECUTE ON FUNCTION public\\."${functionName}"\\(`,
         ),
+      );
+    }
+    if (emailServiceLeastPrivilegePrepared) {
+      assert.match(
+        provision,
+        /EmailSuppression_canonical_email_idx[\s\S]*EmailFailureCount_canonical_email_idx[\s\S]*NewsletterSubscriber_canonical_email_idx[\s\S]*EmailOutbox_canonical_recipient_email_idx[\s\S]*has_table_privilege\(:'runtime_role', indexed_table\.name, 'INSERT'\)[\s\S]*has_table_privilege\(:'runtime_role', indexed_table\.name, 'UPDATE'\)/u,
       );
     }
     const conversationMessagePublicCatalog = provision.match(

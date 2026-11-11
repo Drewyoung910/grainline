@@ -59,6 +59,7 @@ function functionRow(entry, source) {
     owner_name: "neondb_owner",
     owner_bypasses_rls: true,
     security_definer: true,
+    volatility: entry.volatility ?? "v",
     configuration: ["search_path=pg_catalog"],
     source,
     runtime_execute: true,
@@ -146,6 +147,12 @@ test("StockNotification preparation is byte sealed with an exact predecessor fun
   assert.equal(
     createHash("sha256").update(predecessorSource, "utf8").digest("hex"),
     predecessorEntry.predecessorSourceSha256,
+  );
+  assert.equal(
+    release.functions.find(
+      (entry) => entry.name === "grainline_stock_notification_owner_export",
+    )?.volatility,
+    "s",
   );
 });
 

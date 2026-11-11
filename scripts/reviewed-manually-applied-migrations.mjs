@@ -111,7 +111,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261101080000_prepare_email_service_least_privilege",
-    "0cf146d85e0fd79a1c7849e27e4a909564b35447ee23573de42e79066b621695",
+    "a00d71f078a8e2cb38d376292592011861904b77a9ba282e186669a8d142e803",
   ],
 ]);
 

@@ -8,6 +8,7 @@ import {
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
   PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS,
+  PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS,
   collectPrivateTableRuntimeReadinessIssues,
   privateTableRuntimeReadinessMigrationOverride,
   verifyPrivateTableRuntimeReadiness,
@@ -31,7 +32,7 @@ function sha256(value) {
 }
 
 const sourceByIdentity = new Map(
-  ["owner_social_verification_v1", "block_report_seller_faq_v1"]
+  PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS
     .flatMap((selection) => privateTablePreparationReleaseIds(selection))
     .flatMap((releaseId) => {
       const verified = verifyPrivateTablePreparationSource(
@@ -151,6 +152,7 @@ test("production readiness checks runtime and staff functions read-only", async 
       releaseSelections: [
         "owner_social_verification_v1",
         "block_report_seller_faq_v1",
+        "email_service_v1",
       ],
       runtimeFunctionCount: runtimeCount,
       staffFunctionCount: staffCount,

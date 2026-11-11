@@ -64,6 +64,17 @@ CREATE INDEX IF NOT EXISTS "EmailOutbox_canonical_recipient_email_idx"
     public.grainline_account_deletion_email_key_core("recipientEmail"::text)
   );
 
+-- The predecessor application still writes these tables directly until the
+-- separately reviewed activation revokes table access. PostgreSQL evaluates
+-- expression indexes as the writing role, so that role needs this pure,
+-- immutable canonicalization helper during the compatibility interval.
+-- Activation and routine role convergence remove the grant once no indexed
+-- table remains directly writable.
+REVOKE ALL ON FUNCTION public.grainline_account_deletion_email_key_core(text)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.grainline_account_deletion_email_key_core(text)
+  TO grainline_app_runtime;
+
 CREATE OR REPLACE FUNCTION public.grainline_email_suppression_exists(
   p_email text,
   p_mode text
@@ -150,12 +161,9 @@ BEGIN
   );
 
   DELETE FROM public."EmailSuppression" AS suppression
-   WHERE (
-     pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = normalized_email
-     OR public.grainline_account_deletion_email_key_core(
-          suppression.email::text
-        ) = canonical_email
-   )
+   WHERE public.grainline_account_deletion_email_key_core(
+           suppression.email::text
+         ) = canonical_email
      AND suppression.reason::text = 'MANUAL'
      AND suppression.source = 'one_click_unsubscribe';
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
@@ -398,12 +406,9 @@ BEGIN
   RETURN EXISTS (
     SELECT 1
       FROM public."NewsletterSubscriber" AS subscriber
-     WHERE (
-       pg_catalog.lower(pg_catalog.btrim(subscriber.email::text)) = p_email
-       OR public.grainline_account_deletion_email_key_core(
-            subscriber.email::text
-          ) = canonical_email
-     )
+     WHERE public.grainline_account_deletion_email_key_core(
+             subscriber.email::text
+           ) = canonical_email
        AND subscriber."confirmedAt" > p_issued_at
   );
 END
@@ -472,8 +477,7 @@ BEGIN
          "confirmationExpiresAt" = NULL,
          "confirmationSentAt" = NULL,
          "deactivatedAt" = pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
-   WHERE pg_catalog.lower(pg_catalog.btrim(subscriber.email::text)) = p_email
-      OR public.grainline_account_deletion_email_key_core(
+   WHERE public.grainline_account_deletion_email_key_core(
            subscriber.email::text
          ) = canonical_email;
   GET DIAGNOSTICS newsletter_count = ROW_COUNT;
@@ -481,12 +485,9 @@ BEGIN
   SELECT EXISTS (
     SELECT 1
       FROM public."EmailSuppression" AS suppression
-     WHERE (
-       pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = p_email
-       OR public.grainline_account_deletion_email_key_core(
-            suppression.email::text
-          ) = canonical_email
-     )
+     WHERE public.grainline_account_deletion_email_key_core(
+             suppression.email::text
+           ) = canonical_email
        AND (
          suppression.reason::text IN ('BOUNCE', 'COMPLAINT')
          OR suppression.source = 'account_deletion'
@@ -502,12 +503,9 @@ BEGIN
            'disabledPreferences', p_disabled_preferences
          ),
          "updatedAt" = pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
-   WHERE (
-     pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = p_email
-     OR public.grainline_account_deletion_email_key_core(
-          suppression.email::text
-        ) = canonical_email
-   )
+   WHERE public.grainline_account_deletion_email_key_core(
+           suppression.email::text
+         ) = canonical_email
      AND suppression.reason::text = 'MANUAL';
 
   INSERT INTO public."EmailSuppression" (
@@ -571,12 +569,9 @@ BEGIN
     email_keys
   );
   DELETE FROM public."EmailSuppression" AS suppression
-   WHERE (
-     pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = ANY(email_keys)
-     OR public.grainline_account_deletion_email_key_core(
-          suppression.email::text
-        ) = ANY(email_keys)
-   )
+   WHERE public.grainline_account_deletion_email_key_core(
+           suppression.email::text
+         ) = ANY(email_keys)
      AND suppression.source = 'account_deletion';
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
   RETURN deleted_count;
@@ -1697,6 +1692,20 @@ BEGIN
         expected_index;
     END IF;
   END LOOP;
+
+  IF NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_account_deletion_email_key_core(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'public',
+       'public.grainline_account_deletion_email_key_core(text)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION
+      'Email service predecessor write compatibility is incomplete';
+  END IF;
 
   FOREACH expected_signature IN ARRAY ARRAY[
     'public.grainline_email_suppression_exists(text,text)',

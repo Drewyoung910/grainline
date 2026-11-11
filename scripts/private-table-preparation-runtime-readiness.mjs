@@ -14,9 +14,10 @@ import {
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
-const RELEASE_SELECTIONS = Object.freeze([
+export const PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS = Object.freeze([
   "owner_social_verification_v1",
   "block_report_seller_faq_v1",
+  "email_service_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
@@ -26,6 +27,7 @@ const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  email_service_v1: "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -45,7 +47,7 @@ function sourceSha256(source) {
 }
 
 export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
-  RELEASE_SELECTIONS.flatMap((selection) => (
+  PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS.flatMap((selection) => (
     privateTablePreparationReleaseIds(selection)
   ))
     .flatMap((releaseId) => {
@@ -203,7 +205,7 @@ export async function verifyPrivateTableRuntimeReadiness({
   return Object.freeze({
     enforced: true,
     environment: "production",
-    releaseSelections: RELEASE_SELECTIONS,
+    releaseSelections: PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS,
     runtimeFunctionCount: runtimeFunctions.length,
     staffFunctionCount: staffFunctions.length,
     readOnly: true,
