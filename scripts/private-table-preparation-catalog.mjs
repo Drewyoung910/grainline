@@ -118,6 +118,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_stock_notification_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_notification_claim_back_in_stock",
