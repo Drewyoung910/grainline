@@ -10,6 +10,7 @@ import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
   functionSourceFromMigration,
   privateTablePreparation,
+  privateTablePreparationMigrationOverride,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "../scripts/private-table-preparation-catalog.mjs";
@@ -213,6 +214,18 @@ test("catalog admits only byte-sealed, additive reviewed preparations", () => {
   assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
   assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
   assert.doesNotMatch(sql, /DROP\s+COLUMN/iu);
+});
+
+test("release-specific staged paths take precedence over a generic staged path", () => {
+  const emailPath = "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql";
+  const genericPath = "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+  assert.equal(
+    privateTablePreparationMigrationOverride("email_service_v1", {
+      EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH: emailPath,
+      PRIVATE_TABLE_PREPARATION_MIGRATION_PATH: genericPath,
+    }),
+    emailPath,
+  );
 });
 
 test("Favorite preparation is byte-sealed and remains compatible", () => {

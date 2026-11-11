@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
@@ -48,6 +49,11 @@ function sorted(values) {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
 
+function quoteIdentifier(value) {
+  assert.match(value, /^[A-Za-z][A-Za-z0-9_]*$/u, "catalog identifier is unsafe");
+  return `"${value}"`;
+}
+
 function classify(rows, release) {
   const expectedTables = Object.keys(release.tables).sort();
   assert.deepEqual(
@@ -65,8 +71,11 @@ function classify(rows, release) {
     assert.equal(row.rls_forced, false, `${row.table_name} unexpectedly forces RLS`);
     assert.equal(row.policy_count, 0, `${row.table_name} unexpectedly has policies`);
     assert.deepEqual(row.public_privileges, [], `${row.table_name} PUBLIC privileges drifted`);
+    assert.deepEqual(row.staff_privileges, [], `${row.table_name} staff privileges drifted`);
     assert.deepEqual(row.runtime_grant_options, [], `${row.table_name} grant options drifted`);
+    assert.deepEqual(row.staff_grant_options, [], `${row.table_name} staff grant options drifted`);
     assert.deepEqual(row.runtime_column_privileges, [], `${row.table_name} column grants drifted`);
+    assert.deepEqual(row.staff_column_privileges, [], `${row.table_name} staff column grants drifted`);
     const actual = sorted(row.runtime_privileges);
     const successor = sorted(release.tables[row.table_name]);
     if (actual.join("|") === PREDECESSOR_PRIVILEGES.join("|")) predecessorCount += 1;
@@ -81,6 +90,59 @@ function classify(rows, release) {
   return Object.freeze({
     posture: predecessorCount === rows.length ? "predecessor" : "successor",
     tables,
+  });
+}
+
+export function classifyPrivilegeReleaseFunctions(rows, release, posture) {
+  const retained = Object.keys(release.functions ?? {}).sort();
+  const predecessorOnly = [...(release.predecessorRuntimeFunctions ?? [])].sort();
+  assert.equal(
+    new Set([...retained, ...predecessorOnly]).size,
+    retained.length + predecessorOnly.length,
+    "reviewed function catalogs overlap",
+  );
+  const expected = [...retained, ...predecessorOnly].sort();
+  const sortedRows = [...rows].sort((left, right) =>
+    left.signature < right.signature ? -1 : left.signature > right.signature ? 1 : 0,
+  );
+  assert.deepEqual(
+    sortedRows.map((row) => row.signature),
+    expected,
+    "reviewed function catalog drifted",
+  );
+  return sortedRows.map((row) => {
+    assert.equal(row.exists, true, `${row.signature} is missing`);
+    assert.equal(row.security_definer, true, `${row.signature} is not SECURITY DEFINER`);
+    assert.deepEqual(
+      row.configuration,
+      ["search_path=pg_catalog"],
+      `${row.signature} search_path drifted`,
+    );
+    assert.equal(row.owner_bypasses_rls, true, `${row.signature} owner posture drifted`);
+    assert.equal(row.public_execute, false, `${row.signature} is executable by PUBLIC`);
+    const predecessorFunction = predecessorOnly.includes(row.signature);
+    const expectedRuntimeExecute = predecessorFunction
+      ? posture === "predecessor"
+      : true;
+    assert.equal(
+      row.runtime_execute,
+      expectedRuntimeExecute,
+      `${row.signature} runtime EXECUTE drifted`,
+    );
+    const sourceSha256 = createHash("sha256").update(row.source).digest("hex");
+    if (!predecessorFunction) {
+      assert.equal(
+        sourceSha256,
+        release.functions[row.signature],
+        `${row.signature} source drifted`,
+      );
+    }
+    return Object.freeze({
+      signature: row.signature,
+      sourceSha256,
+      runtimeExecute: row.runtime_execute,
+      predecessorOnly: predecessorFunction,
+    });
   });
 }
 
@@ -148,8 +210,26 @@ export async function inspectPrivilegeReleaseProduction(
                         target.relacl,
                         pg_catalog.acldefault('r', target.relowner)
                       )) AS acl
+                WHERE acl.grantee = staff_role.oid
+             ), ARRAY[]::text[]) AS staff_privileges,
+             coalesce((
+               SELECT pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+                        ORDER BY pg_catalog.upper(acl.privilege_type))
+                 FROM pg_catalog.aclexplode(coalesce(
+                        target.relacl,
+                        pg_catalog.acldefault('r', target.relowner)
+                      )) AS acl
                 WHERE acl.grantee = runtime_role.oid AND acl.is_grantable
              ), ARRAY[]::text[]) AS runtime_grant_options,
+             coalesce((
+               SELECT pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+                        ORDER BY pg_catalog.upper(acl.privilege_type))
+                 FROM pg_catalog.aclexplode(coalesce(
+                        target.relacl,
+                        pg_catalog.acldefault('r', target.relowner)
+                      )) AS acl
+                WHERE acl.grantee = staff_role.oid AND acl.is_grantable
+             ), ARRAY[]::text[]) AS staff_grant_options,
              coalesce((
                SELECT pg_catalog.array_agg(
                         DISTINCT pg_catalog.format('%I:%s', attribute.attname,
@@ -161,19 +241,80 @@ export async function inspectPrivilegeReleaseProduction(
                 WHERE attribute.attrelid = target.oid
                   AND attribute.attnum > 0
                   AND NOT attribute.attisdropped
+                  AND attribute.attacl IS NOT NULL
                   AND acl.grantee = runtime_role.oid
-             ), ARRAY[]::text[]) AS runtime_column_privileges
+             ), ARRAY[]::text[]) AS runtime_column_privileges,
+             coalesce((
+               SELECT pg_catalog.array_agg(
+                        DISTINCT pg_catalog.format('%I:%s', attribute.attname,
+                          pg_catalog.upper(acl.privilege_type))
+                        ORDER BY pg_catalog.format('%I:%s', attribute.attname,
+                          pg_catalog.upper(acl.privilege_type)))
+                 FROM pg_catalog.pg_attribute AS attribute
+                 CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+                WHERE attribute.attrelid = target.oid
+                  AND attribute.attnum > 0
+                  AND NOT attribute.attisdropped
+                  AND attribute.attacl IS NOT NULL
+                  AND acl.grantee = staff_role.oid
+             ), ARRAY[]::text[]) AS staff_column_privileges
         FROM pg_catalog.pg_class AS target
         JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = target.relnamespace
         JOIN pg_catalog.pg_roles AS owner ON owner.oid = target.relowner
         CROSS JOIN pg_catalog.pg_roles AS runtime_role
+        CROSS JOIN pg_catalog.pg_roles AS staff_role
        WHERE namespace.nspname = 'public'
          AND target.relkind = 'r'
          AND target.relname = ANY($1::text[])
          AND runtime_role.rolname = 'grainline_app_runtime'
+         AND staff_role.rolname = 'grainline_staff_read_runtime'
        ORDER BY target.relname
     `, [tableNames])).rows;
     const catalog = classify(rows, release);
+    const functionSignatures = [
+      ...Object.keys(release.functions ?? {}),
+      ...(release.predecessorRuntimeFunctions ?? []),
+    ].sort();
+    const functionRows = functionSignatures.length === 0 ? [] : (await client.query(`
+      WITH expected(signature) AS (
+        SELECT pg_catalog.unnest($1::text[])
+      )
+      SELECT expected.signature,
+             routine.oid IS NOT NULL AS exists,
+             routine.prosrc AS source,
+             routine.prosecdef AS security_definer,
+             routine.proconfig AS configuration,
+             owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
+             EXISTS (
+               SELECT 1
+                 FROM pg_catalog.aclexplode(coalesce(
+                        routine.proacl,
+                        pg_catalog.acldefault('f', routine.proowner)
+                      )) AS acl
+                WHERE acl.grantee = 0
+                  AND acl.privilege_type = 'EXECUTE'
+             ) AS public_execute,
+             pg_catalog.has_function_privilege(runtime_role.oid, routine.oid, 'EXECUTE') AS runtime_execute
+        FROM expected
+        LEFT JOIN pg_catalog.pg_proc AS routine
+          ON routine.oid = pg_catalog.to_regprocedure(expected.signature)
+        LEFT JOIN pg_catalog.pg_roles AS owner ON owner.oid = routine.proowner
+        CROSS JOIN pg_catalog.pg_roles AS runtime_role
+       WHERE runtime_role.rolname = 'grainline_app_runtime'
+       ORDER BY expected.signature COLLATE "C"
+    `, [functionSignatures])).rows;
+    const functions = classifyPrivilegeReleaseFunctions(
+      functionRows,
+      release,
+      catalog.posture,
+    );
+    for (const table of release.emptyTables ?? []) {
+      assert.ok(Object.hasOwn(release.tables, table), "empty table is outside release catalog");
+      const result = await client.query(
+        `SELECT 1 AS present FROM public.${quoteIdentifier(table)} LIMIT 1`,
+      );
+      assert.equal(result.rows.length, 0, `${table} is not empty`);
+    }
     const ledger = (await client.query(`
       SELECT migration_name, checksum, finished_at, rolled_back_at,
              applied_steps_count::integer AS applied_steps_count
@@ -182,6 +323,20 @@ export async function inspectPrivilegeReleaseProduction(
        ORDER BY started_at
     `, [release.migration])).rows;
     const applied = successfulMigration(ledger, release);
+    if (release.preparationMigration) {
+      const preparationLedger = (await client.query(`
+        SELECT migration_name, checksum, finished_at, rolled_back_at,
+               applied_steps_count::integer AS applied_steps_count
+          FROM public._prisma_migrations
+         WHERE migration_name = $1
+         ORDER BY started_at
+      `, [release.preparationMigration.name])).rows;
+      const preparationApplied = successfulMigration(preparationLedger, {
+        migration: release.preparationMigration.name,
+        migrationSha256: release.preparationMigration.sha256,
+      });
+      assert.equal(preparationApplied, true, "preparation migration is not applied");
+    }
     if (applied) assert.equal(catalog.posture, "successor", "applied release posture drifted");
     const state = applied
       ? "applied"
@@ -200,6 +355,9 @@ export async function inspectPrivilegeReleaseProduction(
       databaseName: rows[0]?.database_name,
       migrationRole: rows[0]?.current_user_name,
       catalog,
+      functions,
+      emptyTables: release.emptyTables ?? [],
+      rollbackSha256: verified.rollbackDigest,
       productionChanged: false,
       containsRowData: false,
     });

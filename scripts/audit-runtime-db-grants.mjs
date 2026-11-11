@@ -220,6 +220,22 @@ export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION =
   "20261101020000_narrow_service_reference_runtime_privileges";
 export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256 =
   "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION =
+  "20261101090000_activate_email_service_least_privilege";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_SHA256 =
+  "4c9c30b2b95854f5dfe587532ecfb98a0698e54c2c50cf49cfdb4fdf0c8f02cf";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER =
+  "GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_TABLES = Object.freeze([
+  "NewsletterSubscriber",
+  "EmailSuppression",
+  "ResendWebhookEvent",
+  "EmailOutbox",
+  "EmailFailureCount",
+]);
+const EMAIL_SERVICE_LEAST_PRIVILEGE_TABLE_SET = new Set(
+  EMAIL_SERVICE_LEAST_PRIVILEGE_TABLES,
+);
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION =
   "20261013180000_move_provider_identity_seller_private_sql_callers";
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256 =
@@ -1899,6 +1915,46 @@ export async function readServiceReferenceLeastPrivilegeState(client) {
   });
 }
 
+export async function readEmailServiceLeastPrivilegeActivationState(client) {
+  const relation = await client.query(
+    "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
+  );
+  if (relation.rows[0]?.migration_table === null) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+  const result = await client.query(
+    `SELECT migration_name, checksum, finished_at, rolled_back_at,
+            applied_steps_count, logs
+       FROM public._prisma_migrations
+      WHERE migration_name = $1`,
+    [EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION],
+  );
+  if (result.rows.length === 0) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+  const row = result.rows[0];
+  const exact = result.rows.length === 1
+    && row.checksum === EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_SHA256
+    && row.finished_at !== null
+    && [0, 1].includes(Number(row.applied_steps_count));
+  if (!exact) {
+    return Object.freeze({
+      applied: false,
+      issues: Object.freeze([
+        "email-service least-privilege activation migration ledger is partial or drifted",
+      ]),
+    });
+  }
+  return Object.freeze({
+    applied:
+      row.rolled_back_at === null
+      && !String(row.logs ?? "").includes(
+        EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER,
+      ),
+    issues: Object.freeze([]),
+  });
+}
+
 async function readExactMigrationAppliedState(
   client,
   { migration, checksum, label },
@@ -3212,6 +3268,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     && inventory?.serviceReferenceLeastPrivilegeApplied === true
   ) return [...serviceReferencePrivileges];
   if (
+    EMAIL_SERVICE_LEAST_PRIVILEGE_TABLE_SET.has(tableName)
+    && inventory?.emailServiceLeastPrivilegeActivationApplied === true
+  ) return [];
+  if (
     RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
     || (
       ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLE_NAME_SET.has(tableName)
@@ -3760,6 +3820,9 @@ export async function auditLiveDatabase({
   const emailServicePreparation =
     await readEmailServicePreparationState(client);
   issues.push(...emailServicePreparation.issues);
+  const emailServiceLeastPrivilegeActivation =
+    await readEmailServiceLeastPrivilegeActivationState(client);
+  issues.push(...emailServiceLeastPrivilegeActivation.issues);
   const clerkWebhookEventActivation =
     await readClerkWebhookEventActivationState(client);
   issues.push(...clerkWebhookEventActivation.issues);
@@ -3900,6 +3963,8 @@ export async function auditLiveDatabase({
     orderItemQuoteRuntimeLockApplied: orderItemQuoteRuntimeLock.applied,
     serviceReferenceLeastPrivilegeApplied:
       serviceReferenceLeastPrivilege.applied,
+    emailServiceLeastPrivilegeActivationApplied:
+      emailServiceLeastPrivilegeActivation.applied,
     clerkWebhookEventRlsActivationApplied:
       clerkWebhookEventActivation.applied,
     clerkWebhookEventRlsForceApplied:
