@@ -190,13 +190,11 @@ describe("account-state residue hardening", () => {
       migration,
       /JOIN public\."EmailOutbox" AS outbox\s+ON outbox\."sourceType" = source\.source_type\s+AND outbox\."sourceId" = source\.source_id/u,
     );
-    assert.match(
+    assert.doesNotMatch(
       migration,
-      /source\.source_id = pg_catalog\.split_part\(outbox\."dedupKey", ':', 2\)/u,
+      /split_part\(outbox\."dedupKey"/u,
+      "deleted-seller cleanup must use the indexed durable source identity",
     );
-    assert.match(migration, /'seller-broadcast'/);
-    assert.match(migration, /'admin-approved-listing'/);
-    assert.match(migration, /'followed-listing-active'/);
     assert.doesNotMatch(
       migration,
       /FROM source_rows AS source\s+WHERE \(/u,
