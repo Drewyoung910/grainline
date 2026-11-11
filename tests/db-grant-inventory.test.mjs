@@ -469,6 +469,9 @@ const {
   EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256,
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_SHA256,
+  EMAIL_SERVICE_PREPARATION_MIGRATION,
+  EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256,
+  EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES,
   EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
   EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
@@ -586,6 +589,7 @@ const {
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
+  readEmailServicePreparationState,
   readSellerProfileDeauthorizeCompatState,
   readSellerProfilePrivatePreparationState,
   readSellerProfilePrivatePredecessorRetirementState,
@@ -601,6 +605,7 @@ const {
   resolveTemporarilyAbsentCiTables,
   withAppliedAccountDeletionAuthority,
   withAppliedEmailDeliveryAuthority,
+  withAppliedEmailServicePreparation,
   withAppliedSellerProfileCallerAuthority,
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
@@ -2066,11 +2071,42 @@ describe("database grant inventory guardrails", () => {
     ]);
   });
 
+  it("derives email service functions from the exact preparation ledger state", (context) => {
+    if (
+      typeof withAppliedEmailServicePreparation !== "function"
+      || !Array.isArray(EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES)
+    ) {
+      context.skip("requires the staged email-service grant-audit generation");
+      return;
+    }
+    const predecessorFunction = "grainline_email_outbox_begin_provider_attempt";
+    const sourceInventory = {
+      functions: [
+        "grainline_existing_function",
+        predecessorFunction,
+        ...EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES,
+      ],
+    };
+    const pending = withAppliedEmailServicePreparation(sourceInventory, false);
+    assert.deepEqual(pending.functions, [
+      "grainline_existing_function",
+      predecessorFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+    assert.equal(pending.emailServicePreparationApplied, false);
+
+    const applied = withAppliedEmailServicePreparation(sourceInventory, true);
+    assert.deepEqual(applied.functions, [
+      ...new Set(sourceInventory.functions),
+    ].sort((left, right) => left.localeCompare(right)));
+    assert.equal(applied.emailServicePreparationApplied, true);
+  });
+
   it("reads exact email migration ledger states including manual resolution rows", async (context) => {
     if (
       typeof readEmailDeliveryLedgerPreparationState !== "function"
       || typeof readEmailProviderDeletionFenceState !== "function"
       || typeof readEmailProviderEligibilityFenceState !== "function"
+      || typeof readEmailServicePreparationState !== "function"
     ) {
       context.skip("requires the staged email migration-ledger readers");
       return;
@@ -2113,6 +2149,13 @@ describe("database grant inventory guardrails", () => {
       await readEmailProviderEligibilityFenceState(exactClient(
         EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
         EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readEmailServicePreparationState(exactClient(
+        EMAIL_SERVICE_PREPARATION_MIGRATION,
+        EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256,
       )),
       { applied: true, issues: [] },
     );
