@@ -584,6 +584,9 @@ const {
   sellerBroadcastRlsActivationExpected,
   sellerBroadcastRlsForceExpected,
   SELLER_BROADCAST_TABLE,
+  sellerMetricsRlsActivationExpected,
+  sellerMetricsRlsForceExpected,
+  SELLER_METRICS_TABLE,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1469,6 +1472,58 @@ describe("database grant inventory guardrails", () => {
       rls_forced: true,
       policy_count: 0,
     }], sellerBroadcastActivatedInventory), []);
+    const sellerMetricsPredecessorInventory = {
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const sellerMetricsActivatedInventory = {
+      rlsEnableTables: [SELLER_METRICS_TABLE],
+      rlsForceTables: [SELLER_METRICS_TABLE],
+      rlsPolicyTables: [],
+    };
+    assert.equal(
+      sellerMetricsRlsActivationExpected(sellerMetricsPredecessorInventory),
+      false,
+    );
+    assert.equal(
+      sellerMetricsRlsForceExpected(sellerMetricsPredecessorInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SELLER_METRICS_TABLE,
+        sellerMetricsPredecessorInventory,
+      ),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.equal(
+      sellerMetricsRlsActivationExpected(sellerMetricsActivatedInventory),
+      true,
+    );
+    assert.equal(
+      sellerMetricsRlsForceExpected(sellerMetricsActivatedInventory),
+      true,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SELLER_METRICS_TABLE,
+        sellerMetricsActivatedInventory,
+      ),
+      [],
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(
+        sellerMetricsActivatedInventory,
+      ).includes(SELLER_METRICS_TABLE),
+      true,
+    );
+    assert.deepEqual(collectPolicylessServiceRlsIssues([{
+      table_name: SELLER_METRICS_TABLE,
+      rls_enabled: true,
+      rls_forced: true,
+      policy_count: 0,
+    }], sellerMetricsActivatedInventory), []);
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
       rls_enabled: true,
