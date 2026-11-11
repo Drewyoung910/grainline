@@ -328,6 +328,24 @@ test("email service preparation is byte-sealed and remains compatible", () => {
     sql,
     /GRANT EXECUTE ON FUNCTION public\.grainline_account_deletion_email_key_core\(text\)[\s\S]*TO grainline_app_runtime/u,
   );
+  for (const functionName of [
+    "grainline_email_one_click_suppression_clear",
+    "grainline_newsletter_token_superseded",
+    "grainline_email_unsubscribe_apply",
+    "grainline_email_account_deletion_suppression_clear",
+  ]) {
+    const functionSource = functionSourceFromMigration(sql, functionName);
+    assert.match(
+      functionSource,
+      /grainline_account_deletion_email_key_core/u,
+      `${functionName} must use the canonical-email expression indexes`,
+    );
+    assert.doesNotMatch(
+      functionSource,
+      /lower\(pg_catalog\.btrim\((?:subscriber|suppression)\.email::text\)\)/u,
+      `${functionName} must not force a sequential scan with a redundant normalized-email branch`,
+    );
+  }
   const providerAttempt = emailService.release.functions.find(
     (entry) => entry.name === "grainline_email_outbox_begin_provider_attempt",
   );
