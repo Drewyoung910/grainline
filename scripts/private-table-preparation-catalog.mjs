@@ -10,6 +10,19 @@ const RELEASE_ID_PATTERN = /^[a-z][a-z0-9_]{2,63}$/u;
 export const PRIVATE_TABLE_PREPARATION_CONFIRMATION =
   "apply-reviewed-private-table-preparation";
 
+const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
+  support_request_v1: "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH",
+  stock_notification_v1: "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH",
+  favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
+  follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
+  maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
+  email_service_v1: "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH",
+  block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+});
+
 export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   support_request_v1: Object.freeze({
     migration: "20261023010000_prepare_support_request_authorities",
@@ -746,8 +759,7 @@ function functionVolatilityFromMigration(sql, name) {
 export function verifyPrivateTablePreparationSource(
   releaseId,
   rootDir = process.cwd(),
-  migrationPathOverride =
-    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
+  migrationPathOverride = privateTablePreparationMigrationOverride(releaseId),
 ) {
   const release = privateTablePreparation(releaseId);
   const migrationPath = migrationPathOverride
@@ -801,6 +813,20 @@ export function verifyPrivateTablePreparationSource(
     functionSourceFromMigration(sql, entry.name),
   ]));
   return Object.freeze({ releaseId, release, migrationPath, digest, functionSources });
+}
+
+export function privateTablePreparationMigrationOverride(
+  releaseId,
+  env = process.env,
+) {
+  const releaseEnvName = PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE[releaseId];
+  const releasePath = releaseEnvName ? env[releaseEnvName]?.trim() : undefined;
+  const configured = releasePath
+    || env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim();
+  if (!configured) return undefined;
+  return configured.endsWith("/migration.sql")
+    ? configured
+    : `${configured}/migration.sql`;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
