@@ -60,6 +60,16 @@ function fakeClientClass({ posture, recorded = false, partial = false }) {
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql)) return { rows: [] };
       if (sql.includes("FROM pg_catalog.pg_class AS target")) {
         assert.deepEqual(parameters, [Object.keys(release.tables).sort()]);
+        assert.match(
+          sql,
+          /pg_catalog\.aclexplode\(attribute\.attacl\)/u,
+          "column ACL inspection must pass NULL through instead of constructing a zero-dimensional empty ACL array",
+        );
+        assert.doesNotMatch(
+          sql,
+          /pg_catalog\.aclexplode\(coalesce\(\s*attribute\.attacl/u,
+          "PostgreSQL rejects zero-dimensional arrays passed to aclexplode",
+        );
         return { rows: tableRows(posture, partial) };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
