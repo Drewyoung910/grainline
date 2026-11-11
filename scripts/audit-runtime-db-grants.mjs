@@ -131,6 +131,8 @@ export const MAKER_VERIFICATION_TABLE = "MakerVerification";
 export const FOLLOW_TABLE = "Follow";
 const FOLLOW_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("follow_v1");
 const BLOCK_PREPARATION_RELEASE = privateTablePreparation("block_v1");
+const EMAIL_SERVICE_PREPARATION_RELEASE =
+  privateTablePreparation("email_service_v1");
 const BLOCK_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("block_v1");
 const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
@@ -143,6 +145,15 @@ export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
   BLOCK_PREPARATION_RELEASE.migrationSha256;
+export const EMAIL_SERVICE_PREPARATION_MIGRATION =
+  EMAIL_SERVICE_PREPARATION_RELEASE.migration;
+export const EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256 =
+  EMAIL_SERVICE_PREPARATION_RELEASE.migrationSha256;
+export const EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES = Object.freeze(
+  EMAIL_SERVICE_PREPARATION_RELEASE.functions
+    .filter((entry) => !entry.predecessorSourceSha256)
+    .map((entry) => entry.name),
+);
 export const BLOCK_RLS_ACTIVATION_MIGRATION =
   BLOCK_RLS_ACTIVATION_RELEASE.migration;
 export const BLOCK_RLS_ACTIVATION_MIGRATION_SHA256 =
@@ -907,6 +918,26 @@ export function withAppliedEmailDeliveryAuthority(
     emailDeliveryLedgerPreparationApplied: preparationApplied,
     emailProviderDeletionFenceApplied: fenceApplied,
     emailProviderEligibilityFenceApplied: eligibilityFenceApplied,
+  };
+}
+
+const EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAME_SET = new Set(
+  EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES,
+);
+
+export function withAppliedEmailServicePreparation(
+  inventory,
+  preparationApplied,
+) {
+  const functions = preparationApplied
+    ? [...(inventory?.functions ?? [])]
+    : (inventory?.functions ?? []).filter(
+      (name) => !EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAME_SET.has(name),
+    );
+  return {
+    ...inventory,
+    functions: sortedUnique(functions),
+    emailServicePreparationApplied: preparationApplied,
   };
 }
 
@@ -2076,6 +2107,14 @@ export async function readEmailDeliveryLedgerPreparationState(client) {
     migration: EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION,
     checksum: EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_SHA256,
     label: "email delivery-ledger preparation",
+  });
+}
+
+export async function readEmailServicePreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: EMAIL_SERVICE_PREPARATION_MIGRATION,
+    checksum: EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256,
+    label: "email service least-privilege preparation",
   });
 }
 
@@ -3697,6 +3736,9 @@ export async function auditLiveDatabase({
   const serviceReferenceLeastPrivilege =
     await readServiceReferenceLeastPrivilegeState(client);
   issues.push(...serviceReferenceLeastPrivilege.issues);
+  const emailServicePreparation =
+    await readEmailServicePreparationState(client);
+  issues.push(...emailServicePreparation.issues);
   const clerkWebhookEventActivation =
     await readClerkWebhookEventActivationState(client);
   issues.push(...clerkWebhookEventActivation.issues);
@@ -3799,32 +3841,36 @@ export async function auditLiveDatabase({
     fenceApplied: emailProviderDeletionFence.applied,
     eligibilityFenceApplied: emailProviderEligibilityFence.applied,
   }));
-  const liveAuthorityInventory = {
-    ...withAppliedEmailDeliveryAuthority(
-      withAppliedSellerProfilePrivateInvariants(
-        withAppliedSellerProfilePredecessorRetirement(
-          withAppliedSellerProfileCallerAuthority(
-            withAppliedAccountDeletionAuthority(inventory, {
-              claimFenceApplied: accountDeletionClaimFencePreparation.applied,
-              mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
-            }),
-            {
-              deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
-              reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
-            },
-          ),
+  const liveEmailDeliveryAuthorityInventory = withAppliedEmailDeliveryAuthority(
+    withAppliedSellerProfilePrivateInvariants(
+      withAppliedSellerProfilePredecessorRetirement(
+        withAppliedSellerProfileCallerAuthority(
+          withAppliedAccountDeletionAuthority(inventory, {
+            claimFenceApplied: accountDeletionClaimFencePreparation.applied,
+            mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
+          }),
           {
-            preparationApplied: sellerProfilePrivatePreparation.applied,
-            retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
+            deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
+            reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
           },
         ),
-        sellerProfilePrivateInvariants.applied,
+        {
+          preparationApplied: sellerProfilePrivatePreparation.applied,
+          retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
+        },
       ),
-      {
-        preparationApplied: emailDeliveryLedgerPreparation.applied,
-        fenceApplied: emailProviderDeletionFence.applied,
-        eligibilityFenceApplied: emailProviderEligibilityFence.applied,
-      },
+      sellerProfilePrivateInvariants.applied,
+    ),
+    {
+      preparationApplied: emailDeliveryLedgerPreparation.applied,
+      fenceApplied: emailProviderDeletionFence.applied,
+      eligibilityFenceApplied: emailProviderEligibilityFence.applied,
+    },
+  );
+  const liveAuthorityInventory = {
+    ...withAppliedEmailServicePreparation(
+      liveEmailDeliveryAuthorityInventory,
+      emailServicePreparation.applied,
     ),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
