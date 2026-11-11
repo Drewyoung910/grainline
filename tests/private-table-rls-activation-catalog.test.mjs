@@ -118,7 +118,7 @@ test("catalog byte-seals policyless SellerMetrics activation", () => {
   assert.equal(metrics.mode, "policyless_combined_enable_force");
   assert.equal(
     metrics.minimumCompatibleAppCommit,
-    "887ff0c9fc88a65f5b9854f1312d0000d5fc3878",
+    "fdd82ceb264928c1ce55a5a0b24a733206e501ec",
   );
   assert.equal(metrics.preparation.functions.length, 4);
   assert.equal(metrics.preparation.retainedFunctions.length, 5);
