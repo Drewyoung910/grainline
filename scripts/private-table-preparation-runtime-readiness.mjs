@@ -14,9 +14,10 @@ import {
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
-const RELEASE_SELECTIONS = Object.freeze([
+export const PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS = Object.freeze([
   "owner_social_verification_v1",
   "block_report_seller_faq_v1",
+  "email_service_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
@@ -26,6 +27,7 @@ const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  email_service_v1: "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -45,7 +47,7 @@ function sourceSha256(source) {
 }
 
 export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
-  RELEASE_SELECTIONS.flatMap((selection) => (
+  PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS.flatMap((selection) => (
     privateTablePreparationReleaseIds(selection)
   ))
     .flatMap((releaseId) => {
@@ -57,7 +59,13 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
       return verified.release.functions.map((entry) => Object.freeze({
         identity: `${entry.name}(${entry.arguments})`,
         executeRole: entry.executeRole ?? "runtime",
-        sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
+        // A reviewed successor release may replace a function that has a
+        // predecessor digest. The deploy-order gate must continue requiring
+        // the exact identity and EXECUTE privilege without pinning that
+        // intentionally replaceable body forever.
+        sourceSha256: entry.predecessorSourceSha256
+          ? null
+          : sourceSha256(verified.functionSources.get(entry.name)),
       }));
     }),
 );
@@ -99,8 +107,11 @@ export function collectPrivateTableRuntimeReadinessIssues(
       issues.push(`${identity} is absent or not executable`);
     }
     if (
-      typeof row?.source !== "string"
-      || sourceSha256(row.source) !== expected.sourceSha256
+      expected.sourceSha256 !== null
+      && (
+        typeof row?.source !== "string"
+        || sourceSha256(row.source) !== expected.sourceSha256
+      )
     ) {
       issues.push(`${identity} body drifted`);
     }
@@ -203,7 +214,7 @@ export async function verifyPrivateTableRuntimeReadiness({
   return Object.freeze({
     enforced: true,
     environment: "production",
-    releaseSelections: RELEASE_SELECTIONS,
+    releaseSelections: PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS,
     runtimeFunctionCount: runtimeFunctions.length,
     staffFunctionCount: staffFunctions.length,
     readOnly: true,

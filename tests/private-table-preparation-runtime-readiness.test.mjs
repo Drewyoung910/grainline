@@ -8,6 +8,7 @@ import {
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
   PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS,
+  PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS,
   collectPrivateTableRuntimeReadinessIssues,
   privateTableRuntimeReadinessMigrationOverride,
   verifyPrivateTableRuntimeReadiness,
@@ -31,7 +32,7 @@ function sha256(value) {
 }
 
 const sourceByIdentity = new Map(
-  ["owner_social_verification_v1", "block_report_seller_faq_v1"]
+  PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS
     .flatMap((selection) => privateTablePreparationReleaseIds(selection))
     .flatMap((releaseId) => {
       const verified = verifyPrivateTablePreparationSource(
@@ -66,9 +67,22 @@ test("private-table readiness catalog covers the exact reviewed preparation batc
     PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS.length,
   );
   for (const entry of PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS) {
-    assert.equal(sha256(sourceByIdentity.get(entry.identity)), entry.sourceSha256);
+    if (entry.sourceSha256 !== null) {
+      assert.equal(sha256(sourceByIdentity.get(entry.identity)), entry.sourceSha256);
+    }
     assert.ok(["runtime", "staff"].includes(entry.executeRole));
   }
+  assert.deepEqual(
+    PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS
+      .filter((entry) => entry.sourceSha256 === null)
+      .map((entry) => entry.identity),
+    [
+      "grainline_seller_guild_staff_transition(text, text, text, text, text, boolean)",
+      "grainline_seller_guild_member_revoke(text)",
+      "grainline_seller_guild_metrics_apply(text, timestamp without time zone)",
+      "grainline_email_outbox_begin_provider_attempt(text, bigint, uuid)",
+    ],
+  );
 });
 
 test("readiness issue collector rejects missing, wrong-role and drifted functions", () => {
@@ -151,6 +165,7 @@ test("production readiness checks runtime and staff functions read-only", async 
       releaseSelections: [
         "owner_social_verification_v1",
         "block_report_seller_faq_v1",
+        "email_service_v1",
       ],
       runtimeFunctionCount: runtimeCount,
       staffFunctionCount: staffCount,

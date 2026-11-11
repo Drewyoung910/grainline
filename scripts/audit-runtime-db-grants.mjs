@@ -1735,6 +1735,19 @@ export function runtimePrivateFunctionNames(inventory) {
     typeof inventory?.blockRlsActivationApplied === "boolean"
       ? inventory.blockRlsActivationApplied
       : blockRlsActivationExpected(inventory);
+  // The preparation adds canonical-email expression indexes while the
+  // predecessor application can still write these tables directly. PostgreSQL
+  // evaluates the helper for those writes, so runtime needs EXECUTE only for
+  // that bounded compatibility interval. The zero-direct activation revokes
+  // both table writes and this temporary helper grant.
+  const emailServicePredecessorCompatibility =
+    inventory?.emailServicePreparationApplied === true
+    && inventory?.emailServiceLeastPrivilegeActivationApplied !== true;
+  const baseRuntimePrivateFunctions = emailServicePredecessorCompatibility
+    ? RUNTIME_PRIVATE_FUNCTIONS.filter(
+      (name) => name !== "grainline_account_deletion_email_key_core",
+    )
+    : RUNTIME_PRIVATE_FUNCTIONS;
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1745,10 +1758,10 @@ export function runtimePrivateFunctionNames(inventory) {
     && !followActivated
     && !blockActivated
   ) {
-    return [...RUNTIME_PRIVATE_FUNCTIONS];
+    return [...baseRuntimePrivateFunctions];
   }
   return sortedUnique([
-    ...RUNTIME_PRIVATE_FUNCTIONS,
+    ...baseRuntimePrivateFunctions,
     ...(directUploadActivated
       ? DIRECT_UPLOAD_ACTIVATION_FUNCTIONS
         .filter((entry) => !entry.runtimeExecute)

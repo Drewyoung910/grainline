@@ -324,6 +324,10 @@ test("email service preparation is byte-sealed and remains compatible", () => {
   assert.match(sql, /grainline_email_service_account_deletion_apply/u);
   assert.match(sql, /grainline_resend_webhook_event_reserve/u);
   assert.match(sql, /grainline_email_outbox_begin_provider_attempt/u);
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION public\.grainline_account_deletion_email_key_core\(text\)[\s\S]*TO grainline_app_runtime/u,
+  );
   const providerAttempt = emailService.release.functions.find(
     (entry) => entry.name === "grainline_email_outbox_begin_provider_attempt",
   );

@@ -3464,6 +3464,7 @@ SELECT format(
      OR NOT :'grainline_checkout_source_cutover_applied'::boolean
    );
 \gexec
+
 \unset grainline_checkout_source_cutover_applied
 
 -- CheckoutStockReservation is a policyless service ledger once Phase A is
@@ -4260,6 +4261,43 @@ SELECT format(
    );
 \gexec
 \unset conversation_message_rls_active
+
+-- The email-service preparation adds expression indexes that call this pure
+-- canonicalizer. Preserve predecessor direct writes only while at least one
+-- indexed table still grants INSERT or UPDATE to the runtime role. Once the
+-- email-service activation removes those table grants, the blanket revoke
+-- above remains in force and the helper returns to owner-only.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public."grainline_account_deletion_email_key_core"(text) TO %I',
+  :'runtime_role'
+)
+ WHERE to_regprocedure(
+         'public.grainline_account_deletion_email_key_core(text)'
+       ) IS NOT NULL
+   AND to_regclass(
+         'public."EmailSuppression_canonical_email_idx"'
+       ) IS NOT NULL
+   AND to_regclass(
+         'public."EmailFailureCount_canonical_email_idx"'
+       ) IS NOT NULL
+   AND to_regclass(
+         'public."NewsletterSubscriber_canonical_email_idx"'
+       ) IS NOT NULL
+   AND to_regclass(
+         'public."EmailOutbox_canonical_recipient_email_idx"'
+       ) IS NOT NULL
+   AND EXISTS (
+     SELECT 1
+       FROM (VALUES
+         ('public."EmailSuppression"'),
+         ('public."EmailFailureCount"'),
+         ('public."NewsletterSubscriber"'),
+         ('public."EmailOutbox"')
+       ) AS indexed_table(name)
+      WHERE has_table_privilege(:'runtime_role', indexed_table.name, 'INSERT')
+         OR has_table_privilege(:'runtime_role', indexed_table.name, 'UPDATE')
+   );
+\gexec
 
 WITH saved_search_rpc(function_signature) AS (
   VALUES

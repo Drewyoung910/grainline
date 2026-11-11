@@ -64,6 +64,17 @@ CREATE INDEX IF NOT EXISTS "EmailOutbox_canonical_recipient_email_idx"
     public.grainline_account_deletion_email_key_core("recipientEmail"::text)
   );
 
+-- The predecessor application still writes these tables directly until the
+-- separately reviewed activation revokes table access. PostgreSQL evaluates
+-- expression indexes as the writing role, so that role needs this pure,
+-- immutable canonicalization helper during the compatibility interval.
+-- Activation and routine role convergence remove the grant once no indexed
+-- table remains directly writable.
+REVOKE ALL ON FUNCTION public.grainline_account_deletion_email_key_core(text)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.grainline_account_deletion_email_key_core(text)
+  TO grainline_app_runtime;
+
 CREATE OR REPLACE FUNCTION public.grainline_email_suppression_exists(
   p_email text,
   p_mode text
@@ -1697,6 +1708,20 @@ BEGIN
         expected_index;
     END IF;
   END LOOP;
+
+  IF NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_account_deletion_email_key_core(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'public',
+       'public.grainline_account_deletion_email_key_core(text)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION
+      'Email service predecessor write compatibility is incomplete';
+  END IF;
 
   FOREACH expected_signature IN ARRAY ARRAY[
     'public.grainline_email_suppression_exists(text,text)',
