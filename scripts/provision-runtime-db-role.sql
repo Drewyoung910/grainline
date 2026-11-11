@@ -364,6 +364,80 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."UserReport"
 TO :"runtime_role";
 
+-- These service/reference tables have no user-row ownership boundary. Preserve
+-- predecessor CRUD until the exact privilege migration is durably recorded;
+-- afterwards every provisioning replay must converge to the reviewed exact
+-- operations. Refuse a partial or checksum-drifted ledger row before changing
+-- any grant.
+WITH service_reference_least_privilege_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = '5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+    )::integer AS exact_count
+  FROM public._prisma_migrations
+  WHERE migration_name =
+    '20261101020000_narrow_service_reference_runtime_privileges'
+), failure AS (
+  SELECT
+    'service/reference least-privilege migration ledger drifted; refusing runtime-role provisioning'
+      AS message
+  FROM service_reference_least_privilege_ledger
+  WHERE row_count <> 0 AND (row_count <> 1 OR exact_count <> 1)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((
+    SELECT exact_count = 1
+    FROM service_reference_least_privilege_ledger
+  ), false) AS grainline_service_reference_least_privilege_applied;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_service_reference_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_service_reference_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_service_reference_least_privilege_applied
+REVOKE ALL ON TABLE
+  public."FoundingMakerGrant",
+  public."Metro",
+  public."SiteConfig",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+FROM PUBLIC, :"runtime_role";
+
+GRANT SELECT ON TABLE
+  public."FoundingMakerGrant",
+  public."Metro",
+  public."SiteConfig",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+TO :"runtime_role";
+
+GRANT INSERT ON TABLE
+  public."Metro",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+TO :"runtime_role";
+
+GRANT UPDATE ON TABLE
+  public."Metro",
+  public."SiteMetricsSnapshot"
+TO :"runtime_role";
+\endif
+\unset grainline_service_reference_least_privilege_applied
+
 -- Public SellerProfile keeps compatible predecessor CRUD only while RLS is
 -- cleanly off. Once the reviewed policyless ENABLE (or later FORCE) posture is
 -- present, every provisioning replay must re-close direct table authority.

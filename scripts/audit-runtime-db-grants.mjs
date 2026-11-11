@@ -75,6 +75,13 @@ const { Client } = pg;
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+export const SERVICE_REFERENCE_TABLE_PRIVILEGES = Object.freeze({
+  SiteConfig: Object.freeze(["SELECT"]),
+  SystemAuditLog: Object.freeze(["SELECT", "INSERT"]),
+  FoundingMakerGrant: Object.freeze(["SELECT"]),
+  Metro: Object.freeze(["SELECT", "INSERT", "UPDATE"]),
+  SiteMetricsSnapshot: Object.freeze(["SELECT", "INSERT", "UPDATE"]),
+});
 export const SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
@@ -198,6 +205,10 @@ export const ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION =
   "20260929130000_revoke_order_item_shipping_quote_runtime_access";
 export const ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_SHA256 =
   "32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99";
+export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION =
+  "20261101020000_narrow_service_reference_runtime_privileges";
+export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256 =
+  "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c";
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION =
   "20261013180000_move_provider_identity_seller_private_sql_callers";
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256 =
@@ -1836,6 +1847,14 @@ export async function readOrderItemQuoteRuntimeLockState(client) {
   });
 }
 
+export async function readServiceReferenceLeastPrivilegeState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION,
+    checksum: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256,
+    label: "service/reference least-privilege",
+  });
+}
+
 async function readExactMigrationAppliedState(
   client,
   { migration, checksum, label },
@@ -3127,6 +3146,11 @@ export function defaultPrivilegeRequirements(inventory) {
 
 export function requiredRuntimeTablePrivileges(tableName, inventory) {
   const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
+  const serviceReferencePrivileges = SERVICE_REFERENCE_TABLE_PRIVILEGES[tableName];
+  if (
+    serviceReferencePrivileges
+    && inventory?.serviceReferenceLeastPrivilegeApplied === true
+  ) return [...serviceReferencePrivileges];
   if (
     RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
     || (
@@ -3670,6 +3694,9 @@ export async function auditLiveDatabase({
   const orderItemQuoteRuntimeLock =
     await readOrderItemQuoteRuntimeLockState(client);
   issues.push(...orderItemQuoteRuntimeLock.issues);
+  const serviceReferenceLeastPrivilege =
+    await readServiceReferenceLeastPrivilegeState(client);
+  issues.push(...serviceReferenceLeastPrivilege.issues);
   const clerkWebhookEventActivation =
     await readClerkWebhookEventActivationState(client);
   issues.push(...clerkWebhookEventActivation.issues);
@@ -3804,6 +3831,8 @@ export async function auditLiveDatabase({
     orderSellerEmailProjectionRetirementApplied:
       sellerEmailProjectionRetirement.applied,
     orderItemQuoteRuntimeLockApplied: orderItemQuoteRuntimeLock.applied,
+    serviceReferenceLeastPrivilegeApplied:
+      serviceReferenceLeastPrivilege.applied,
     clerkWebhookEventRlsActivationApplied:
       clerkWebhookEventActivation.applied,
     clerkWebhookEventRlsForceApplied:
