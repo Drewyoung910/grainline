@@ -6137,6 +6137,10 @@ $grainline_seller_broadcast_provisioning_abort$;
 \if :seller_broadcast_rls_active
 REVOKE ALL ON TABLE public."SellerBroadcast"
   FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_email_outbox_cancel_seller_broadcast(text)
+  FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_delete_seller_broadcast(text)
+  FROM PUBLIC, :"runtime_role";
 \endif
 \unset seller_broadcast_rls_active
 

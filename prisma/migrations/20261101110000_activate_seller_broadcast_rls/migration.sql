@@ -122,7 +122,9 @@ BEGIN
         ('public.grainline_seller_broadcast_staff_delete(text,text)', 'staff'),
         ('public.grainline_seller_broadcast_account_deletion_ids(text,text,bigint,uuid)', 'runtime'),
         ('public.grainline_seller_broadcast_account_deletion_cleanup(text,text,bigint,uuid)', 'runtime'),
-        ('public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)', 'runtime')
+        ('public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)', 'runtime'),
+        ('public.grainline_email_outbox_cancel_seller_broadcast(text)', 'runtime'),
+        ('public.grainline_notification_delete_seller_broadcast(text)', 'runtime')
       ) AS expected(signature, execute_role)
      WHERE pg_catalog.to_regprocedure(expected.signature) IS NULL
         OR pg_catalog.has_function_privilege(
@@ -160,6 +162,10 @@ END;
 $grainline_seller_broadcast_activation_preflight$;
 
 REVOKE ALL PRIVILEGES ON TABLE public."SellerBroadcast"
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_email_outbox_cancel_seller_broadcast(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_delete_seller_broadcast(text)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 
 ALTER TABLE public."SellerBroadcast" ENABLE ROW LEVEL SECURITY;
@@ -200,6 +206,38 @@ BEGIN
        AND acl.grantee <> table_owner
   ) THEN
     RAISE EXCEPTION 'SellerBroadcast activation did not reach policyless zero-direct FORCE';
+  END IF;
+  IF pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_email_outbox_cancel_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_email_outbox_cancel_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       0,
+       'public.grainline_email_outbox_cancel_seller_broadcast(text)'::pg_catalog.regprocedure,
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_notification_delete_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_notification_delete_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       0,
+       'public.grainline_notification_delete_seller_broadcast(text)'::pg_catalog.regprocedure,
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'SellerBroadcast retired cleanup functions remain callable';
   END IF;
 END;
 $grainline_seller_broadcast_activation_postflight$;

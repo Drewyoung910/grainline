@@ -1385,6 +1385,21 @@ test(
           false,
         );
         await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+        // SellerBroadcast depends on the email cleanup authority during its
+        // predecessor interval. Roll back the dependent boundary before
+        // exercising the base email rollback, then reactivate in dependency
+        // order below.
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+          ),
+          "utf8",
+        ));
+        await proveSellerBroadcastRlsRollback({
+          database: adapter,
+          seller: fixture,
+        });
         await client.query(readFileSync(
           join(
             repositoryRoot,
@@ -1432,6 +1447,14 @@ test(
           migration: "email-service-activation-restoration-proof",
         });
         await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            `prisma/migrations/${SELLER_BROADCAST_RLS_MIGRATION}/migration.sql`,
+          ),
+          "utf8",
+        ));
+        await proveSellerBroadcastRlsAuthorities({ database: adapter });
       }
       assert.deepEqual(stockNotificationPredecessorEvidence, {
         blockedNotificationCreated: true,
@@ -1523,25 +1546,6 @@ test(
         database: adapter,
         fixture: sellerFaqFixture,
       });
-      await client.query(readFileSync(
-        join(
-          repositoryRoot,
-          "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
-        ),
-        "utf8",
-      ));
-      await proveSellerBroadcastRlsRollback({
-        database: adapter,
-        seller: fixture,
-      });
-      await client.query(readFileSync(
-        join(
-          repositoryRoot,
-          `prisma/migrations/${SELLER_BROADCAST_RLS_MIGRATION}/migration.sql`,
-        ),
-        "utf8",
-      ));
-      await proveSellerBroadcastRlsAuthorities({ database: adapter });
       assert.ok(
         stockNotificationActivationReadyEvidencePath,
         "StockNotification activation preflight must precede activation",

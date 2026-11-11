@@ -906,6 +906,18 @@ export async function proveSellerBroadcastRlsAuthorities({ database }) {
     (error) => error?.code === "42501",
     "ordinary runtime must have no direct SellerBroadcast writes",
   );
+  for (const signature of [
+    "public.grainline_email_outbox_cancel_seller_broadcast(text)",
+    "public.grainline_notification_delete_seller_broadcast(text)",
+  ]) {
+    const allowed = (await database.query(
+      `SELECT pg_catalog.has_function_privilege(
+         'grainline_app_runtime', $1, 'EXECUTE'
+       ) AS allowed`,
+      [signature],
+    )).rows[0]?.allowed;
+    assert.equal(allowed, false, `${signature} remains runtime-callable after activation`);
+  }
 }
 
 export async function proveSellerBroadcastRlsRollback({ database, seller }) {
@@ -923,6 +935,18 @@ export async function proveSellerBroadcastRlsRollback({ database, seller }) {
     forced: false,
     policyCount: 0,
   });
+  for (const signature of [
+    "public.grainline_email_outbox_cancel_seller_broadcast(text)",
+    "public.grainline_notification_delete_seller_broadcast(text)",
+  ]) {
+    const allowed = (await database.query(
+      `SELECT pg_catalog.has_function_privilege(
+         'grainline_app_runtime', $1, 'EXECUTE'
+       ) AS allowed`,
+      [signature],
+    )).rows[0]?.allowed;
+    assert.equal(allowed, true, `${signature} was not restored by rollback`);
+  }
 
   const id = randomUUID();
   await runtimeQuery(

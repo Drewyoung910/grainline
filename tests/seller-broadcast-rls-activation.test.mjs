@@ -19,7 +19,7 @@ test("SellerBroadcast uses one byte-sealed policyless activation", () => {
   assert.equal(release.table, "SellerBroadcast");
   assert.equal(
     release.minimumCompatibleAppCommit,
-    "125703575794479a6ef4dcb0d7aec92000c6af5f",
+    "db2e4f00d8975114989e4e902bfbad56fa64c540",
   );
   assert.equal(release.mode, "policyless_combined_enable_force");
   assert.deepEqual(release.policies, []);
@@ -32,6 +32,25 @@ test("SellerBroadcast uses one byte-sealed policyless activation", () => {
   assert.deepEqual(release.activatedRuntimePrivileges, []);
   assert.deepEqual(release.activatedStaffPrivileges, []);
   assert.deepEqual(release.activatedPublicPrivileges, []);
+  assert.deepEqual(
+    release.functionChanges.retained.map((entry) => ({
+      name: entry.name,
+      predecessor: entry.predecessorExecuteRole,
+      activated: entry.activatedExecuteRole,
+    })),
+    [
+      {
+        name: "grainline_email_outbox_cancel_seller_broadcast",
+        predecessor: "runtime",
+        activated: "none",
+      },
+      {
+        name: "grainline_notification_delete_seller_broadcast",
+        predecessor: "runtime",
+        activated: "none",
+      },
+    ],
+  );
   assert.equal(verified.migrationDigest, release.migrationSha256);
   assert.equal(verified.rollbackDigest, release.rollbackSha256);
   assert.equal(
@@ -62,6 +81,14 @@ test("activation binds every prepared operation and reaches zero-direct FORCE", 
   assert.match(activation, /REVOKE ALL PRIVILEGES/u);
   assert.match(activation, /ENABLE ROW LEVEL SECURITY/u);
   assert.match(activation, /FORCE ROW LEVEL SECURITY/u);
+  assert.match(
+    activation,
+    /REVOKE ALL ON FUNCTION public\.grainline_email_outbox_cancel_seller_broadcast\(text\)/u,
+  );
+  assert.match(
+    activation,
+    /REVOKE ALL ON FUNCTION public\.grainline_notification_delete_seller_broadcast\(text\)/u,
+  );
   assert.match(activation, /owner_role\.rolsuper OR owner_role\.rolbypassrls/u);
   assert.doesNotMatch(activation, /CREATE\s+POLICY/iu);
   assert.doesNotMatch(activation, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
@@ -72,6 +99,14 @@ test("rollback is database-first and restores only predecessor CRUD", () => {
   assert.match(rollback, /GRANT SELECT, INSERT, UPDATE, DELETE/u);
   assert.match(rollback, /NO FORCE ROW LEVEL SECURITY/u);
   assert.match(rollback, /DISABLE ROW LEVEL SECURITY/u);
+  assert.match(
+    rollback,
+    /GRANT EXECUTE ON FUNCTION public\.grainline_email_outbox_cancel_seller_broadcast\(text\)/u,
+  );
+  assert.match(
+    rollback,
+    /GRANT EXECUTE ON FUNCTION public\.grainline_notification_delete_seller_broadcast\(text\)/u,
+  );
   assert.match(rollback, /pg_catalog\.pg_attribute/u);
   assert.match(rollback, /pg_catalog\.aclexplode\(attribute\.attacl\)/u);
   assert.doesNotMatch(rollback, /CREATE\s+POLICY/iu);
@@ -87,5 +122,13 @@ test("runtime role provisioning preserves zero direct authority after activation
   assert.match(
     provisioning,
     /\\if :seller_broadcast_rls_active[\s\S]*REVOKE ALL ON TABLE public\."SellerBroadcast"/u,
+  );
+  assert.match(
+    provisioning,
+    /\\if :seller_broadcast_rls_active[\s\S]*REVOKE ALL ON FUNCTION public\.grainline_email_outbox_cancel_seller_broadcast\(text\)/u,
+  );
+  assert.match(
+    provisioning,
+    /\\if :seller_broadcast_rls_active[\s\S]*REVOKE ALL ON FUNCTION public\.grainline_notification_delete_seller_broadcast\(text\)/u,
   );
 });

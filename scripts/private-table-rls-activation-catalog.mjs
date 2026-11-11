@@ -23,7 +23,7 @@ const OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT =
 const BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT =
   "47cec35f29d3bdea3376e10a52659f6587ca7af5";
 const SELLER_BROADCAST_MINIMUM_COMPATIBLE_COMMIT =
-  "125703575794479a6ef4dcb0d7aec92000c6af5f";
+  "db2e4f00d8975114989e4e902bfbad56fa64c540";
 const PREDECESSOR_CRUD = Object.freeze([
   "SELECT",
   "INSERT",
@@ -280,10 +280,10 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     minimumCompatibleAppCommit: SELLER_BROADCAST_MINIMUM_COMPATIBLE_COMMIT,
     migration: "20261101110000_activate_seller_broadcast_rls",
     migrationSha256:
-      "72a24346ffc61d4822384b77160cd4c5780c9d2d392b7b826af7f351bc5831cb",
+      "39775d2cf3bf050b87a04dcc7ce0bb7ec0bf95c0e8f9acadefa6c56fe6d1b37a",
     rollbackPath: "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
     rollbackSha256:
-      "62641c309e51d3b9ded6c99c8c421c1ceed697e67de40eed375ec189296a8714",
+      "114b54218c80baf31f8b05cbe222270154ddc2dd91c88e792fb2dab9b46e653e",
     table: "SellerBroadcast",
     mode: "policyless_combined_enable_force",
     policies: NO_POLICIES,
@@ -295,7 +295,28 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "tests/seller-broadcast-rls-activation.test.mjs",
     ]),
     rollbackTriggerDrops: Object.freeze([]),
-    functionChanges: NO_FUNCTION_CHANGES,
+    functionChanges: Object.freeze({
+      retained: Object.freeze([
+        Object.freeze({
+          name: "grainline_email_outbox_cancel_seller_broadcast",
+          arguments: "text",
+          sourceMd5: "2ee96ea4aba4137f5720bb7179c9b9ed",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+        Object.freeze({
+          name: "grainline_notification_delete_seller_broadcast",
+          arguments: "text",
+          sourceMd5: "a34d24cf5abbb0795249c812467d5ab2",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+      ]),
+      replacements: Object.freeze([]),
+      additions: Object.freeze([]),
+    }),
   }),
 });
 

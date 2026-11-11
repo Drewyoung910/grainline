@@ -62,9 +62,29 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'SellerBroadcast rollback source grants drifted';
   END IF;
+  IF pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_email_outbox_cancel_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_notification_delete_seller_broadcast(text)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'SellerBroadcast rollback requires retired cleanup functions';
+  END IF;
 END;
 $grainline_seller_broadcast_rollback_preflight$;
 
+REVOKE ALL ON FUNCTION public.grainline_email_outbox_cancel_seller_broadcast(text)
+  FROM PUBLIC, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_delete_seller_broadcast(text)
+  FROM PUBLIC, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_email_outbox_cancel_seller_broadcast(text)
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_seller_broadcast(text)
+  TO grainline_app_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON TABLE public."SellerBroadcast" TO grainline_app_runtime;
 ALTER TABLE public."SellerBroadcast" NO FORCE ROW LEVEL SECURITY;
@@ -90,6 +110,36 @@ BEGIN
      OR pg_catalog.has_table_privilege('grainline_app_runtime', table_oid, 'TRUNCATE')
      OR pg_catalog.has_table_privilege('grainline_app_runtime', table_oid, 'REFERENCES')
      OR pg_catalog.has_table_privilege('grainline_app_runtime', table_oid, 'TRIGGER')
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_email_outbox_cancel_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_notification_delete_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       0,
+       'public.grainline_email_outbox_cancel_seller_broadcast(text)'::pg_catalog.regprocedure,
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       0,
+       'public.grainline_notification_delete_seller_broadcast(text)'::pg_catalog.regprocedure,
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_email_outbox_cancel_seller_broadcast(text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_notification_delete_seller_broadcast(text)',
+       'EXECUTE'
+     )
   THEN
     RAISE EXCEPTION 'SellerBroadcast rollback did not restore predecessor posture';
   END IF;

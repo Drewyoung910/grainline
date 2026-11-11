@@ -4481,7 +4481,9 @@ describe("database grant inventory guardrails", () => {
           ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
             + 1 // reasserted provider-attempt PUBLIC/runtime revoke
           : 0)
-        + (sellerBroadcastRlsActivationPresent ? 1 : 0)
+        + (sellerBroadcastRlsActivationPresent
+          ? 3 // table plus two retired cleanup functions
+          : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
           : 0)
@@ -7060,7 +7062,7 @@ describe("database grant inventory guardrails", () => {
     );
     assert.equal(
       (provision.match(/^REVOKE ALL ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
-      25,
+      26,
     );
     assert.equal(
       (provision.match(/^GRANT EXECUTE ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,

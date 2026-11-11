@@ -304,6 +304,16 @@ test("production inspector retires predecessor-only function authority with the 
     "successor",
   );
   assert.equal(laterSuccessor[1].sourceSha256, laterDigest);
+  const retiredSuccessor = classifyPrivilegeReleaseFunctions(
+    [
+      row("public.compat(text)", false),
+      row("public.retained()", false, laterSource),
+    ],
+    mockRelease,
+    "successor",
+    new Set(["public.retained()"]),
+  );
+  assert.equal(retiredSuccessor[1].runtimeExecute, false);
   assert.throws(
     () => classifyPrivilegeReleaseFunctions(
       predecessorRows,
