@@ -3439,6 +3439,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && sellerBroadcastRlsActivationExpected(inventory)
     )
     || (
+      tableName === SELLER_METRICS_TABLE
+      && sellerMetricsRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
