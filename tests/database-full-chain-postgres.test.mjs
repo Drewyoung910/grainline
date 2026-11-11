@@ -746,14 +746,8 @@ test(
                 { Client: DisposableOwnerClient, rootDir: repositoryRoot },
               );
             assert.equal(preparationPostflight.state, "applied");
-            assert.equal(preparationPostflight.catalog.functions.length, 4);
-            assert.deepEqual(preparationPostflight.catalog.triggers, [{
-              name: "grainline_seller_metrics_inactive_owner_cleanup",
-              function: "grainline_seller_metrics_inactive_owner_cleanup",
-              table: "SellerProfile",
-              enabled: "O",
-              type: 17,
-            }]);
+            assert.equal(preparationPostflight.catalog.functions.length, 3);
+            assert.deepEqual(preparationPostflight.catalog.triggers, []);
             assert.ok(fixture, "seller fixture must exist before SellerMetrics proof");
             await proveSellerMetricsPreparedAuthorities({
               connectionString: proofDatabaseUrl,
@@ -1075,35 +1069,6 @@ test(
         ],
       );
 
-      assert.ok(
-        sellerMetricsPreparationPreflightPath,
-        "SellerMetrics preparation preflight did not run",
-      );
-      const sellerMetricsPreparationPostflight =
-        await inspectPrivateTablePreparationProduction(
-          {
-            DIRECT_URL: proofDatabaseUrl,
-            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1",
-            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
-            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
-              preparationEvidenceDirectory,
-              "seller-metrics-preparation-postflight.json",
-            ),
-            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
-              sellerMetricsPreparationPreflightPath,
-            PRODUCTION_MIGRATION_RELEASE_COMMIT: "7".repeat(40),
-          },
-          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
-        );
-      assert.equal(sellerMetricsPreparationPostflight.state, "applied");
-      assert.equal(sellerMetricsPreparationPostflight.catalog.functions.length, 3);
-      assert.deepEqual(sellerMetricsPreparationPostflight.catalog.triggers, []);
-      assert.ok(fixture, "seller fixture must exist before SellerMetrics proof");
-      await proveSellerMetricsPreparedAuthorities({
-        connectionString: proofDatabaseUrl,
-        database: adapter,
-        seller: fixture,
-      });
       for (const releaseId of PRIVATE_TABLE_ACTIVATION_RELEASES.values()) {
         const previousPath = privateActivationPreflightPaths.get(releaseId);
         assert.ok(previousPath, `${releaseId} activation preflight did not run`);

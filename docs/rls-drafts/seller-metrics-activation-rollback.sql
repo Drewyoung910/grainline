@@ -3,7 +3,7 @@
 --
 -- Run this database transaction before directing any predecessor application
 -- traffic at the database. It restores predecessor CRUD before removing FORCE
--- and ENABLE atomically. Prepared functions, constraints and cleanup remain.
+-- and ENABLE atomically. Prepared functions and constraints remain.
 
 BEGIN;
 
@@ -52,22 +52,6 @@ BEGIN
       AND NOT attribute.attisdropped
   ) THEN
     RAISE EXCEPTION 'SellerMetrics rollback ACL posture drifted';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1
-      FROM pg_catalog.pg_trigger AS trigger_state
-      JOIN pg_catalog.pg_proc AS trigger_function
-        ON trigger_function.oid = trigger_state.tgfoid
-     WHERE trigger_state.tgrelid = 'public."SellerProfile"'::pg_catalog.regclass
-       AND trigger_state.tgname = 'grainline_seller_metrics_inactive_owner_cleanup'
-       AND NOT trigger_state.tgisinternal
-       AND trigger_state.tgenabled = 'O'
-       AND trigger_state.tgtype = 17
-       AND trigger_function.oid = pg_catalog.to_regprocedure(
-         'public.grainline_seller_metrics_inactive_owner_cleanup()'
-       )
-  ) THEN
-    RAISE EXCEPTION 'SellerMetrics rollback cleanup trigger drifted';
   END IF;
 END
 $grainline_seller_metrics_rollback_preflight$;

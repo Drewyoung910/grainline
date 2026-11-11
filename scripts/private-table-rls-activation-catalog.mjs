@@ -323,13 +323,13 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
   seller_metrics_v1: Object.freeze({
     preparationReleaseId: "seller_metrics_v1",
     minimumCompatibleAppCommit:
-      "fdd82ceb264928c1ce55a5a0b24a733206e501ec",
+      "7c43e2fe32f2afd123b1f3103e2dabaa06020d2a",
     migration: "20261102040000_activate_seller_metrics_rls",
     migrationSha256:
-      "350875638d45fc82fa4065d9f88439382a744394ded059d4b2ecbb1527c2a9b9",
+      "035e3540499ec009a578ceba54d2e8bf7ef17ccc0fba3109b19176f4e198b41a",
     rollbackPath: "docs/rls-drafts/seller-metrics-activation-rollback.sql",
     rollbackSha256:
-      "41d2cdadcd854a57624229da09e5dac3a9b4aa185f3e73a9936dbbd488876086",
+      "1742c9de413860f822307d944506add51c422f7935133d78cefcafbc0e647baf",
     table: "SellerMetrics",
     additionalLocks: Object.freeze([
       Object.freeze({

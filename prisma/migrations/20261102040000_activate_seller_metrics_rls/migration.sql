@@ -147,32 +147,14 @@ BEGIN
     RAISE EXCEPTION 'SellerMetrics indexes drifted';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
-      FROM pg_catalog.pg_trigger AS trigger_state
-      JOIN pg_catalog.pg_proc AS trigger_function
-        ON trigger_function.oid = trigger_state.tgfoid
-     WHERE trigger_state.tgrelid = 'public."SellerProfile"'::pg_catalog.regclass
-       AND trigger_state.tgname = 'grainline_seller_metrics_inactive_owner_cleanup'
-       AND NOT trigger_state.tgisinternal
-       AND trigger_state.tgenabled = 'O'
-       AND trigger_state.tgtype = 17
-       AND trigger_function.oid = pg_catalog.to_regprocedure(
-         'public.grainline_seller_metrics_inactive_owner_cleanup()'
-       )
-  ) THEN
-    RAISE EXCEPTION 'SellerMetrics inactive-owner cleanup trigger drifted';
-  END IF;
-
   FOR reviewed_function, expected_source_md5, expected_volatility,
       expected_runtime_execute, expected_staff_execute IN
     SELECT expected.identity, expected.source_md5, expected.volatility,
            expected.runtime_execute, expected.staff_execute
       FROM (VALUES
-        ('public.grainline_seller_metrics_refresh_prepared_impl(text,integer,boolean,text)', '70a797e4e796ad86d61596272decae4e', 'v'::"char", false, false),
+        ('public.grainline_seller_metrics_refresh_prepared_impl(text,integer,boolean,text)', 'd3a0a48c092466c9006d7df256a40999', 'v'::"char", false, false),
         ('public.grainline_seller_metrics_owner_state(integer,boolean)', 'b37116e7cedeb894f33fefd70dc72527', 'v'::"char", true, false),
-        ('public.grainline_seller_metrics_account_deletion_clear(text,bigint,uuid)', 'ee4f472920572d095b2c6b7e4d37adc8', 'v'::"char", true, false),
-        ('public.grainline_seller_metrics_inactive_owner_cleanup()', '1209378d714fa9c8f733d9c7d74427e8', 'v'::"char", false, false),
+        ('public.grainline_seller_metrics_account_deletion_clear(text,bigint,uuid)', '9a8dcc89c0c411ffa5bf56b4eeb95ac9', 'v'::"char", true, false),
         ('public.grainline_seller_guild_metrics_apply(text,timestamp without time zone)', 'd9d8b81f20546d06bfb89c799264ba88', 'v'::"char", true, false),
         ('public.grainline_seller_guild_metrics_apply_prepared_impl(text,timestamp without time zone)', '09f24202b6869178b14f23782c6cbc2c', 'v'::"char", false, false),
         ('public.grainline_seller_guild_staff_master_pending(text)', '6302586fa4117ed89faabe4647603158', 's'::"char", false, true),
@@ -216,7 +198,6 @@ BEGIN
       AND procedure.oid <> ALL (ARRAY[
         pg_catalog.to_regprocedure('public.grainline_seller_metrics_refresh_prepared_impl(text,integer,boolean,text)'),
         pg_catalog.to_regprocedure('public.grainline_seller_metrics_account_deletion_clear(text,bigint,uuid)'),
-        pg_catalog.to_regprocedure('public.grainline_seller_metrics_inactive_owner_cleanup()'),
         pg_catalog.to_regprocedure('public.grainline_seller_guild_metrics_apply(text,timestamp without time zone)'),
         pg_catalog.to_regprocedure('public.grainline_seller_guild_metrics_apply_prepared_impl(text,timestamp without time zone)'),
         pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_master_pending(text)'),
@@ -288,22 +269,6 @@ BEGIN
       AND NOT attribute.attisdropped
   ) THEN
     RAISE EXCEPTION 'SellerMetrics activation left direct authority';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1
-      FROM pg_catalog.pg_trigger AS trigger_state
-      JOIN pg_catalog.pg_proc AS trigger_function
-        ON trigger_function.oid = trigger_state.tgfoid
-     WHERE trigger_state.tgrelid = 'public."SellerProfile"'::pg_catalog.regclass
-       AND trigger_state.tgname = 'grainline_seller_metrics_inactive_owner_cleanup'
-       AND NOT trigger_state.tgisinternal
-       AND trigger_state.tgenabled = 'O'
-       AND trigger_state.tgtype = 17
-       AND trigger_function.oid = pg_catalog.to_regprocedure(
-         'public.grainline_seller_metrics_inactive_owner_cleanup()'
-       )
-  ) THEN
-    RAISE EXCEPTION 'SellerMetrics cleanup trigger drifted after activation';
   END IF;
 END
 $grainline_seller_metrics_rls_postflight$;

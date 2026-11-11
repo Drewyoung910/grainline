@@ -24,7 +24,7 @@ test("SellerMetrics activation is policyless and removes direct authority", () =
   assert.deepEqual(release.activatedStaffPrivileges, []);
   assert.deepEqual(release.activatedAccountDeletionPrivileges, []);
   assert.deepEqual(release.activatedPublicPrivileges, []);
-  assert.equal(release.preparation.functions.length, 4);
+  assert.equal(release.preparation.functions.length, 3);
   assert.equal(release.preparation.retainedFunctions.length, 5);
   assert.deepEqual(release.additionalLocks, [{
     table: "SellerProfile",
@@ -58,7 +58,6 @@ test("SellerMetrics activation seals every FORCE-crossing authority", () => {
     "SellerMetrics columns drifted",
     "SellerMetrics constraints drifted",
     "SellerMetrics indexes drifted",
-    "SellerMetrics inactive-owner cleanup trigger drifted",
     "SellerMetrics has an unreviewed function reader or writer",
   ]) {
     assert.match(migration, new RegExp(marker, "u"));
@@ -89,10 +88,7 @@ test("SellerMetrics rollback restores predecessor CRUD before disabling RLS", ()
   assert.equal(noForce < disable, true);
   assert.doesNotMatch(rollback, /migrate resolve --rolled-back/u);
   assert.match(rollback, /new reviewed forward migration with a new name/u);
-  assert.match(
-    rollback,
-    /trigger_function\.oid = pg_catalog\.to_regprocedure\(\s*'public\.grainline_seller_metrics_inactive_owner_cleanup\(\)'\s*\)/u,
-  );
+  assert.doesNotMatch(rollback, /grainline_seller_metrics_inactive_owner_cleanup/u);
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
 });
 
