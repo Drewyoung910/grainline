@@ -59,13 +59,7 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
       return verified.release.functions.map((entry) => Object.freeze({
         identity: `${entry.name}(${entry.arguments})`,
         executeRole: entry.executeRole ?? "runtime",
-        // A reviewed successor release may replace a function that has a
-        // predecessor digest. The deploy-order gate must continue requiring
-        // the exact identity and EXECUTE privilege without pinning that
-        // intentionally replaceable body forever.
-        sourceSha256: entry.predecessorSourceSha256
-          ? null
-          : sourceSha256(verified.functionSources.get(entry.name)),
+        sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
       }));
     }),
 );
@@ -107,11 +101,8 @@ export function collectPrivateTableRuntimeReadinessIssues(
       issues.push(`${identity} is absent or not executable`);
     }
     if (
-      expected.sourceSha256 !== null
-      && (
-        typeof row?.source !== "string"
-        || sourceSha256(row.source) !== expected.sourceSha256
-      )
+      typeof row?.source !== "string"
+      || sourceSha256(row.source) !== expected.sourceSha256
     ) {
       issues.push(`${identity} body drifted`);
     }

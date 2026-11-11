@@ -67,22 +67,9 @@ test("private-table readiness catalog covers the exact reviewed preparation batc
     PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS.length,
   );
   for (const entry of PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS) {
-    if (entry.sourceSha256 !== null) {
-      assert.equal(sha256(sourceByIdentity.get(entry.identity)), entry.sourceSha256);
-    }
+    assert.equal(sha256(sourceByIdentity.get(entry.identity)), entry.sourceSha256);
     assert.ok(["runtime", "staff"].includes(entry.executeRole));
   }
-  assert.deepEqual(
-    PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS
-      .filter((entry) => entry.sourceSha256 === null)
-      .map((entry) => entry.identity),
-    [
-      "grainline_seller_guild_staff_transition(text, text, text, text, text, boolean)",
-      "grainline_seller_guild_member_revoke(text)",
-      "grainline_seller_guild_metrics_apply(text, timestamp without time zone)",
-      "grainline_email_outbox_begin_provider_attempt(text, bigint, uuid)",
-    ],
-  );
 });
 
 test("readiness issue collector rejects missing, wrong-role and drifted functions", () => {
