@@ -161,12 +161,9 @@ BEGIN
   );
 
   DELETE FROM public."EmailSuppression" AS suppression
-   WHERE (
-     pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = normalized_email
-     OR public.grainline_account_deletion_email_key_core(
-          suppression.email::text
-        ) = canonical_email
-   )
+   WHERE public.grainline_account_deletion_email_key_core(
+           suppression.email::text
+         ) = canonical_email
      AND suppression.reason::text = 'MANUAL'
      AND suppression.source = 'one_click_unsubscribe';
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
@@ -409,12 +406,9 @@ BEGIN
   RETURN EXISTS (
     SELECT 1
       FROM public."NewsletterSubscriber" AS subscriber
-     WHERE (
-       pg_catalog.lower(pg_catalog.btrim(subscriber.email::text)) = p_email
-       OR public.grainline_account_deletion_email_key_core(
-            subscriber.email::text
-          ) = canonical_email
-     )
+     WHERE public.grainline_account_deletion_email_key_core(
+             subscriber.email::text
+           ) = canonical_email
        AND subscriber."confirmedAt" > p_issued_at
   );
 END
@@ -483,8 +477,7 @@ BEGIN
          "confirmationExpiresAt" = NULL,
          "confirmationSentAt" = NULL,
          "deactivatedAt" = pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
-   WHERE pg_catalog.lower(pg_catalog.btrim(subscriber.email::text)) = p_email
-      OR public.grainline_account_deletion_email_key_core(
+   WHERE public.grainline_account_deletion_email_key_core(
            subscriber.email::text
          ) = canonical_email;
   GET DIAGNOSTICS newsletter_count = ROW_COUNT;
@@ -492,12 +485,9 @@ BEGIN
   SELECT EXISTS (
     SELECT 1
       FROM public."EmailSuppression" AS suppression
-     WHERE (
-       pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = p_email
-       OR public.grainline_account_deletion_email_key_core(
-            suppression.email::text
-          ) = canonical_email
-     )
+     WHERE public.grainline_account_deletion_email_key_core(
+             suppression.email::text
+           ) = canonical_email
        AND (
          suppression.reason::text IN ('BOUNCE', 'COMPLAINT')
          OR suppression.source = 'account_deletion'
@@ -513,12 +503,9 @@ BEGIN
            'disabledPreferences', p_disabled_preferences
          ),
          "updatedAt" = pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
-   WHERE (
-     pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = p_email
-     OR public.grainline_account_deletion_email_key_core(
-          suppression.email::text
-        ) = canonical_email
-   )
+   WHERE public.grainline_account_deletion_email_key_core(
+           suppression.email::text
+         ) = canonical_email
      AND suppression.reason::text = 'MANUAL';
 
   INSERT INTO public."EmailSuppression" (
@@ -582,12 +569,9 @@ BEGIN
     email_keys
   );
   DELETE FROM public."EmailSuppression" AS suppression
-   WHERE (
-     pg_catalog.lower(pg_catalog.btrim(suppression.email::text)) = ANY(email_keys)
-     OR public.grainline_account_deletion_email_key_core(
-          suppression.email::text
-        ) = ANY(email_keys)
-   )
+   WHERE public.grainline_account_deletion_email_key_core(
+           suppression.email::text
+         ) = ANY(email_keys)
      AND suppression.source = 'account_deletion';
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
   RETURN deleted_count;
