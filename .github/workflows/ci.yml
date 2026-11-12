@@ -109,6 +109,12 @@ jobs:
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - name: Generate Prisma client for candidate behavior tests
         run: npx prisma generate
+      - name: Verify SellerMetrics source packages
+        run: >-
+          node --test
+          tests/seller-metrics-preparation.test.mjs
+          tests/seller-metrics-preparation-postgres.test.mjs
+          tests/seller-metrics-rls-activation.test.mjs
       - name: Verify C-1180 Resend webhook receipt recovery source package
         run: >-
           node --test --test-concurrency=1
@@ -559,12 +565,6 @@ jobs:
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
-      - name: Verify SellerMetrics source packages
-        run: >-
-          node --test
-          tests/seller-metrics-preparation.test.mjs
-          tests/seller-metrics-preparation-postgres.test.mjs
-          tests/seller-metrics-rls-activation.test.mjs
       - name: Isolate SellerMetrics candidates until historical release guards pass
         shell: bash
         run: |
