@@ -66,6 +66,7 @@ function fakeClientClass({ applied }) {
           rows: [{
             columns: 0,
             functions: applied ? release.functions.length : 0,
+            constraints: 0,
           }],
         };
       }
@@ -78,10 +79,12 @@ function fakeClientClass({ applied }) {
           owner_name: "neondb_owner",
           owner_bypasses_rls: true,
           security_definer: true,
+          volatility: entry.volatility ?? "v",
           configuration: ["search_path=pg_catalog"],
           source: verified.functionSources.get(entry.name),
           runtime_execute: true,
           staff_execute: false,
+          account_deletion_execute: false,
           public_execute: false,
         })).sort((left, right) => (
           left.function_name.localeCompare(right.function_name)
@@ -127,7 +130,14 @@ test("Block preparation inspector proves restart-safe pending and applied states
       },
     );
     assert.equal(pending.state, "pending");
-    assert.deepEqual(pending.catalog, { columns: [], functions: [] });
+    assert.deepEqual(pending.catalog, {
+      columns: [],
+      constraints: [],
+      functions: [],
+      retainedFunctions: [],
+      indexes: [],
+      triggers: [],
+    });
 
     const appliedPreflightEnv = {
       ...environment(directory, "preflight"),
