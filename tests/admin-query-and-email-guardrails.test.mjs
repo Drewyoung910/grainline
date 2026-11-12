@@ -1,16 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { adminAuditLogPreparationMigrationPath } from "./helpers/admin-audit-log-preparation-migration-path.mjs";
 import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 const { isAlwaysOnEmailPreferenceKey } = await import(
   "../src/lib/emailPreferencePolicy.ts"
 );
-
-const adminAuditLogPreparationMigrationPath =
-  process.env.ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH?.trim()
-  || "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -40,7 +37,7 @@ describe("admin query and email guardrails", () => {
   it("keeps admin list ordering deterministic on equal timestamps", () => {
     const users = source("src/app/admin/users/page.tsx");
     const audit = source("src/app/admin/audit/page.tsx");
-    const auditMigration = source(adminAuditLogPreparationMigrationPath);
+    const auditMigration = source(adminAuditLogPreparationMigrationPath());
     const broadcastMigration = source(sellerBroadcastPreparationMigrationPath());
     const reviews = source("src/app/admin/reviews/page.tsx");
     const supportMigration = source(supportRequestPreparationMigrationPath());

@@ -4,9 +4,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { PGlite } from "@electric-sql/pglite";
+import { adminAuditLogPreparationMigrationPath } from "./helpers/admin-audit-log-preparation-migration-path.mjs";
 
 const migration = readFileSync(
-  "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql",
+  adminAuditLogPreparationMigrationPath(),
   "utf8",
 );
 const rollback = readFileSync(
