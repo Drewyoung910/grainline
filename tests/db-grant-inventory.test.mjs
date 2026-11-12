@@ -91,6 +91,11 @@ import {
 } from "../scripts/private-table-preparation-catalog.mjs";
 
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
+const ADMIN_AUDIT_LOG_PREPARATION_FUNCTION_NAMES =
+  ADMIN_AUDIT_LOG_PREPARATION.functions.map((entry) => entry.name);
+const ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH =
+  `prisma/migrations/${ADMIN_AUDIT_LOG_PREPARATION.migration}/migration.sql`;
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -2465,6 +2470,42 @@ describe("database grant inventory guardrails", () => {
       [],
     );
 
+    const adminAuditPreparedInventory = {
+      ...preparedInventory,
+      functions: [
+        ...(preparedInventory.functions ?? []),
+        "grainline_admin_audit_account_deletion_redaction_apply",
+        "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+      ],
+    };
+    const adminAuditPreparedState = {
+      ...preparedState,
+      function_identities: [
+        ...preparedState.function_identities,
+        "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+        "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+      ],
+      effective_function_identities: [
+        ...preparedState.effective_function_identities,
+        "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+        "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+      ],
+    };
+    assert.deepEqual(
+      collectAccountDeletionWorkerBoundaryIssues(
+        adminAuditPreparedState,
+        adminAuditPreparedInventory,
+      ),
+      [],
+    );
+    assert.match(
+      collectAccountDeletionWorkerBoundaryIssues(
+        preparedState,
+        adminAuditPreparedInventory,
+      ).join("\n"),
+      /function authority drifted/u,
+    );
+
     const activeInventory = {
       ...preparedInventory,
       rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
@@ -3881,6 +3922,9 @@ describe("database grant inventory guardrails", () => {
     const serviceReferenceLeastPrivilegeMigrationPresent = existsSync(
       "prisma/migrations/20261101020000_narrow_service_reference_runtime_privileges/migration.sql",
     );
+    const adminAuditLogAuthorityPrepared = existsSync(
+      ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH,
+    );
     const sellerProfilePrivateForceMigrationPresent = existsSync(
       "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
     );
@@ -4258,6 +4302,9 @@ describe("database grant inventory guardrails", () => {
       ...(accountDeletionClaimFencePrepared
         ? accountDeletionClaimFenceFunctionNames
         : []),
+      ...(adminAuditLogAuthorityPrepared
+        ? ADMIN_AUDIT_LOG_PREPARATION_FUNCTION_NAMES
+        : []),
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
       "grainline_case_account_deletion_blockers",
@@ -4574,6 +4621,9 @@ describe("database grant inventory guardrails", () => {
           ? SELLER_METRICS_PREPARATION.functions.length
           : 0)
         + (sellerMetricsRlsActivationPresent ? 1 : 0)
+        + (adminAuditLogAuthorityPrepared
+          ? 3 // helper, prepared authority, and insert-fence PUBLIC revokes
+          : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         + (typeof blockRlsActivationExpected === "function"

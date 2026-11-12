@@ -271,7 +271,36 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_user_report_staff_resolve(text,text,text,text)')
      )
   ) <> 23 THEN
-    RAISE EXCEPTION 'AdminAuditLog preparation rollback changed retained functions';
+    RAISE EXCEPTION 'AdminAuditLog preparation rollback changed retained functions: % remain',
+      (
+        SELECT pg_catalog.count(*)
+          FROM pg_catalog.pg_proc AS procedure
+         WHERE procedure.oid IN (
+           pg_catalog.to_regprocedure('public.grainline_case_escalate(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_case_mark_resolved(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_case_open(text,text,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_case_staff_resolution_finalize(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_case_staff_resolution_prepare(text,text,"CaseResolution",integer,jsonb)'),
+           pg_catalog.to_regprocedure('public.grainline_case_staff_resolution_provider_recover(text,text,text,bigint,text)'),
+           pg_catalog.to_regprocedure('public.grainline_case_staff_resolution_provider_recovery_load(text,text,"CaseResolution",integer)'),
+           pg_catalog.to_regprocedure('public.grainline_case_staff_resolution_provider_recovery_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)'),
+           pg_catalog.to_regprocedure('public.grainline_case_staff_resolution_reconcile(text,text,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_case_staff_resolution_recovery_finalize(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_notification_create_core(text,text,"NotificationType",text,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_order_refund_reconcile(text,text,bigint,text,text,bigint,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_order_staff_append_note(text,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_order_staff_mark_reviewed(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_order_staff_record_label_voided(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_seller_broadcast_staff_delete(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)'),
+           pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_transition_prepared_impl(text,text,text,text,text,boolean)'),
+           pg_catalog.to_regprocedure('public.grainline_seller_staff_feature_transition(text,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_seller_staff_listing_review_transition(text,text,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_support_request_staff_transition(text,text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_user_ban_repair_target(text,text)'),
+           pg_catalog.to_regprocedure('public.grainline_user_report_staff_resolve(text,text,text,text)')
+         )
+      );
   END IF;
 END;
 $grainline_admin_audit_preparation_rollback_postflight$;

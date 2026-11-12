@@ -9,6 +9,10 @@ const migration = readFileSync(
   "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql",
   "utf8",
 );
+const rollback = readFileSync(
+  "docs/rls-drafts/admin-audit-log-preparation-rollback.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -22,6 +26,67 @@ async function readyDatabase() {
     CREATE TYPE public."ListingStatus" AS ENUM (
       'DRAFT', 'PENDING_REVIEW', 'ACTIVE', 'REJECTED'
     );
+    CREATE TYPE public."CaseResolution" AS ENUM (
+      'DISMISSED', 'REFUND_FULL', 'REFUND_PARTIAL'
+    );
+    CREATE TYPE public."NotificationType" AS ENUM ('SYSTEM');
+
+    CREATE FUNCTION public.grainline_case_escalate(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_mark_resolved(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_open(text, text, text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_staff_resolution_finalize(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_staff_resolution_prepare(
+      text, text, public."CaseResolution", integer, jsonb
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_staff_resolution_provider_recover(
+      text, text, text, bigint, text
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_staff_resolution_provider_recovery_load(
+      text, text, public."CaseResolution", integer
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_staff_resolution_provider_recovery_record(
+      text, text, text, text, text[], text[], text, integer, boolean, boolean
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_staff_resolution_reconcile(
+      text, text, text, text
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_case_staff_resolution_recovery_finalize(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_notification_create_core(
+      text, text, public."NotificationType", text, text, text
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_order_refund_reconcile(
+      text, text, bigint, text, text, bigint, text, text
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_order_staff_append_note(text, text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_order_staff_mark_reviewed(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_order_staff_record_label_voided(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_seller_broadcast_staff_delete(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_seller_guild_staff_transition(
+      text, text, text, text, text, boolean
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_seller_guild_staff_transition_prepared_impl(
+      text, text, text, text, text, boolean
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_seller_staff_feature_transition(text, text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_seller_staff_listing_review_transition(
+      text, text, text, text
+    ) RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_support_request_staff_transition(text, text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_user_ban_repair_target(text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
+    CREATE FUNCTION public.grainline_user_report_staff_resolve(text, text, text, text)
+      RETURNS void LANGUAGE sql AS 'SELECT';
 
     CREATE TABLE public."User" (
       id text PRIMARY KEY,
@@ -347,6 +412,45 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
       deletion_legacy_apply: true,
       runtime_deletion_legacy_apply: false,
     });
+  } finally {
+    await database.close();
+  }
+});
+
+test("AdminAuditLog preparation rollback restores the predecessor surface", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec(rollback);
+    const state = await database.query(`
+      SELECT
+        pg_catalog.to_regprocedure(
+          'public.grainline_admin_audit_redact_deleted_references(jsonb)'
+        ) IS NULL AS redactor_removed,
+        pg_catalog.to_regprocedure(
+          'public.grainline_admin_audit_append(text,text,text,text,text,jsonb)'
+        ) IS NULL AS append_removed,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', 'public."AdminAuditLog"',
+          'SELECT,INSERT,UPDATE,DELETE'
+        ) AS predecessor_crud
+    `);
+    assert.deepEqual(state.rows[0], {
+      redactor_removed: true,
+      append_removed: true,
+      predecessor_crud: true,
+    });
+    await asRuntime(
+      database,
+      "proof-admin",
+      `INSERT INTO public."AdminAuditLog" (
+         id, "adminId", action, "targetType", "targetId", metadata
+       ) VALUES ('proof-after-rollback', 'proof-admin', 'TERMS_ACCEPTED',
+                 'OTHER', 'safe', '{}'::jsonb)`,
+    );
+    const inserted = await database.query(
+      `SELECT id FROM public."AdminAuditLog" WHERE id='proof-after-rollback'`,
+    );
+    assert.equal(inserted.rows[0].id, "proof-after-rollback");
   } finally {
     await database.close();
   }

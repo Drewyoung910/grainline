@@ -295,7 +295,11 @@ async function deletionFirstProof(config, controller, observer) {
     );
     assert.deepEqual(inserted.rows, [{
       targetId: "[deleted account]",
-      metadata: { marker: "late-sensitive-marker" },
+      metadata: {
+        adminAccountDeleted: true,
+        marker: "late-sensitive-marker",
+        redactedForAccountDeletion: true,
+      },
     }]);
     return true;
   } finally {
@@ -647,7 +651,7 @@ export async function runProof(config = proofConfig()) {
       writerFirstPlanned: await stage("writer-first", () => (
         writerFirstProof(config, controller, observer)
       )),
-      deletionFirstRejected: await stage("deletion-first", () => (
+      deletionFirstSanitized: await stage("deletion-first", () => (
         deletionFirstProof(config, controller, observer)
       )),
       concurrentUndoPreserved: await stage("undo-redaction", () => (

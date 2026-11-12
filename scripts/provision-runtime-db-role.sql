@@ -5415,6 +5415,87 @@ SELECT pg_catalog.format(
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- AdminAuditLog preparation extends runtime, staff, and the dedicated deletion
+-- worker with fixed authorities. Converge every prepared function whenever the
+-- preparation exists, without requiring historical schemas to define it.
+WITH admin_audit_prepared(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_redact_deleted_references"(jsonb)'),
+    ('public."grainline_admin_audit_insert_write_fence"()'),
+    ('public."grainline_admin_audit_append"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_admin_audit_staff_count"(text, text)'),
+    ('public."grainline_admin_audit_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_admin_audit_staff_undo_source"(text, text)'),
+    ('public."grainline_admin_audit_undo_claim"(text, text, text, text, text, text, text, jsonb)'),
+    ('public."grainline_admin_audit_account_deletion_write_fence"(text, bigint, uuid)'),
+    ('public."grainline_admin_audit_account_deletion_candidates"(text, bigint, uuid, text[], text[], text, integer)'),
+    ('public."grainline_admin_audit_account_deletion_redaction_plans_enqueue"(text, bigint, uuid, text[], text[], jsonb)'),
+    ('public."grainline_admin_audit_account_deletion_redaction_apply"(text, bigint, uuid, text)'),
+    ('public."grainline_admin_audit_account_deletion_legacy_redaction_apply"(text, bigint, uuid, text)'),
+    ('public."grainline_admin_audit_staff_ban_rows"(text, text, boolean, integer)'),
+    ('public."grainline_admin_audit_ban_repair_candidates"(integer)'),
+    ('public."grainline_admin_audit_ban_repair_state"(text, text)'),
+    ('public."grainline_admin_audit_ban_repair_append"(text, text, text, jsonb)')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I, %I, %I',
+  function_signature,
+  :'runtime_role',
+  'grainline_staff_read_runtime',
+  'grainline_account_deletion_runtime'
+)
+  FROM admin_audit_prepared
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH admin_audit_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_append"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_admin_audit_undo_claim"(text, text, text, text, text, text, text, jsonb)'),
+    ('public."grainline_admin_audit_account_deletion_write_fence"(text, bigint, uuid)'),
+    ('public."grainline_admin_audit_account_deletion_candidates"(text, bigint, uuid, text[], text[], text, integer)'),
+    ('public."grainline_admin_audit_account_deletion_redaction_plans_enqueue"(text, bigint, uuid, text[], text[], jsonb)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'runtime_role'
+)
+  FROM admin_audit_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH admin_audit_staff(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_staff_count"(text, text)'),
+    ('public."grainline_admin_audit_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_admin_audit_staff_undo_source"(text, text)'),
+    ('public."grainline_admin_audit_staff_ban_rows"(text, text, boolean, integer)'),
+    ('public."grainline_admin_audit_ban_repair_candidates"(integer)'),
+    ('public."grainline_admin_audit_ban_repair_state"(text, text)'),
+    ('public."grainline_admin_audit_ban_repair_append"(text, text, text, jsonb)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  'grainline_staff_read_runtime'
+)
+  FROM admin_audit_staff
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH admin_audit_account_deletion(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_account_deletion_redaction_apply"(text, bigint, uuid, text)'),
+    ('public."grainline_admin_audit_account_deletion_legacy_redaction_apply"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  'grainline_account_deletion_runtime'
+)
+  FROM admin_audit_account_deletion
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH account_deletion_claim_lifecycle(function_signature) AS (
   VALUES
     ('public."grainline_account_deletion_side_effect_claim"(text)'),
@@ -5469,6 +5550,11 @@ DECLARE
   );
   worker_table_privileges text[];
   worker_function_identities text[];
+  expected_worker_function_identities text[] := ARRAY[
+    'grainline_account_deletion_side_effect_claim(text)',
+    'grainline_account_deletion_side_effect_complete(text,bigint,uuid)',
+    'grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)'
+  ]::text[];
 BEGIN
   IF pg_catalog.has_database_privilege(
        worker_oid, pg_catalog.current_database(), 'CREATE'
@@ -5567,11 +5653,15 @@ BEGIN
          AND acl.privilege_type = 'EXECUTE'
          AND NOT acl.is_grantable
     ) AS identities;
-  IF worker_function_identities IS DISTINCT FROM ARRAY[
-       'grainline_account_deletion_side_effect_claim(text)',
-       'grainline_account_deletion_side_effect_complete(text,bigint,uuid)',
-       'grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)'
-     ]::text[] OR EXISTS (
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+     ) IS NOT NULL THEN
+    expected_worker_function_identities := expected_worker_function_identities || ARRAY[
+      'grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
+      'grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+    ]::text[];
+  END IF;
+  IF worker_function_identities IS DISTINCT FROM expected_worker_function_identities OR EXISTS (
     SELECT 1
       FROM pg_catalog.pg_proc AS procedure
       JOIN pg_catalog.pg_namespace AS namespace
