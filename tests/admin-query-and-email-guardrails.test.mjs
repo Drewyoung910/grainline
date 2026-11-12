@@ -8,6 +8,10 @@ const { isAlwaysOnEmailPreferenceKey } = await import(
   "../src/lib/emailPreferencePolicy.ts"
 );
 
+const adminAuditLogPreparationMigrationPath =
+  process.env.ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH?.trim()
+  || "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql";
+
 function source(path) {
   return readFileSync(path, "utf8");
 }
@@ -36,9 +40,7 @@ describe("admin query and email guardrails", () => {
   it("keeps admin list ordering deterministic on equal timestamps", () => {
     const users = source("src/app/admin/users/page.tsx");
     const audit = source("src/app/admin/audit/page.tsx");
-    const auditMigration = source(
-      "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql",
-    );
+    const auditMigration = source(adminAuditLogPreparationMigrationPath);
     const broadcastMigration = source(sellerBroadcastPreparationMigrationPath());
     const reviews = source("src/app/admin/reviews/page.tsx");
     const supportMigration = source(supportRequestPreparationMigrationPath());
