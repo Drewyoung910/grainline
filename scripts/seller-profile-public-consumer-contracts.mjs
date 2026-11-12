@@ -176,7 +176,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // avoids duplicating and drifting the ownership predicate.
       // The same boundary removes four app-side residual query shapes whose
       // behavior is pinned by the executed email-service authority proofs.
-      || reviewedNonTargetResiduals.length !== 22) {
+      // AdminAuditLog preparation moves its deletion selector and retry
+      // payload construction behind fixed authorities, removing two more
+      // app-side residual shapes without adding SellerProfile access.
+      || reviewedNonTargetResiduals.length !== 20) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

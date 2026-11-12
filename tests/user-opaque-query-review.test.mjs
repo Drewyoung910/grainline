@@ -51,17 +51,21 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // actor-bound SQL authority.
   // Email-service least privilege removes eight more app-side query shapes
   // by moving their bounded behavior behind fixed SQL authorities.
-  assert.equal(report.opaqueShapes.length, 133);
+  // SellerBroadcast preparation also moves the feed cursor predicate into its
+  // fixed page authority, removing the last app-side broadcast cursor shape.
+  // AdminAuditLog preparation moves the deletion selector and retry payload
+  // behind fixed authorities, removing two more residual app-side shapes.
+  assert.equal(report.opaqueShapes.length, 130);
   assert.equal(reviewedFactories.length, 102);
-  assert.equal(reviewedResidual.length, 31);
+  assert.equal(reviewedResidual.length, 28);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
     unique: 82,
     sha256: "00128cb518eafe7687e8a28ac85c7745b33dca57dd7b9e465192e87f687def62",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 26,
-    sha256: "ea4a1ba9a5e2f37b48fd4ee6ab3e33e020bf5d3ce442b51b98dc06859a6229c2",
+    unique: 23,
+    sha256: "be72c5f30ac3bb7d87fae5bead531b6ddd54c2b47a3cf0a9731d6eb8924a923d",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,
