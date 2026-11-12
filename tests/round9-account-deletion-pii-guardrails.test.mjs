@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { adminAuditLogPreparationMigrationPath } from "./helpers/admin-audit-log-preparation-migration-path.mjs";
 import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
@@ -392,9 +393,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("redacts account identifiers from admin audit reasons as well as metadata", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const preparation = source(
-      "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql",
-    );
+    const preparation = source(adminAuditLogPreparationMigrationPath());
     const referenceStart = deletion.indexOf(
       "const accountAuditReferenceValues = normalizedSensitiveValues",
     );
