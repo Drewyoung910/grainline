@@ -148,10 +148,14 @@ async function proveMixedVersionSerialization({
     )).rows[0]?.pid);
     await beginRuntime(second, actorId);
     await second.query("SET LOCAL statement_timeout = '5s'");
-    const staleReviewerInsert = second.query(
-      `INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
-       VALUES ($1, $2, 1)`,
-      [reviewId, actorId],
+    const staleReviewerInsert = assert.rejects(
+      second.query(
+        `INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
+         VALUES ($1, $2, 1)`,
+        [reviewId, actorId],
+      ),
+      (error) => error?.code === "23503",
+      "a predecessor insert must reject reviewer state that changed while it waited",
     );
     await waitForBackendLock(
       database,
@@ -169,11 +173,7 @@ async function proveMixedVersionSerialization({
       [reviewId],
     );
     await first.query("COMMIT");
-    await assert.rejects(
-      staleReviewerInsert,
-      (error) => error?.code === "23503",
-      "a predecessor insert must reject reviewer state that changed while it waited",
-    );
+    await staleReviewerInsert;
     await second.query("ROLLBACK");
     assert.equal(Number(rowsOf(await database.query(
       `SELECT pg_catalog.count(*)::integer AS value
