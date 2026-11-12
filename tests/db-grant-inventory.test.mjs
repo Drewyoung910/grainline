@@ -6882,7 +6882,7 @@ describe("database grant inventory guardrails", () => {
       "seller_metrics_rls_active",
     );
     const adminAuditProvisioningPresent = provision.includes(
-      "admin_audit_candidate",
+      "grainline_admin_audit_account_deletion_redaction_apply",
     );
     assert.equal(
       guardResultCount,
