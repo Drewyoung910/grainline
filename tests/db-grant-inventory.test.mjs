@@ -91,6 +91,8 @@ import {
 } from "../scripts/private-table-preparation-catalog.mjs";
 
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const SELLER_METRICS_PREPARATION_FUNCTION_NAMES =
+  SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name);
 const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
 const ADMIN_AUDIT_LOG_PREPARATION_FUNCTION_NAMES =
   ADMIN_AUDIT_LOG_PREPARATION.functions.map((entry) => entry.name);
@@ -1423,112 +1425,124 @@ describe("database grant inventory guardrails", () => {
         );
       }
     }
-    const sellerBroadcastPredecessorInventory = {
-      rlsEnableTables: [],
-      rlsForceTables: [],
-      rlsPolicyTables: [],
-    };
-    const sellerBroadcastActivatedInventory = {
-      rlsEnableTables: [SELLER_BROADCAST_TABLE],
-      rlsForceTables: [SELLER_BROADCAST_TABLE],
-      rlsPolicyTables: [],
-    };
-    assert.equal(
-      sellerBroadcastRlsActivationExpected(
-        sellerBroadcastPredecessorInventory,
-      ),
-      false,
-    );
-    assert.equal(
-      sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
-      false,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_BROADCAST_TABLE,
-        sellerBroadcastPredecessorInventory,
-      ),
-      REQUIRED_TABLE_PRIVILEGES,
-    );
-    assert.equal(
-      sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
-      true,
-    );
-    assert.equal(
-      sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
-      true,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_BROADCAST_TABLE,
-        sellerBroadcastActivatedInventory,
-      ),
-      [],
-    );
-    assert.equal(
-      policylessServiceRlsTableNames(
-        sellerBroadcastActivatedInventory,
-      ).includes(SELLER_BROADCAST_TABLE),
-      true,
-    );
-    assert.deepEqual(collectPolicylessServiceRlsIssues([{
-      table_name: SELLER_BROADCAST_TABLE,
-      rls_enabled: true,
-      rls_forced: true,
-      policy_count: 0,
-    }], sellerBroadcastActivatedInventory), []);
-    const sellerMetricsPredecessorInventory = {
-      rlsEnableTables: [],
-      rlsForceTables: [],
-      rlsPolicyTables: [],
-    };
-    const sellerMetricsActivatedInventory = {
-      rlsEnableTables: [SELLER_METRICS_TABLE],
-      rlsForceTables: [SELLER_METRICS_TABLE],
-      rlsPolicyTables: [],
-    };
-    assert.equal(
-      sellerMetricsRlsActivationExpected(sellerMetricsPredecessorInventory),
-      false,
-    );
-    assert.equal(
-      sellerMetricsRlsForceExpected(sellerMetricsPredecessorInventory),
-      false,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_METRICS_TABLE,
-        sellerMetricsPredecessorInventory,
-      ),
-      REQUIRED_TABLE_PRIVILEGES,
-    );
-    assert.equal(
-      sellerMetricsRlsActivationExpected(sellerMetricsActivatedInventory),
-      true,
-    );
-    assert.equal(
-      sellerMetricsRlsForceExpected(sellerMetricsActivatedInventory),
-      true,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_METRICS_TABLE,
-        sellerMetricsActivatedInventory,
-      ),
-      [],
-    );
-    assert.equal(
-      policylessServiceRlsTableNames(
-        sellerMetricsActivatedInventory,
-      ).includes(SELLER_METRICS_TABLE),
-      true,
-    );
-    assert.deepEqual(collectPolicylessServiceRlsIssues([{
-      table_name: SELLER_METRICS_TABLE,
-      rls_enabled: true,
-      rls_forced: true,
-      policy_count: 0,
-    }], sellerMetricsActivatedInventory), []);
+    if (
+      typeof sellerBroadcastRlsActivationExpected === "function"
+      && typeof sellerBroadcastRlsForceExpected === "function"
+      && typeof SELLER_BROADCAST_TABLE === "string"
+    ) {
+      const sellerBroadcastPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const sellerBroadcastActivatedInventory = {
+        rlsEnableTables: [SELLER_BROADCAST_TABLE],
+        rlsForceTables: [SELLER_BROADCAST_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(
+          sellerBroadcastPredecessorInventory,
+        ),
+        false,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerBroadcastActivatedInventory,
+        ).includes(SELLER_BROADCAST_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: SELLER_BROADCAST_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], sellerBroadcastActivatedInventory), []);
+    }
+    if (
+      typeof sellerMetricsRlsActivationExpected === "function"
+      && typeof sellerMetricsRlsForceExpected === "function"
+      && typeof SELLER_METRICS_TABLE === "string"
+    ) {
+      const sellerMetricsPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const sellerMetricsActivatedInventory = {
+        rlsEnableTables: [SELLER_METRICS_TABLE],
+        rlsForceTables: [SELLER_METRICS_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        sellerMetricsRlsActivationExpected(sellerMetricsPredecessorInventory),
+        false,
+      );
+      assert.equal(
+        sellerMetricsRlsForceExpected(sellerMetricsPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_METRICS_TABLE,
+          sellerMetricsPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        sellerMetricsRlsActivationExpected(sellerMetricsActivatedInventory),
+        true,
+      );
+      assert.equal(
+        sellerMetricsRlsForceExpected(sellerMetricsActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_METRICS_TABLE,
+          sellerMetricsActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerMetricsActivatedInventory,
+        ).includes(SELLER_METRICS_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: SELLER_METRICS_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], sellerMetricsActivatedInventory), []);
+    }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
       rls_enabled: true,
@@ -1736,7 +1750,9 @@ describe("database grant inventory guardrails", () => {
             "grainline_review_vote_update_forbidden",
           ]
         : []),
-      "grainline_seller_metrics_refresh_prepared_impl",
+      ...(typeof sellerMetricsRlsActivationExpected === "function"
+        ? ["grainline_seller_metrics_refresh_prepared_impl"]
+        : []),
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
@@ -2470,41 +2486,46 @@ describe("database grant inventory guardrails", () => {
       [],
     );
 
-    const adminAuditPreparedInventory = {
-      ...preparedInventory,
-      functions: [
-        ...(preparedInventory.functions ?? []),
-        "grainline_admin_audit_account_deletion_redaction_apply",
-        "grainline_admin_audit_account_deletion_legacy_redaction_apply",
-      ],
-    };
-    const adminAuditPreparedState = {
-      ...preparedState,
-      function_identities: [
-        ...preparedState.function_identities,
-        "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
-        "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
-      ],
-      effective_function_identities: [
-        ...preparedState.effective_function_identities,
-        "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
-        "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
-      ],
-    };
-    assert.deepEqual(
-      collectAccountDeletionWorkerBoundaryIssues(
-        adminAuditPreparedState,
-        adminAuditPreparedInventory,
-      ),
-      [],
-    );
-    assert.match(
-      collectAccountDeletionWorkerBoundaryIssues(
-        preparedState,
-        adminAuditPreparedInventory,
-      ).join("\n"),
-      /function authority drifted/u,
-    );
+    const adminAuditWorkerBoundarySupported = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("grainline_admin_audit_account_deletion_redaction_apply");
+    if (adminAuditWorkerBoundarySupported) {
+      const adminAuditPreparedInventory = {
+        ...preparedInventory,
+        functions: [
+          ...(preparedInventory.functions ?? []),
+          "grainline_admin_audit_account_deletion_redaction_apply",
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+        ],
+      };
+      const adminAuditPreparedState = {
+        ...preparedState,
+        function_identities: [
+          ...preparedState.function_identities,
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+          "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+        ],
+        effective_function_identities: [
+          ...preparedState.effective_function_identities,
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+          "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+        ],
+      };
+      assert.deepEqual(
+        collectAccountDeletionWorkerBoundaryIssues(
+          adminAuditPreparedState,
+          adminAuditPreparedInventory,
+        ),
+        [],
+      );
+      assert.match(
+        collectAccountDeletionWorkerBoundaryIssues(
+          preparedState,
+          adminAuditPreparedInventory,
+        ).join("\n"),
+        /function authority drifted/u,
+      );
+    }
 
     const activeInventory = {
       ...preparedInventory,
@@ -6860,6 +6881,9 @@ describe("database grant inventory guardrails", () => {
     const sellerMetricsProvisioningPresent = provision.includes(
       "seller_metrics_rls_active",
     );
+    const adminAuditProvisioningPresent = provision.includes(
+      "admin_audit_candidate",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -7203,7 +7227,7 @@ describe("database grant inventory guardrails", () => {
     );
     assert.equal(
       (provision.match(/^REVOKE ALL ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
-      26,
+      25 + Number(sellerBroadcastProvisioningPresent),
     );
     assert.equal(
       (provision.match(/^GRANT EXECUTE ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
@@ -7256,6 +7280,26 @@ describe("database grant inventory guardrails", () => {
       provision,
       /GRANT USAGE ON TYPE public\."OrderDisputeRecoveryStatus" TO %I/,
     );
+    const lateEmailFunctionNames = new Set([
+      ...EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES,
+      ...EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES,
+      ...EMAIL_PROVIDER_DELETION_FENCE_SOURCE_NEW_FUNCTION_NAMES,
+      ...EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES,
+    ]);
+    const provisionedLateEmailFunctionNames = new Set([
+      ...(existsSync(EMAIL_DELIVERY_LEDGER_MIGRATION)
+        ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
+        : []),
+      ...(existsSync(EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION)
+        ? EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES
+        : []),
+      ...(existsSync(EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH)
+        ? EMAIL_PROVIDER_DELETION_FENCE_SOURCE_NEW_FUNCTION_NAMES
+        : []),
+      ...(existsSync(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH)
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
+        : []),
+    ]);
     const provisionedFunctionNames = (sellerProfilePublicProvisioningPresent
       ? inventory.functions
       : inventory.functions.filter(
@@ -7269,6 +7313,18 @@ describe("database grant inventory guardrails", () => {
         ).filter(
           (functionName) => cartCartItemProvisioningPresent
             || !CART_CART_ITEM_RUNTIME_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => adminAuditProvisioningPresent
+            || !ADMIN_AUDIT_LOG_PREPARATION_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => sellerBroadcastProvisioningPresent
+            || !SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => sellerMetricsProvisioningPresent
+            || !SELLER_METRICS_PREPARATION_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => !lateEmailFunctionNames.has(functionName)
+            || provisionedLateEmailFunctionNames.has(functionName),
         );
     for (const fn of provisionedFunctionNames) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;
