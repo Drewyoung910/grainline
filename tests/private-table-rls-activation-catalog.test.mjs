@@ -143,7 +143,7 @@ test("catalog byte-seals AdminAuditLog and every FORCE-crossing authority", () =
     audit.minimumCompatibleAppCommit,
     "f17482eb25adcf6d8d6c0f7d60eb1d1222414883",
   );
-  assert.equal(audit.preparation.functions.length, 15);
+  assert.equal(audit.preparation.functions.length, 16);
   assert.equal(audit.preparation.retainedFunctions.length, 23);
   assert.deepEqual(audit.activatedRuntimePrivileges, []);
   assert.deepEqual(audit.activatedStaffPrivileges, []);

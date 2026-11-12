@@ -4559,7 +4559,6 @@ describe("database grant inventory guardrails", () => {
         + (emailServiceLeastPrivilegeActivationPresent
           ? 2 // table boundary plus temporary indexed-write helper
           : 0)
-        + (adminAuditLogAuthorityPrepared ? 2 : 0)
         + (adminAuditLogActivationPresent ? 1 : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)

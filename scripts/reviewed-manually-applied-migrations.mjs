@@ -131,7 +131,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261102020000_activate_admin_audit_log_rls",
-    "5c56b89f5261ec9ed250a9ea1d93769a3350bb76a34af0e011aec9f08e948bd2",
+    "ee55c87a213095402052fa0efa50b85b716202cebecdf8cce044c30d921d8eb8",
   ],
   [
     "20261102030000_prepare_seller_metrics_authorities",

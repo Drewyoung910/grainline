@@ -24,7 +24,7 @@ test("AdminAuditLog activation is policyless and removes all direct authority", 
   assert.deepEqual(release.activatedStaffPrivileges, []);
   assert.deepEqual(release.activatedAccountDeletionPrivileges, []);
   assert.deepEqual(release.activatedPublicPrivileges, []);
-  assert.equal(release.preparation.functions.length, 15);
+  assert.equal(release.preparation.functions.length, 16);
   assert.equal(release.preparation.retainedFunctions.length, 23);
   assert.equal(verified.migrationDigest, release.migrationSha256);
   assert.equal(verified.rollbackDigest, release.rollbackSha256);

@@ -169,14 +169,15 @@ BEGIN
       FROM (VALUES
         ('public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer)', 'cf296b4be263c7c4401b772ac2eefa27', 'v'::"char", true, false, false),
         ('public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)', '291d008c79a54361457db79af0866c90', 'v'::"char", false, false, true),
-        ('public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)', '9899b399ecc0f2b267d9320429f10dea', 'v'::"char", false, false, true),
-        ('public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)', 'f61bcdff6cb9e2a7a054a67651319638', 'v'::"char", true, false, false),
+        ('public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)', '03e3bd3b6492fd92ac5cb185cdd8c140', 'v'::"char", false, false, true),
+        ('public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)', 'aa23e82358410a83bcec6934e91c225f', 'v'::"char", true, false, false),
         ('public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)', '1946c865fc7648ed804b7843560bd12d', 'v'::"char", true, false, false),
         ('public.grainline_admin_audit_append(text,text,text,text,text,jsonb)', '2717795403771ca43185a692fd044327', 'v'::"char", true, false, false),
         ('public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)', '1badcedb29501f9673047d4956fd3082', 'v'::"char", false, true, false),
         ('public.grainline_admin_audit_ban_repair_candidates(integer)', '7a71e9ad2909ea9b69681d0af4c07ce1', 's'::"char", false, true, false),
         ('public.grainline_admin_audit_ban_repair_state(text,text)', '4bf70e7a81bb1425e25b967ace591c93', 's'::"char", false, true, false),
-        ('public.grainline_admin_audit_insert_write_fence()', 'd287bd63a55596ab85ef1d8371170da0', 'v'::"char", false, false, false),
+        ('public.grainline_admin_audit_redact_deleted_references(jsonb)', 'c551f59a4db7f8983f0303ff39f75081', 's'::"char", false, false, false),
+        ('public.grainline_admin_audit_insert_write_fence()', '4bcd56446a8a9315e4db051953e254db', 'v'::"char", false, false, false),
         ('public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)', 'da0d1f371915d4514ed707228f13c288', 's'::"char", false, true, false),
         ('public.grainline_admin_audit_staff_count(text,text)', 'f35d09c1ff1ff28358b00368fcfcb74c', 's'::"char", false, true, false),
         ('public.grainline_admin_audit_staff_page(text,text,integer,integer)', 'b3a5996b00f0beebb9a500d82ed85cca', 's'::"char", false, true, false),
@@ -217,7 +218,12 @@ BEGIN
         AND procedure.proowner = table_owner AND procedure.prosecdef
         AND procedure.prokind = 'f'
         AND procedure.provolatile = expected_volatility
-        AND procedure.proparallel = 'u'
+        AND procedure.proparallel = CASE
+          WHEN reviewed_function =
+            'public.grainline_admin_audit_redact_deleted_references(jsonb)'
+          THEN 's'::"char"
+          ELSE 'u'::"char"
+        END
         AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
         AND (owner_role.rolsuper OR owner_role.rolbypassrls)
@@ -251,6 +257,7 @@ BEGIN
         pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)'),
         pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_candidates(integer)'),
         pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_state(text,text)'),
+        pg_catalog.to_regprocedure('public.grainline_admin_audit_redact_deleted_references(jsonb)'),
         pg_catalog.to_regprocedure('public.grainline_admin_audit_insert_write_fence()'),
         pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)'),
         pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_count(text,text)'),

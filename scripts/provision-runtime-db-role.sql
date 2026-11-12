@@ -5707,14 +5707,6 @@ BEGIN
          AND acl.privilege_type = 'EXECUTE'
          AND NOT acl.is_grantable
     ) AS identities;
-  IF pg_catalog.to_regprocedure(
-       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
-     ) IS NOT NULL THEN
-    expected_worker_function_identities := expected_worker_function_identities || ARRAY[
-      'grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
-      'grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
-    ]::text[];
-  END IF;
   IF worker_function_identities IS DISTINCT FROM expected_worker_function_identities OR EXISTS (
     SELECT 1
       FROM pg_catalog.pg_proc AS procedure
