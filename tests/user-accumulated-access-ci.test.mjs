@@ -153,6 +153,10 @@ const reviewVoteCandidateMigrations = [
   reviewVotePreparationMigration,
   reviewVoteActivationMigration,
 ];
+const sellerMetricsCandidateMigrations = [
+  "20261102030000_prepare_seller_metrics_authorities",
+  "20261102040000_activate_seller_metrics_rls",
+];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -1056,6 +1060,22 @@ test("ReviewVote preparation is proved, isolated, and restored around historical
   const isolate = step(isolateName);
   const restore = step(restoreName);
   for (const migration of reviewVoteCandidateMigrations) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
+test("SellerMetrics candidates are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify SellerMetrics source packages";
+  const isolateName = "Isolate SellerMetrics candidates until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore SellerMetrics candidates after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of sellerMetricsCandidateMigrations) {
     assert.match(isolate, new RegExp(migration));
     assert.match(restore, new RegExp(migration));
   }

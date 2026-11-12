@@ -96,7 +96,10 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
     );
   }
   assert.match(script, /optional_user_report_staff/u);
-  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 28);
+  assert.equal(
+    (script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length,
+    29 + Number(script.includes("WITH optional_admin_audit_staff")),
+  );
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

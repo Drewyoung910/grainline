@@ -559,6 +559,24 @@ jobs:
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Verify SellerMetrics source packages
+        run: >-
+          node --test
+          tests/seller-metrics-preparation.test.mjs
+          tests/seller-metrics-preparation-postgres.test.mjs
+          tests/seller-metrics-rls-activation.test.mjs
+      - name: Isolate SellerMetrics candidates until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-metrics-preparation"
+          mkdir -p "$holding/migrations"
+          preparation=20261102030000_prepare_seller_metrics_authorities
+          activation=20261102040000_activate_seller_metrics_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate service and reference least-privilege migration until historical release guards pass
         shell: bash
         run: |
@@ -7166,6 +7184,20 @@ jobs:
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerMetrics candidates after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-metrics-preparation"
+          for migration in \
+            20261102030000_prepare_seller_metrics_authorities \
+            20261102040000_activate_seller_metrics_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding/migrations" "$holding"
+          echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore service and reference least-privilege migration after historical release guards
         shell: bash
         run: |
