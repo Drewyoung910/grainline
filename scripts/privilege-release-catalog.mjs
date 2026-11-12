@@ -45,7 +45,11 @@ export const PRIVILEGE_RELEASES = Object.freeze({
       "public.grainline_email_account_deletion_suppression_clear(text)": "2a4e35437f915c3fcf9877f79dd32ea4abeebc1741b92d6c1e15a0fc8029c05a",
       "public.grainline_email_one_click_suppression_clear(text)": "a4ebf17c34f920a2e715a62dee22df036ddfd32e2e08188e5bba865e6937aa56",
       "public.grainline_email_outbox_account_deletion_fence(text,text[])": "d6ee02f559fec2fd3e2dbf9c9925dcfecf6988e97b8c7595895585b25851eb8e",
-      "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)": "acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e",
+      "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)": Object.freeze([
+        "acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e",
+        "ef145be432a0ffcbbf02e6dc9419d90d7b0ec3dec23a9d1eb0a83aff0a16393a",
+        "52ae9eafd81f3776610dbc066de0364b134086f0f2b46cd45db290e00bec4ef8",
+      ]),
       "public.grainline_email_outbox_cancel_seller_broadcast(text)": "8c0fc3a6975c1d4735741ae58062b4e55b3674ff2b898bbd17f2f951285a7f63",
       "public.grainline_email_outbox_claim_batch(integer)": "821da02132dba680a82444eae5bd2fb1a3690309996cc222a0a10234b199bd22",
       "public.grainline_email_outbox_claim_one(text)": "76d1a2048afa03dce1d4399df5da6abf0fb7d4f555498efe56c22712dce5beb2",

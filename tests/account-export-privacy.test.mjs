@@ -74,9 +74,8 @@ describe("account export privacy coverage", () => {
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");
 
-    for (const model of ["sellerBroadcast"]) {
-      assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
-    }
+    assert.match(route, /ownerSellerBroadcastExport\(user\.id\)/);
+    assert.doesNotMatch(route, /prisma\.sellerBroadcast\./);
     assert.match(route, /exportOwnerEmailServiceData/);
     assert.match(route, /withDbUserContext\(user\.id, \(tx\) => exportOwnerEmailServiceData\(tx\)\)/);
     assert.doesNotMatch(

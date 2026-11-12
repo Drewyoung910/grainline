@@ -45,6 +45,7 @@ import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
+import { publicLatestSellerBroadcast } from "@/lib/sellerBroadcastAccess";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -203,11 +204,7 @@ async function SellerPublicContent({
     customerPhotoRows,
   ] = await Promise.all([
     sellerPublicFollowState(seller.id, meId ?? undefined),
-    prisma.sellerBroadcast.findFirst({
-      where: { sellerProfileId: seller.id },
-      orderBy: [{ sentAt: "desc" }, { id: "desc" }],
-      select: { message: true, sentAt: true, imageUrl: true },
-    }),
+    publicLatestSellerBroadcast(meId, seller.id),
     prisma.blogPost.findMany({
       where: publicBlogPostWhere({ sellerProfileId: seller.id }),
       orderBy: [{ publishedAt: "desc" }, { id: "desc" }],

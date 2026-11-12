@@ -142,6 +142,13 @@ import {
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import {
+  SELLER_BROADCAST_PREPARATION_MIGRATION,
+  proveSellerBroadcastEligibilityGapClosed,
+  proveSellerBroadcastPreparedAuthorities,
+  seedSellerBroadcastPredecessorEligibilityGap,
+} from
+  "../tools/database-full-chain/scenarios/seller-broadcast-authorities.mjs";
+import {
   BLOCK_PREPARATION_MIGRATION,
   BLOCK_RLS_MIGRATION,
   proveBlockPreparedAuthorities,
@@ -316,6 +323,8 @@ test(
       let emailServiceLeastPrivilegeFixture;
       let emailServiceLeastPrivilegePreparationProved = false;
       let emailServiceLeastPrivilegeActivationPreflightPath;
+      let followRollbackReapplyProven = false;
+      let sellerBroadcastPredecessorEligibilityGap;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -486,6 +495,47 @@ test(
             assert.equal(activationPreflight.state, "pending");
             assert.equal(activationPreflight.catalog.posture, "predecessor");
             emailServiceLeastPrivilegePreparationProved = true;
+          }
+          if (artifact.name === SELLER_BROADCAST_PREPARATION_MIGRATION) {
+            assert.ok(
+              fixture,
+              "seller fixture must exist before SellerBroadcast predecessor proof",
+            );
+            sellerBroadcastPredecessorEligibilityGap =
+              await seedSellerBroadcastPredecessorEligibilityGap({
+                database: adapter,
+                seller: fixture,
+              });
+          }
+          if (artifact.name === "20261028070000_activate_review_vote_rls") {
+            assert.ok(
+              followFixture,
+              "Follow fixture must exist for chronological rollback proof",
+            );
+            await proveFollowRlsAuthorities({
+              database: adapter,
+              fixture: followFixture,
+            });
+            await client.query(readFileSync(
+              join(repositoryRoot, "docs/rls-drafts/follow-activation-rollback.sql"),
+              "utf8",
+            ));
+            await proveFollowRlsRollback({
+              database: adapter,
+              fixture: followFixture,
+            });
+            await client.query(readFileSync(
+              join(
+                repositoryRoot,
+                `prisma/migrations/${FOLLOW_RLS_MIGRATION}/migration.sql`,
+              ),
+              "utf8",
+            ));
+            await proveFollowRlsAuthorities({
+              database: adapter,
+              fixture: followFixture,
+            });
+            followRollbackReapplyProven = true;
           }
           if (artifact.name === STOCK_NOTIFICATION_PREPARATION_MIGRATION) {
             assert.ok(fixture, "seller fixture must exist before StockNotification proof");
@@ -1080,6 +1130,18 @@ test(
         seller: fixture,
         connectionString: proofDatabaseUrl,
       });
+      assert.ok(
+        sellerBroadcastPredecessorEligibilityGap,
+        "SellerBroadcast predecessor eligibility proof must run before preparation",
+      );
+      await proveSellerBroadcastEligibilityGapClosed({
+        database: adapter,
+        predecessor: sellerBroadcastPredecessorEligibilityGap,
+      });
+      await proveSellerBroadcastPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+      });
       await proveSellerProfileOwnerBootstrapAuthority({
         database: adapter,
         seller: fixture,
@@ -1549,25 +1611,11 @@ test(
         database: adapter,
         fixture: followFixture,
       });
-      await client.query(readFileSync(
-        join(repositoryRoot, "docs/rls-drafts/follow-activation-rollback.sql"),
-        "utf8",
-      ));
-      await proveFollowRlsRollback({
-        database: adapter,
-        fixture: followFixture,
-      });
-      await client.query(readFileSync(
-        join(
-          repositoryRoot,
-          `prisma/migrations/${FOLLOW_RLS_MIGRATION}/migration.sql`,
-        ),
-        "utf8",
-      ));
-      await proveFollowRlsAuthorities({
-        database: adapter,
-        fixture: followFixture,
-      });
+      assert.equal(
+        followRollbackReapplyProven,
+        true,
+        "Follow rollback/reapply must be proven before later reviewed readers exist",
+      );
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),
         "utf8",

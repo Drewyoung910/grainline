@@ -1,11 +1,9 @@
 // src/app/admin/broadcasts/page.tsx
-import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
-import { logAdminActionOrThrow } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { adminActionRatelimit, broadcastRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -14,14 +12,16 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { truncateText } from "@/lib/sanitize";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
-import { withDbUserContext } from "@/lib/dbUserContext";
-import { deleteSellerBroadcastNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 import {
   sellerProfileStaffBroadcastTargets,
 } from "@/lib/sellerProfileStaffAccess";
-import { cancelSellerBroadcastEmails } from "@/lib/emailServiceAccess";
+import {
+  deleteStaffSellerBroadcast,
+  staffSellerBroadcastCount,
+  staffSellerBroadcastPage,
+} from "@/lib/sellerBroadcastAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -34,33 +34,16 @@ async function deleteBroadcast(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   if (id) {
-    const deletedSellerProfileId = await withDbUserContext(user.id, async (tx) => {
-      const broadcast = await tx.sellerBroadcast.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          sellerProfileId: true,
-          recipientCount: true,
-        },
-      });
-      if (!broadcast) return null;
-      const deleted = await tx.sellerBroadcast.deleteMany({ where: { id } });
-      if (deleted.count !== 1) return null;
-      await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
-      await cancelSellerBroadcastEmails(tx, broadcast.id);
-      await logAdminActionOrThrow({
-        client: tx,
-        adminId: user.id,
-        action: "DELETE_BROADCAST",
-        targetType: "SELLER_BROADCAST",
-        targetId: broadcast.id,
-        metadata: {
-          sellerProfileId: broadcast.sellerProfileId,
-          recipientCount: broadcast.recipientCount,
-        },
-      });
-      return broadcast.sellerProfileId;
+    const staffClient = getOrderStaffReadClient();
+    const targets = await sellerProfileStaffBroadcastTargets(staffClient, {
+      actorId: user.id,
+      broadcastIds: [id],
     });
+    const deleted = await deleteStaffSellerBroadcast(staffClient, {
+      actorId: user.id,
+      broadcastId: id,
+    });
+    const deletedSellerProfileId = deleted ? targets[0]?.sellerProfileId : null;
     // A removed broadcast should not cost the maker their weekly send. The
     // database 7-day check on their latest remaining broadcast still applies.
     if (deletedSellerProfileId) {
@@ -86,35 +69,28 @@ export default async function AdminBroadcastsPage({
   const q = truncateText((sp.q ?? "").trim(), 200);
   const pageSize = 25;
 
-  const where = q
-    ? { message: { contains: q, mode: "insensitive" as const } }
-    : {};
-
-  const total = await prisma.sellerBroadcast.count({ where });
+  const staffClient = getOrderStaffReadClient();
+  const total = await staffSellerBroadcastCount(staffClient, {
+    actorId: staff.id,
+    query: q,
+  });
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(requestedPage, totalPages);
 
-  const broadcasts = await prisma.sellerBroadcast.findMany({
-    where,
-    orderBy: [{ sentAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * pageSize,
-    take: pageSize,
-    select: {
-      id: true,
-      message: true,
-      imageUrl: true,
-      sentAt: true,
-      recipientCount: true,
-    },
+  const broadcasts = await staffSellerBroadcastPage(staffClient, {
+    actorId: staff.id,
+    query: q,
+    offset: (page - 1) * pageSize,
+    limit: pageSize,
   });
-  const sellerTargets = await sellerProfileStaffBroadcastTargets(getOrderStaffReadClient(), {
+  const sellerTargets = await sellerProfileStaffBroadcastTargets(staffClient, {
     actorId: staff.id,
     broadcastIds: broadcasts.map((broadcast) => broadcast.id),
   });
   const sellerTargetByBroadcastId = new Map(
     sellerTargets.map((target) => [target.broadcastId, target]),
   );
-  const sellerLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+  const sellerLabels = await userStaffAdminLabels(staffClient, {
     actorId: staff.id,
     userIds: sellerTargets.map((target) => target.sellerUserId),
   });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -76,7 +77,7 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/flagged/page.tsx", "readStaffOrderPage("],
       ["src/app/admin/cases/page.tsx", "getStaffCaseQueue"],
       ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
-      ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
+      ["src/app/admin/broadcasts/page.tsx", "staffSellerBroadcastCount("],
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
       ["src/app/admin/verification/page.tsx", "makerVerificationStaffPendingPage("],
       ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
@@ -204,16 +205,19 @@ describe("admin server action guardrails", () => {
 
   it("handles stale broadcast deletes without throwing and cleans queued side effects", () => {
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
-    const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
+    const migration = source(sellerBroadcastPreparationMigrationPath());
 
-    assert.match(broadcasts, /tx\.sellerBroadcast\.findUnique/);
-    assert.match(broadcasts, /tx\.sellerBroadcast\.deleteMany\(\{ where: \{ id \} \}\)/);
-    assert.match(broadcasts, /if \(deleted\.count !== 1\) return/);
-    assert.doesNotMatch(broadcasts, /sellerBroadcast\.delete\(\{/);
-    assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
-    assert.doesNotMatch(broadcasts, /tx\.notification\.|sourceType: null|sourceId: null/);
-    assert.match(broadcasts, /cancelSellerBroadcastEmails\(tx, broadcast\.id\)/);
-    assert.doesNotMatch(broadcasts, /tx\.emailOutbox\./);
-    assert.match(emailServiceAccess, /public\.grainline_email_outbox_cancel_seller_broadcast/);
+    assert.match(broadcasts, /deleteStaffSellerBroadcast\(staffClient, \{/);
+    assert.match(broadcasts, /await requireAdminPageAccess\(\)/);
+    assert.doesNotMatch(broadcasts, /prisma\.sellerBroadcast\.|tx\.sellerBroadcast\./);
+    assert.doesNotMatch(broadcasts, /tx\.notification\.|tx\.emailOutbox\./);
+    assert.match(migration, /IF NOT FOUND THEN RETURN false; END IF;/);
+    assert.match(migration, /DELETE FROM public\."Notification" AS notification/);
+    assert.match(migration, /notification\."sourceType" = 'seller_broadcast'/);
+    assert.match(migration, /DELETE FROM public\."EmailOutbox" AS outbox/);
+    assert.match(migration, /outbox\.status IN \('PENDING', 'FAILED'\)/);
+    assert.match(migration, /outbox\."preferenceKey" = 'EMAIL_SELLER_BROADCAST'/);
+    assert.match(migration, /DELETE FROM public\."SellerBroadcast" WHERE id = source_row\.id/);
+    assert.match(migration, /'DELETE_BROADCAST'/);
   });
 });

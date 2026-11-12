@@ -164,6 +164,7 @@ describe("Notification prelaunch legacy inspection operator", () => {
     assert.doesNotMatch(blogAdmin, /tx\.notification\./);
     assert.doesNotMatch(broadcastAdmin, /tx\.notification\./);
     assert.match(blogAdmin, /deleteBlogCommentNotificationServiceRows/);
-    assert.match(broadcastAdmin, /deleteSellerBroadcastNotificationServiceRows/);
+    assert.match(broadcastAdmin, /deleteStaffSellerBroadcast/);
+    assert.doesNotMatch(broadcastAdmin, /deleteSellerBroadcastNotificationServiceRows/);
   });
 });

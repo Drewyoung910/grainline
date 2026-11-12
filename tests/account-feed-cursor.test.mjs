@@ -26,6 +26,15 @@ describe("account feed cursor helpers", () => {
     assert.equal(parseAccountFeedCursor("not-a-cursor"), null);
   });
 
+  it("rejects structured cursors with ids outside the database contract", () => {
+    const malformed = Buffer.from(JSON.stringify({
+      d: "2026-04-28T12:00:00.000Z",
+      i: "not a valid id",
+      k: "broadcast",
+    }), "utf8").toString("base64url");
+    assert.equal(parseAccountFeedCursor(malformed), null);
+  });
+
   it("sorts ties deterministically by kind and id", () => {
     const date = "2026-04-28T12:00:00.000Z";
     const items = [

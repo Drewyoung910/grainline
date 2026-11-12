@@ -131,9 +131,11 @@ export function classifyPrivilegeReleaseFunctions(rows, release, posture) {
     );
     const sourceSha256 = createHash("sha256").update(row.source).digest("hex");
     if (!predecessorFunction) {
-      assert.equal(
-        sourceSha256,
-        release.functions[row.signature],
+      const reviewedSources = Array.isArray(release.functions[row.signature])
+        ? release.functions[row.signature]
+        : [release.functions[row.signature]];
+      assert.ok(
+        reviewedSources.includes(sourceSha256),
         `${row.signature} source drifted`,
       );
     }

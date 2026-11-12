@@ -10,6 +10,7 @@ import {
   PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS,
   PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS,
   collectPrivateTableRuntimeReadinessIssues,
+  privateTableRuntimeReadinessFunctionsForSelections,
   privateTableRuntimeReadinessMigrationOverride,
   verifyPrivateTableRuntimeReadiness,
 } from "../scripts/private-table-preparation-runtime-readiness.mjs";
@@ -70,6 +71,32 @@ test("private-table readiness catalog covers the exact reviewed preparation batc
     assert.equal(sha256(sourceByIdentity.get(entry.identity)), entry.sourceSha256);
     assert.ok(["runtime", "staff"].includes(entry.executeRole));
   }
+});
+
+test("later reviewed releases supersede an earlier function body without dropping the body pin", () => {
+  const identity = "grainline_email_outbox_begin_provider_attempt(text, bigint, uuid)";
+  const email = verifyPrivateTablePreparationSource(
+    "email_service_v1",
+    process.cwd(),
+    privateTableRuntimeReadinessMigrationOverride("email_service_v1"),
+  );
+  const broadcast = verifyPrivateTablePreparationSource(
+    "seller_broadcast_v1",
+    process.cwd(),
+    privateTableRuntimeReadinessMigrationOverride("seller_broadcast_v1"),
+  );
+  const emailSource = email.functionSources.get("grainline_email_outbox_begin_provider_attempt");
+  const broadcastSource = broadcast.functionSources.get("grainline_email_outbox_begin_provider_attempt");
+  assert.notEqual(emailSource, broadcastSource);
+
+  const expected = privateTableRuntimeReadinessFunctionsForSelections([
+    "email_service_v1",
+    "seller_broadcast_v1",
+  ]).filter((entry) => entry.identity === identity);
+  assert.equal(expected.length, 1);
+  assert.equal(expected[0].executeRole, "runtime");
+  assert.equal(expected[0].sourceSha256, sha256(broadcastSource));
+  assert.notEqual(expected[0].sourceSha256, sha256(emailSource));
 });
 
 test("readiness issue collector rejects missing, wrong-role and drifted functions", () => {
@@ -153,6 +180,7 @@ test("production readiness checks runtime and staff functions read-only", async 
         "owner_social_verification_v1",
         "block_report_seller_faq_v1",
         "email_service_v1",
+        "seller_broadcast_v1",
       ],
       runtimeFunctionCount: runtimeCount,
       staffFunctionCount: staffCount,
