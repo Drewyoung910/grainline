@@ -36,12 +36,16 @@ describe("admin query and email guardrails", () => {
   it("keeps admin list ordering deterministic on equal timestamps", () => {
     const users = source("src/app/admin/users/page.tsx");
     const audit = source("src/app/admin/audit/page.tsx");
+    const auditMigration = source(
+      "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql",
+    );
     const broadcastMigration = source(sellerBroadcastPreparationMigrationPath());
     const reviews = source("src/app/admin/reviews/page.tsx");
     const supportMigration = source(supportRequestPreparationMigrationPath());
 
     assert.match(users, /userStaffDirectoryPage\(staffClient, \{ actorId: staff\.id, query: q, page \}\)/);
-    assert.match(audit, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(audit, /adminAuditLogStaffPage\(staffClient,/);
+    assert.match(auditMigration, /ORDER BY audit\."createdAt" DESC, audit\.id DESC/);
     assert.match(broadcastMigration, /ORDER BY broadcast\."sentAt" DESC, broadcast\.id DESC/);
     assert.match(reviews, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(reviews, /photos: \{ orderBy: \[\{ sortOrder: "asc" \}, \{ id: "asc" \}\] \}/);
