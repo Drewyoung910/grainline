@@ -212,7 +212,8 @@ describe("cron and public route hardening", () => {
     const commission = source("src/app/api/commission/route.ts");
     const commissionDetail = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
     const commissionAuthority = source(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+      process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH?.trim() ||
+        "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
     );
 
     assert.match(commission, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
