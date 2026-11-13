@@ -54,7 +54,11 @@ describe("order trust metrics guardrails", () => {
     );
     assert.match(sellerMetrics, /source_order\."paidAt" IS NOT NULL/);
     assert.match(sellerMetrics, /source_order\."stripeSessionId" IS NOT NULL/);
-    assert.match(source("src/lib/metrics.ts"), /readOrderSellerMetricsFacts/);
+    const ownerMetrics = source("src/lib/metrics.ts");
+    assert.match(ownerMetrics, /withDbUserContext\(actorUserId/);
+    assert.match(ownerMetrics, /grainline_seller_metrics_owner_state/);
+    assert.match(ownerMetrics, /sellerMetricsResult\(rows\)/);
+    assert.doesNotMatch(ownerMetrics, /FROM\s+"Order"|JOIN\s+"OrderItem"/);
     assert.match(source("src/app/api/seller/analytics/route.ts"), /readSellerOrderAnalyticsSummary/);
   });
 

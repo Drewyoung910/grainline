@@ -21,12 +21,14 @@ describe("Order seller metrics-authority release verifier", () => {
     assert.equal(result.productionTouched, false);
   });
 
-  it("routes Guild order facts through the fixed function and validates results", () => {
+  it("keeps the legacy projection fixed and routes owner metrics through its reviewed successor", () => {
     const metrics = readFileSync("src/lib/metrics.ts", "utf8");
     const authority = readFileSync("src/lib/orderSellerMetricsAuthority.ts", "utf8");
     const state = readFileSync("src/lib/orderSellerMetricsState.ts", "utf8");
 
-    assert.match(metrics, /readOrderSellerMetricsFacts\(sellerProfileId, periodStart, db\)/u);
+    assert.match(metrics, /withDbUserContext\(actorUserId/u);
+    assert.match(metrics, /public\.grainline_seller_metrics_owner_state/u);
+    assert.match(metrics, /sellerMetricsResult\(rows\)/u);
     assert.doesNotMatch(metrics, /FROM "Order"|JOIN "OrderItem"/u);
     assert.match(authority, /public\.grainline_order_seller_metrics_facts/u);
     assert.match(authority, /orderSellerMetricsFactsFromRows\(rows\)/u);

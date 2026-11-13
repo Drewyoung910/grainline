@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import {
+  sellerMetricsPreparationMigrationPath,
+} from "./helpers/seller-metrics-preparation-migration-path.mjs";
 
 const migrationPath =
   "prisma/migrations/20261020070000_prepare_seller_profile_metrics_identity/migration.sql";
-const sellerMetricsPreparationPath =
-  "prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql";
-
 test("seller metrics database operation reads its purpose-bound identity authority", () => {
+  const sellerMetricsPreparationPath = sellerMetricsPreparationMigrationPath();
   assert.equal(existsSync(migrationPath), true);
   assert.equal(existsSync(sellerMetricsPreparationPath), true);
   const migration = readFileSync(migrationPath, "utf8");

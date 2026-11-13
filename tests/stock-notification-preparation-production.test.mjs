@@ -64,6 +64,7 @@ function functionRow(entry, source) {
     source,
     runtime_execute: true,
     staff_execute: false,
+    account_deletion_execute: false,
     public_execute: false,
   };
 }
@@ -101,6 +102,7 @@ function fakeClientClass({ applied, predecessorBody = predecessorSource }) {
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
         return { rows: [{
           columns: 0,
+          constraints: 0,
           functions: applied
             ? release.functions.filter(
                 (entry) => entry.predecessorSourceSha256 === undefined,
