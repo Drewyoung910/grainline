@@ -1016,6 +1016,9 @@ test("final Production build applies email service after its required email corr
   const sellerMetricsHold = finalBuild.indexOf(
     'mv "prisma/migrations/$seller_metrics_migration" "$holding/migrations/$seller_metrics_migration"',
   );
+  const sellerMetricsActivationHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$seller_metrics_activation_migration" "$holding/migrations/$seller_metrics_activation_migration"',
+  );
   const lockOrderRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$lock_order_correction_migration"',
   );
@@ -1034,6 +1037,9 @@ test("final Production build applies email service after its required email corr
   const sellerMetricsRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$seller_metrics_migration"',
   );
+  const sellerMetricsActivationRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$seller_metrics_activation_migration"',
+  );
 
   assert.ok(emailServiceHold >= 0);
   assert.ok(emailServiceActivationHold >= 0);
@@ -1045,14 +1051,19 @@ test("final Production build applies email service after its required email corr
       && sellerBroadcastActivationHold < fullChain,
   );
   assert.ok(sellerMetricsHold >= 0 && sellerMetricsHold < fullChain);
+  assert.ok(
+    sellerMetricsActivationHold >= 0
+      && sellerMetricsActivationHold < fullChain,
+  );
   assert.ok(lockOrderRestore < emailServiceRestore);
   assert.ok(emailServiceRestore < emailServiceActivationRestore);
   assert.ok(emailServiceActivationRestore < sellerBroadcastRestore);
   assert.ok(sellerBroadcastRestore < sellerBroadcastActivationRestore);
   assert.ok(sellerBroadcastActivationRestore < sellerMetricsRestore);
+  assert.ok(sellerMetricsRestore < sellerMetricsActivationRestore);
   assert.ok(
     finalBuild.indexOf('rmdir "$holding/migrations" "$holding"')
-      > sellerMetricsRestore,
+      > sellerMetricsActivationRestore,
   );
   assert.match(
     finalBuild.slice(emailServiceRestore),

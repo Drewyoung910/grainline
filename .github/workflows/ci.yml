@@ -7345,6 +7345,7 @@ jobs:
           seller_broadcast_migration=20261101100000_prepare_seller_broadcast_authorities
           seller_broadcast_activation_migration=20261101110000_activate_seller_broadcast_rls
           seller_metrics_migration=20261102030000_prepare_seller_metrics_authorities
+          seller_metrics_activation_migration=20261102040000_activate_seller_metrics_rls
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$deletion_migration" "$holding/migrations/$deletion_migration"
           mv "prisma/migrations/$eligibility_migration" "$holding/migrations/$eligibility_migration"
@@ -7358,6 +7359,7 @@ jobs:
           mv "prisma/migrations/$seller_broadcast_migration" "$holding/migrations/$seller_broadcast_migration"
           mv "prisma/migrations/$seller_broadcast_activation_migration" "$holding/migrations/$seller_broadcast_activation_migration"
           mv "prisma/migrations/$seller_metrics_migration" "$holding/migrations/$seller_metrics_migration"
+          mv "prisma/migrations/$seller_metrics_activation_migration" "$holding/migrations/$seller_metrics_activation_migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
@@ -7490,6 +7492,9 @@ jobs:
           mv \
             "$holding/migrations/$seller_metrics_migration" \
             "prisma/migrations/$seller_metrics_migration"
+          mv \
+            "$holding/migrations/$seller_metrics_activation_migration" \
+            "prisma/migrations/$seller_metrics_activation_migration"
           rmdir "$holding/migrations" "$holding"
           npx prisma migrate deploy
           npx prisma migrate status
