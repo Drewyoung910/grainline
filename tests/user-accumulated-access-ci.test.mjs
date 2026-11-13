@@ -484,6 +484,19 @@ function sellerFaqPreparationMigrationSourcePath() {
     : stagedPath;
 }
 
+function privateTablePreparationMigrationSourcePath(migration, envName, label) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env[envName]?.trim() ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    `missing absolute isolated ${label} preparation migration`,
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
+}
+
 function privateTableActivationMigrationSourcePath(migration, envName) {
   const livePath = path.join("prisma", "migrations", migration);
   if (existsSync(livePath)) return livePath;
@@ -1313,6 +1326,56 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
           "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
         ),
         sellerFaqActivationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerBroadcastPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerBroadcastPreparationMigration,
+    );
+    if (!existsSync(sellerBroadcastPreparationTarget)) {
+      cpSync(
+        privateTablePreparationMigrationSourcePath(
+          sellerBroadcastPreparationMigration,
+          "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+          "SellerBroadcast",
+        ),
+        sellerBroadcastPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerBroadcastActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerBroadcastActivationMigration,
+    );
+    if (!existsSync(sellerBroadcastActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          sellerBroadcastActivationMigration,
+          "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        sellerBroadcastActivationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerMetricsPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerMetricsPreparationMigration,
+    );
+    if (!existsSync(sellerMetricsPreparationTarget)) {
+      cpSync(
+        privateTablePreparationMigrationSourcePath(
+          sellerMetricsPreparationMigration,
+          "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
+          "SellerMetrics",
+        ),
+        sellerMetricsPreparationTarget,
         { recursive: true },
       );
     }
