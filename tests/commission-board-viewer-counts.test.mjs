@@ -6,18 +6,23 @@ test("the commission board counts interest for the signed-in viewer, so blocked 
   const viewers = [];
   const page = loadWithStubs("src/app/commission/page.tsx", {
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk-1" }) },
-    "@/lib/db": {
-      prisma: {
-        commissionRequest: {
-          count: async () => 1,
-          findMany: async () => [{ id: "request-1", referenceImageUrls: [], buyerName: "Ann", buyerImageUrl: null }],
-        },
-      },
-    },
+    "@/lib/db": { prisma: {} },
     "@/lib/userIdentityAccess": {
       userClerkCommissionContext: async () => ({ id: "viewer-1", sellerProfile: null }),
     },
-    "@/lib/blocks": { getBlockedUserIdsFor: async () => new Set() },
+    "@/lib/commissionRequestAccess": {
+      publicCommissionRequestCount: async () => 1,
+      publicCommissionRequestPage: async () => ({
+        rows: [{
+          id: "request-1",
+          referenceImageUrls: [],
+          buyerName: "Ann",
+          buyerImageUrl: null,
+          isNational: true,
+        }],
+      }),
+      actorCommissionInterestRequestIds: async () => new Set(),
+    },
     "@/lib/commissionInterestCount": {
       publicCommissionInterestCounts: async (_ids, viewerId) => {
         viewers.push(viewerId);

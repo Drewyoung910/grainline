@@ -969,7 +969,6 @@ export async function createActorCommissionInterest(
     commissionRequestId: string;
     sellerUserId: string;
   },
-  db: ConversationMessageAuthorityClient = prisma,
 ): Promise<CreatedActorCommissionInterest> {
   const sellerUserId = normalizeDbUserContextUserId(input.sellerUserId);
   if (!isBoundedAuthorityId(input.commissionRequestId)) {
@@ -978,16 +977,15 @@ export async function createActorCommissionInterest(
   const proposedConversationId = randomUUID();
   const proposedMessageId = randomUUID();
   const proposedInterestId = randomUUID();
-  const rows = await db.$queryRaw<CreatedActorCommissionInterest[]>`
-    SELECT *
-      FROM public.grainline_message_create_commission_interest(
-        ${proposedConversationId}::text,
-        ${proposedMessageId}::text,
-        ${proposedInterestId}::text,
-        ${sellerUserId}::text,
-        ${input.commissionRequestId}::text
-      )
-  `;
+  const rows = await withDbUserContext(sellerUserId, (db) => db.$queryRaw<CreatedActorCommissionInterest[]>`
+      SELECT *
+        FROM public.grainline_commission_interest_actor_create(
+          ${proposedConversationId}::text,
+          ${proposedMessageId}::text,
+          ${proposedInterestId}::text,
+          ${input.commissionRequestId}::text
+        )
+    `);
   const row = rows[0];
   if (
     rows.length !== 1

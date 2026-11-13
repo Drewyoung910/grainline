@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db";
 import { userClerkCommissionContext, userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Category } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { getBlockedIdsFor } from "@/lib/blocks";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import {
   commissionAttemptRatelimit,
@@ -19,11 +18,15 @@ import {
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity, containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
-import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
+import {
+  assignOwnerCommissionRequestMetros,
+  createOwnerCommissionRequest,
+  publicCommissionRequestCount,
+  publicCommissionRequestPage,
+} from "@/lib/commissionRequestAccess";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
-import { syncCommissionRequestDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
@@ -74,42 +77,33 @@ export async function GET(req: NextRequest) {
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const { blockedUserIds } = await getBlockedIdsFor(meId);
-
-  const where = openCommissionWhere({
-    ...(categoryValid ? { category: category as Category } : {}),
-    ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
-  });
-  const total = await prisma.commissionRequest.count({ where });
+  const publicFilter = {
+    category: categoryValid ? category as Category : null,
+  };
+  const total = await publicCommissionRequestCount(meId, publicFilter);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(total / pageSize)));
-  const requestRows = await prisma.commissionRequest.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-    skip: (currentPage - 1) * pageSize,
-    take: pageSize,
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      timeline: true,
-      referenceImageUrls: true,
-      status: true,
-      expiresAt: true,
-      createdAt: true,
-      buyerName: true,
-      buyerImageUrl: true,
-    },
+  const { rows: requestRows } = await publicCommissionRequestPage(meId, {
+    ...publicFilter,
+    offset: (currentPage - 1) * pageSize,
+    limit: pageSize,
   });
   const interestCounts = requestRows.length > 0
     ? await publicCommissionInterestCounts(requestRows.map(({ id }) => id), meId)
     : new Map<string, number>();
-  const requests = requestRows.map(({ buyerName, buyerImageUrl, ...request }) => ({
-    ...request,
+  const requests = requestRows.map((request) => ({
+    id: request.id,
+    title: request.title,
+    description: request.description,
+    category: request.category,
+    budgetMinCents: request.budgetMinCents,
+    budgetMaxCents: request.budgetMaxCents,
+    timeline: request.timeline,
+    referenceImageUrls: request.referenceImageUrls,
+    status: request.status,
+    expiresAt: request.expiresAt,
+    createdAt: request.createdAt,
     interestedCount: interestCounts.get(request.id) ?? 0,
-    buyer: { name: buyerName, imageUrl: buyerImageUrl },
+    buyer: { name: request.buyerName, imageUrl: request.buyerImageUrl },
   }));
 
   return privateJson({ requests, total, page: currentPage, totalPages: Math.ceil(total / pageSize) });
@@ -176,6 +170,7 @@ export async function POST(req: NextRequest) {
   let reqLat: number | null = null;
   let reqLng: number | null = null;
   let reqIsNational = true;
+  let reqRadiusMeters: number | null = null;
   let metroSourceLat: number | null = null;
   let metroSourceLng: number | null = null;
 
@@ -197,13 +192,14 @@ export async function POST(req: NextRequest) {
       );
     }
     const profileRadius = Number(me.sellerProfile?.radiusMeters ?? 0);
+    reqRadiusMeters = Math.max(
+      Number.isFinite(profileRadius) ? profileRadius : 0,
+      COMMISSION_LOCATION_MIN_PRIVACY_RADIUS_METERS,
+    );
     const publicPoint = privacySafeLocationPoint({
       lat: metroSourceLat,
       lng: metroSourceLng,
-      radiusMeters: Math.max(
-        Number.isFinite(profileRadius) ? profileRadius : 0,
-        COMMISSION_LOCATION_MIN_PRIVACY_RADIUS_METERS,
-      ),
+      radiusMeters: reqRadiusMeters,
     });
     reqLat = publicPoint.lat;
     reqLng = publicPoint.lng;
@@ -233,30 +229,30 @@ export async function POST(req: NextRequest) {
     allowedEndpoints: ["messageImage"],
   });
 
-  const request = await prisma.$transaction(async (tx) => {
-    const created = await tx.commissionRequest.create({
-      data: {
-        buyerId: me.id,
-        title: truncateText(sanitizeText(title.trim()), 150),
-        description: truncateText(sanitizeRichText(description.trim()), 5000),
-        category: categoryValid ? (category as Category) : null,
-        budgetMinCents,
-        budgetMaxCents,
-        timeline: timeline ? truncateText(sanitizeText(timeline.trim()), 200) || null : null,
-        referenceImageUrls: images,
-        expiresAt: commissionExpiresAt(),
-        isNational: reqIsNational,
-        lat: reqLat,
-        lng: reqLng,
-      },
-    });
-    await syncCommissionRequestDirectUploadReferences({
-      client: tx,
-      userId: me.id,
-      commissionRequestId: created.id,
-      requireAllTracked: true,
-    });
-    return created;
+  const cleanedTitle = truncateText(sanitizeText(title.trim()), 150);
+  const cleanedDescription = truncateText(sanitizeRichText(description.trim()), 5000);
+  const cleanedTimeline = timeline
+    ? truncateText(sanitizeText(timeline.trim()), 200) || null
+    : null;
+  if (!cleanedTitle || !cleanedDescription) {
+    return privateJson(
+      { error: "Title and description must include visible text." },
+      { status: HTTP_STATUS.BAD_REQUEST },
+    );
+  }
+
+  const request = await createOwnerCommissionRequest(me.id, {
+    title: cleanedTitle,
+    description: cleanedDescription,
+    category: categoryValid ? (category as Category) : null,
+    budgetMinCents,
+    budgetMaxCents,
+    timeline: cleanedTimeline,
+    referenceImageUrls: images,
+    isNational: reqIsNational,
+    lat: reqLat,
+    lng: reqLng,
+    radiusMeters: reqRadiusMeters,
   });
 
   // Assign metro geography — non-fatal
@@ -265,7 +261,7 @@ export async function POST(req: NextRequest) {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(metroSourceLat, metroSourceLng);
       if (metroId || cityMetroId) {
-        await prisma.commissionRequest.update({ where: { id: request.id }, data: { metroId, cityMetroId } });
+        await assignOwnerCommissionRequestMetros(me.id, request.id, metroId, cityMetroId);
       }
     } catch (e) {
       logServerError(e, {

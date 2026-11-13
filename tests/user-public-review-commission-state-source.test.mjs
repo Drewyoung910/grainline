@@ -91,16 +91,32 @@ describe("User public review and commission state source boundary", () => {
     const shared = read("src/lib/commissionState.ts");
     assert.match(shared, /buyerAccountActive: true/);
     const distance = read("src/app/commission/page.tsx");
-    assert.match(distance, /cr\."buyerAccountActive" = true/);
-    assert.ok(distance.indexOf('cr."buyerAccountActive" = true') < distance.indexOf("LIMIT $6 OFFSET $7"));
+    assert.match(distance, /publicCommissionRequestPage\(meId,/);
+    assert.doesNotMatch(distance, /\$queryRaw/);
+    const authority = read(
+      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+    );
+    const publicPage = authority.slice(
+      authority.indexOf("CREATE FUNCTION public.grainline_commission_request_public_page"),
+      authority.indexOf("CREATE FUNCTION public.grainline_commission_request_public_detail"),
+    );
+    assert.match(publicPage, /request\."buyerAccountActive" = true/);
+    assert.ok(
+      publicPage.indexOf('request."buyerAccountActive" = true')
+        < publicPage.indexOf("LIMIT p_limit;"),
+    );
     const interest = read("src/app/api/commission/[id]/interest/route.ts");
-    assert.match(interest, /if \(!commissionRequest\.buyerAccountActive\)/);
+    assert.match(interest, /publicCommissionRequestDetail\(me\.id, id\)/);
+    assert.match(interest, /if \(!commissionRequest\)[\s\S]*status: 404/u);
     for (const path of [
       "src/app/api/commission/route.ts",
       "src/app/api/commission/[id]/route.ts",
     ]) {
       const source = read(path);
-      assert.match(source, /buyer: \{ name: buyerName, imageUrl: buyerImageUrl \}/);
+      assert.match(
+        source,
+        /buyer:\s*\{\s*name:\s*request\.buyerName,\s*imageUrl:\s*request\.buyerImageUrl\s*\}/,
+      );
     }
   });
 

@@ -13,19 +13,13 @@ function fixture({
   banMetadata = {},
   stripeFails = false,
 } = {}) {
-  const state = { transactions: 0, transitions: [], commissionUpdates: [], audits: [] };
+  const state = { transactions: 0, transitions: [], commissionRestores: [], audits: [] };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const tx = {
     adminAuditLog: {
       create: async ({ data }) => {
         state.audits.push(data);
         return { id: "audit" };
-      },
-    },
-    commissionRequest: {
-      updateMany: async (args) => {
-        state.commissionUpdates.push(args);
-        return { count: 1 };
       },
     },
   };
@@ -72,6 +66,13 @@ function fixture({
     "./emailOutboxSanitize": { sanitizeEmailOutboxError: (error) => String(error) },
     "./audit": { sanitizeAdminAuditReason: (reason) => reason },
     "./banSideEffectRepair": { repairBanUserExternalSideEffects: async () => {} },
+    "./commissionRequestAccess": {
+      closeCommissionRequestsForStaffBan: async () => [],
+      restoreCommissionRequestsForStaffBan: async (...args) => {
+        state.commissionRestores.push(args);
+        return 1;
+      },
+    },
     "./dbUserContext": {
       withDbUserContext: async (_id, callback) => {
         state.transactions += 1;
@@ -160,9 +161,9 @@ test("a manual unban reopens the commission requests the ban closed", async () =
     },
   });
   await subject.unban();
-  assert.equal(subject.state.commissionUpdates.length, 1);
-  const update = subject.state.commissionUpdates[0];
-  assert.equal(update.where.id, "commission");
-  assert.equal(update.where.status, "CLOSED");
-  assert.equal(update.data.status, "OPEN");
+  assert.equal(subject.state.commissionRestores.length, 1);
+  const [, capabilityId, targetUserId, previousRequests] = subject.state.commissionRestores[0];
+  assert.equal(capabilityId, "review-capability");
+  assert.equal(targetUserId, "user");
+  assert.deepEqual(previousRequests, [{ id: "commission", status: "OPEN" }]);
 });

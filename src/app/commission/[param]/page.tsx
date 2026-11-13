@@ -19,14 +19,17 @@ import MarkStatusButtons from "./MarkStatusButtons";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
-import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { closedCommissionLabel } from "@/lib/commissionState";
 import {
   publicCommissionInterestCards,
   publicCommissionInterestCounts,
 } from "@/lib/commissionInterestCount";
+import {
+  publicCommissionRequestCount,
+  publicCommissionRequestDetail,
+  publicCommissionRequestPage,
+} from "@/lib/commissionRequestAccess";
 import { publicSellerPath } from "@/lib/publicPaths";
-import { getBlockedIdsFor } from "@/lib/blocks";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { defaultOpenGraphImages } from "@/lib/siteMetadata";
@@ -56,9 +59,10 @@ export async function generateMetadata({
     });
     if (!metro) notFound();
     const cityName = formatCityState(metro.name, metro.state);
-    const openCount = await prisma.commissionRequest.count({
-      where: openCommissionWhere(metro.parentMetroId ? { cityMetroId: metro.id } : { metroId: metro.id }),
-    });
+    const openCount = await publicCommissionRequestCount(
+      null,
+      metro.parentMetroId ? { cityMetroId: metro.id } : { metroId: metro.id },
+    );
     const title = `Custom Woodworking Commissions in ${cityName} | Grainline`;
     const description = `Browse open custom woodworking commission requests in ${cityName}. Connect with local buyers looking for handmade furniture, decor, and more.`;
     return {
@@ -76,18 +80,7 @@ export async function generateMetadata({
   }
 
   // Commission detail metadata (original logic)
-  const req = await prisma.commissionRequest.findFirst({
-    where: openCommissionWhere({ id: param }),
-    select: {
-      title: true,
-      description: true,
-      isNational: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      buyerSellerCity: true,
-      buyerSellerState: true,
-    },
-  });
+  const req = await publicCommissionRequestDetail(null, param);
   // The page decides who may see a request that is no longer open, so this
   // must not 404 for them. It reveals nothing and stays out of search.
   if (!req) return { title: "Commission request", robots: { index: false, follow: false } };
@@ -144,39 +137,18 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const { blockedUserIds } = await getBlockedIdsFor(meId);
-
-  const commissionWhere = isMajorMetro
-    ? openCommissionWhere({
-        metroId: metro.id,
-        ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
-      })
-    : openCommissionWhere({
-        cityMetroId: metro.id,
-        ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
-      });
-  const rawCommissions = await prisma.commissionRequest.findMany({
-    where: commissionWhere,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 20,
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      timeline: true,
-      createdAt: true,
-      referenceImageUrls: true,
-      buyerName: true,
-      buyerImageUrl: true,
-    },
+  const commissionFilter = isMajorMetro
+    ? { metroId: metro.id }
+    : { cityMetroId: metro.id };
+  const rawCommissions = await publicCommissionRequestPage(meId, {
+    ...commissionFilter,
+    offset: 0,
+    limit: 20,
   });
-  const interestCounts = rawCommissions.length > 0
-    ? await publicCommissionInterestCounts(rawCommissions.map(({ id }) => id), meId)
+  const interestCounts = rawCommissions.rows.length > 0
+    ? await publicCommissionInterestCounts(rawCommissions.rows.map(({ id }) => id), meId)
     : new Map<string, number>();
-  const commissions = rawCommissions.map((commission) => ({
+  const commissions = rawCommissions.rows.map((commission) => ({
     ...commission,
     interestedCount: interestCounts.get(commission.id) ?? 0,
   }));
@@ -348,7 +320,6 @@ async function CommissionDetailPage({ id }: { id: string }) {
   const { userId } = await auth();
   let meId: string | null = null;
   let sellerProfileId: string | null = null;
-  let alreadyInterested = false;
 
   if (userId) {
     const me = await userClerkCommissionContext(prisma, userId);
@@ -358,69 +329,21 @@ async function CommissionDetailPage({ id }: { id: string }) {
     }
   }
 
-  const { blockedUserIds } = await getBlockedIdsFor(meId);
-
-  const select = {
-    id: true,
-    title: true,
-    description: true,
-    category: true,
-    budgetMinCents: true,
-    budgetMaxCents: true,
-    timeline: true,
-    referenceImageUrls: true,
-    status: true,
-    isNational: true,
-    expiresAt: true,
-    createdAt: true,
-    buyerId: true,
-    metroId: true,
-    cityMetroId: true,
-    metro: { select: { slug: true, name: true, state: true } },
-    cityMetro: { select: { slug: true, name: true, state: true } },
-    buyerName: true,
-    buyerImageUrl: true,
-    buyerSellerCity: true,
-    buyerSellerState: true,
-  } as const;
-  const openRequest = await prisma.commissionRequest.findFirst({
-    where: openCommissionWhere({
-      id,
-      ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
-    }),
-    select,
-  });
   // Fulfilled, closed and expired notices link here, so the buyer who posted
   // the request and the makers who said they were interested can still read
   // it. Everyone else gets a 404.
-  const request = openRequest ?? (meId
-    ? await prisma.commissionRequest.findFirst({
-        where: {
-          id,
-          // No seller profile: "" matches no interest row.
-          OR: [{ buyerId: meId }, { interests: { some: { sellerProfileId: sellerProfileId ?? "" } } }],
-          ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
-        },
-        select,
-      })
-    : null);
+  const request = await publicCommissionRequestDetail(meId, id);
 
   if (!request) return notFound();
-  const readOnly = !openRequest;
+  const readOnly = request.status !== "OPEN"
+    || (request.expiresAt !== null && request.expiresAt.getTime() <= Date.now());
   const [interestCounts, interests] = await Promise.all([
     publicCommissionInterestCounts([request.id], meId),
     publicCommissionInterestCards(request.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT),
   ]);
   const interestedCount = interestCounts.get(request.id) ?? 0;
 
-  if (sellerProfileId) {
-    const interest = await prisma.commissionInterest.findUnique({
-      where: { commissionRequestId_sellerProfileId: { commissionRequestId: id, sellerProfileId } },
-    });
-    alreadyInterested = !!interest;
-  }
-
-  const isOwner = meId === request.buyerId;
+  const isOwner = request.isOwner;
   const buyerName = request.buyerName?.split(" ")[0] ?? "Buyer";
 
   const locationName = request.isNational
@@ -469,7 +392,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         {sellerProfileId && !isOwner && !readOnly && (
           <CommissionInterestButton
             requestId={request.id}
-            initialInterested={alreadyInterested}
+            initialInterested={request.alreadyInterested}
           />
         )}
         {!userId && !readOnly && (
@@ -503,7 +426,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       {request.referenceImageUrls.length > 0 && (
         <section className="mb-6">
           <h2 className="font-display text-xl text-neutral-900 mb-3">Reference Images</h2>
-          <ImageLightbox images={request.referenceImageUrls} thumbnailSize={160} />
+          <ImageLightbox images={[...request.referenceImageUrls]} thumbnailSize={160} />
         </section>
       )}
 

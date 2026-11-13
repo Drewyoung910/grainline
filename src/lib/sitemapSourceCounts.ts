@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { openCommissionWhere } from "@/lib/commissionExpiry";
+import { publicCommissionRequestCount } from "@/lib/commissionRequestAccess";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { sellerPublicSitemapCounts } from "@/lib/sellerProfilePublicAccess";
 import type { SitemapSourceCounts } from "@/lib/sitemapIndex";
@@ -15,7 +15,7 @@ export async function sitemapSourceCounts(): Promise<SitemapSourceCounts> {
     prisma.listing.count({ where: publicListingWhere() }),
     sellerPublicSitemapCounts(),
     prisma.blogPost.count({ where: publicBlogPostWhere() }),
-    prisma.commissionRequest.count({ where: openCommissionWhere() }),
+    publicCommissionRequestCount(null),
   ]);
 
   return {

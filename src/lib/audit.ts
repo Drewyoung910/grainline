@@ -29,6 +29,7 @@ import {
   sellerStaffOrderabilityState,
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
+import { restoreCommissionRequestsForStaffBan } from './commissionRequestAccess'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -408,12 +409,12 @@ export async function undoAdminAction({
           throw error
         }
         if (banMetadata?.previousCommissionRequests.length) {
-          for (const request of banMetadata.previousCommissionRequests) {
-            await tx.commissionRequest.updateMany({
-              where: { id: request.id, buyerId: log.targetId, status: 'CLOSED' },
-              data: { status: request.status },
-            })
-          }
+          await restoreCommissionRequestsForStaffBan(
+            tx,
+            banReviewCapability,
+            log.targetId,
+            banMetadata.previousCommissionRequests,
+          )
         }
         break
       }
