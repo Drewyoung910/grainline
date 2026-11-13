@@ -127,6 +127,14 @@ const sellerFaqPreparationMigration =
   "20261030030000_prepare_seller_faq_authorities";
 const sellerFaqActivationMigration =
   "20261030060000_activate_seller_faq_rls";
+const sellerBroadcastPreparationMigration =
+  "20261101100000_prepare_seller_broadcast_authorities";
+const sellerBroadcastActivationMigration =
+  "20261101110000_activate_seller_broadcast_rls";
+const sellerMetricsPreparationMigration =
+  "20261102030000_prepare_seller_metrics_authorities";
+const sellerMetricsActivationMigration =
+  "20261102040000_activate_seller_metrics_rls";
 const serviceReferenceLeastPrivilegeMigration =
   "20261101020000_narrow_service_reference_runtime_privileges";
 const emailServiceLeastPrivilegeMigration =
@@ -480,6 +488,19 @@ function sellerFaqPreparationMigrationSourcePath() {
   assert.ok(
     stagedPath && existsSync(stagedPath),
     "missing isolated SellerFaq preparation migration",
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
+}
+
+function privateTablePreparationMigrationSourcePath(migration, envName, label) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env[envName]?.trim() ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    `missing absolute isolated ${label} preparation migration`,
   );
   return path.basename(stagedPath) === "migration.sql"
     ? path.dirname(stagedPath)
@@ -994,6 +1015,18 @@ test("final Production build applies email service after its required email corr
   const emailServiceActivationHold = finalBuild.indexOf(
     'mv "prisma/migrations/$email_service_activation_migration" "$holding/migrations/$email_service_activation_migration"',
   );
+  const sellerBroadcastHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$seller_broadcast_migration" "$holding/migrations/$seller_broadcast_migration"',
+  );
+  const sellerBroadcastActivationHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$seller_broadcast_activation_migration" "$holding/migrations/$seller_broadcast_activation_migration"',
+  );
+  const sellerMetricsHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$seller_metrics_migration" "$holding/migrations/$seller_metrics_migration"',
+  );
+  const sellerMetricsActivationHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$seller_metrics_activation_migration" "$holding/migrations/$seller_metrics_activation_migration"',
+  );
   const lockOrderRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$lock_order_correction_migration"',
   );
@@ -1003,16 +1036,42 @@ test("final Production build applies email service after its required email corr
   const emailServiceActivationRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$email_service_activation_migration"',
   );
+  const sellerBroadcastRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$seller_broadcast_migration"',
+  );
+  const sellerBroadcastActivationRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$seller_broadcast_activation_migration"',
+  );
+  const sellerMetricsRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$seller_metrics_migration"',
+  );
+  const sellerMetricsActivationRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$seller_metrics_activation_migration"',
+  );
 
   assert.ok(emailServiceHold >= 0);
   assert.ok(emailServiceActivationHold >= 0);
   assert.ok(emailServiceHold < fullChain);
   assert.ok(emailServiceActivationHold < fullChain);
+  assert.ok(sellerBroadcastHold >= 0 && sellerBroadcastHold < fullChain);
+  assert.ok(
+    sellerBroadcastActivationHold >= 0
+      && sellerBroadcastActivationHold < fullChain,
+  );
+  assert.ok(sellerMetricsHold >= 0 && sellerMetricsHold < fullChain);
+  assert.ok(
+    sellerMetricsActivationHold >= 0
+      && sellerMetricsActivationHold < fullChain,
+  );
   assert.ok(lockOrderRestore < emailServiceRestore);
   assert.ok(emailServiceRestore < emailServiceActivationRestore);
+  assert.ok(emailServiceActivationRestore < sellerBroadcastRestore);
+  assert.ok(sellerBroadcastRestore < sellerBroadcastActivationRestore);
+  assert.ok(sellerBroadcastActivationRestore < sellerMetricsRestore);
+  assert.ok(sellerMetricsRestore < sellerMetricsActivationRestore);
   assert.ok(
     finalBuild.indexOf('rmdir "$holding/migrations" "$holding"')
-      > emailServiceActivationRestore,
+      > sellerMetricsActivationRestore,
   );
   assert.match(
     finalBuild.slice(emailServiceRestore),
@@ -1020,6 +1079,10 @@ test("final Production build applies email service after its required email corr
   );
   assert.match(
     finalBuild.slice(emailServiceActivationRestore),
+    /npx prisma migrate deploy[\s\S]*npm run audit:db-grants/,
+  );
+  assert.match(
+    finalBuild.slice(sellerBroadcastRestore),
     /npx prisma migrate deploy[\s\S]*npm run audit:db-grants/,
   );
 });
@@ -1072,11 +1135,11 @@ test("ReviewVote preparation is proved, isolated, and restored around historical
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
-test("SellerMetrics candidates are proved, isolated, and restored around historical guards", () => {
+test("SellerMetrics candidate is proved, isolated, and restored around historical guards", () => {
   const verifyName = "Verify SellerMetrics source packages";
-  const isolateName = "Isolate SellerMetrics candidates until historical release guards pass";
+  const isolateName = "Isolate SellerMetrics candidate until historical release guards pass";
   const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
-  const restoreName = "Restore SellerMetrics candidates after historical release guards";
+  const restoreName = "Restore SellerMetrics candidate after historical release guards";
   const isolate = step(isolateName);
   const restore = step(restoreName);
   for (const migration of sellerMetricsCandidateMigrations) {
@@ -1350,6 +1413,72 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const sellerBroadcastPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerBroadcastPreparationMigration,
+    );
+    if (!existsSync(sellerBroadcastPreparationTarget)) {
+      cpSync(
+        privateTablePreparationMigrationSourcePath(
+          sellerBroadcastPreparationMigration,
+          "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+          "SellerBroadcast",
+        ),
+        sellerBroadcastPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerBroadcastActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerBroadcastActivationMigration,
+    );
+    if (!existsSync(sellerBroadcastActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          sellerBroadcastActivationMigration,
+          "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        sellerBroadcastActivationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerMetricsPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerMetricsPreparationMigration,
+    );
+    if (!existsSync(sellerMetricsPreparationTarget)) {
+      cpSync(
+        privateTablePreparationMigrationSourcePath(
+          sellerMetricsPreparationMigration,
+          "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
+          "SellerMetrics",
+        ),
+        sellerMetricsPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerMetricsActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerMetricsActivationMigration,
+    );
+    if (!existsSync(sellerMetricsActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          sellerMetricsActivationMigration,
+          "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        sellerMetricsActivationTarget,
+        { recursive: true },
+      );
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
@@ -1518,6 +1647,14 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${sellerFaqPreparationMigration}/migration.sql`;
     const sellerFaqActivationPath =
       `prisma/migrations/${sellerFaqActivationMigration}/migration.sql`;
+    const sellerBroadcastPreparationPath =
+      `prisma/migrations/${sellerBroadcastPreparationMigration}/migration.sql`;
+    const sellerBroadcastActivationPath =
+      `prisma/migrations/${sellerBroadcastActivationMigration}/migration.sql`;
+    const sellerMetricsPreparationPath =
+      `prisma/migrations/${sellerMetricsPreparationMigration}/migration.sql`;
+    const sellerMetricsActivationPath =
+      `prisma/migrations/${sellerMetricsActivationMigration}/migration.sql`;
     const serviceReferenceLeastPrivilegePath =
       `prisma/migrations/${serviceReferenceLeastPrivilegeMigration}/migration.sql`;
     const emailServiceLeastPrivilegePath =
@@ -1560,6 +1697,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       userReportActivationPath,
       sellerFaqPreparationPath,
       sellerFaqActivationPath,
+      sellerBroadcastPreparationPath,
+      sellerBroadcastActivationPath,
+      sellerMetricsPreparationPath,
+      sellerMetricsActivationPath,
       serviceReferenceLeastPrivilegePath,
       emailServiceLeastPrivilegePath,
       emailServiceLeastPrivilegeActivationPath,
@@ -1609,6 +1750,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate Block source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate UserReport source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SellerFaq source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate SellerBroadcast candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate SellerMetrics candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate service and reference least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email service least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1644,6 +1787,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, userReportActivationPath)), false);
     assert.equal(existsSync(path.join(root, sellerFaqPreparationPath)), false);
     assert.equal(existsSync(path.join(root, sellerFaqActivationPath)), false);
+    assert.equal(existsSync(path.join(root, sellerBroadcastPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, sellerBroadcastActivationPath)), false);
+    assert.equal(existsSync(path.join(root, sellerMetricsPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, sellerMetricsActivationPath)), false);
     assert.equal(existsSync(path.join(root, serviceReferenceLeastPrivilegePath)), false);
     assert.equal(existsSync(path.join(root, emailServiceLeastPrivilegePath)), false);
     assert.equal(
@@ -1725,6 +1872,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore Block source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore UserReport source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerFaq source packages after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore SellerBroadcast candidates after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore SellerMetrics candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore service and reference least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email service least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
