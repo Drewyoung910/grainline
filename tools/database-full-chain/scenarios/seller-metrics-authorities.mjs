@@ -7,6 +7,8 @@ import { seedSellerProfilePrivateFixture } from "./seller-profile-private-fixtur
 
 export const SELLER_METRICS_PREPARATION_MIGRATION =
   "20261102030000_prepare_seller_metrics_authorities";
+export const SELLER_METRICS_RLS_MIGRATION =
+  "20261102040000_activate_seller_metrics_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -355,8 +357,12 @@ export async function proveSellerMetricsPreparedAuthorities({
     assertMetricsRow(initial[0], seller.sellerProfileId);
 
     await database.query(
-      `INSERT INTO public."User" (id, "clerkId", email, banned, "updatedAt")
-       VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP)`,
+      `INSERT INTO public."User" (
+         id, "clerkId", email, banned, "createdAt", "updatedAt"
+       ) VALUES (
+         $1, $2, $3, true,
+         pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+       )`,
       [
         parityReviewerId,
         `${parityReviewerId}_clerk`,
@@ -365,15 +371,19 @@ export async function proveSellerMetricsPreparedAuthorities({
     );
     await database.query(
       `INSERT INTO public."Listing" (
-         id, "sellerId", title, description, "priceCents", status, "updatedAt"
+         id, "sellerId", title, description, "priceCents", status,
+         "createdAt", "updatedAt"
        ) VALUES ($1, $2, 'Metrics parity listing', 'Metrics parity fixture', 100,
-                 'ACTIVE'::public."ListingStatus", CURRENT_TIMESTAMP)`,
+                 'ACTIVE'::public."ListingStatus",
+                 pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
       [parityListingId, seller.sellerProfileId],
     );
     await database.query(
       `INSERT INTO public."Review" (
-         id, "listingId", "reviewerId", "ratingX2", "updatedAt"
-       ) VALUES ($1, $2, $3, 10, CURRENT_TIMESTAMP)`,
+         id, "listingId", "reviewerId", "ratingX2",
+         "createdAt", "updatedAt"
+       ) VALUES ($1, $2, $3, 10,
+                 pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
       [parityReviewId, parityListingId, parityReviewerId],
     );
 
@@ -385,7 +395,8 @@ export async function proveSellerMetricsPreparedAuthorities({
     );
     await database.query(
       `UPDATE public."User"
-          SET banned = false, "updatedAt" = CURRENT_TIMESTAMP
+          SET banned = false,
+              "updatedAt" = pg_catalog.clock_timestamp()
         WHERE id = $1`,
       [parityReviewerId],
     );
@@ -637,6 +648,175 @@ export async function proveSellerMetricsPreparedAuthorities({
         ],
       ).catch(() => {});
     }
+    await database.query("ALTER ROLE grainline_app_runtime PASSWORD NULL");
+  }
+}
+
+export async function proveSellerMetricsRlsAuthorities({
+  connectionString,
+  database,
+  seller,
+}) {
+  const runtimePassword = randomBytes(24).toString("base64url");
+  await database.query(
+    `ALTER ROLE grainline_app_runtime PASSWORD '${runtimePassword}'`,
+  );
+  const runtimeUrl = runtimeConnectionString(connectionString, runtimePassword);
+  const runtime = await connectRuntime(runtimeUrl, "seller_metrics_rls_owner");
+  try {
+    const posture = rowsOf(await database.query(`
+      SELECT relation.relrowsecurity AS enabled,
+             relation.relforcerowsecurity AS forced,
+             (SELECT pg_catalog.count(*)::integer
+                FROM pg_catalog.pg_policy AS policy
+               WHERE policy.polrelid = relation.oid) AS policy_count,
+             pg_catalog.has_table_privilege(
+               'grainline_app_runtime', relation.oid, 'SELECT'
+             ) AS runtime_select,
+             pg_catalog.has_table_privilege(
+               'grainline_app_runtime', relation.oid, 'INSERT'
+             ) AS runtime_insert,
+             pg_catalog.has_table_privilege(
+               'grainline_app_runtime', relation.oid, 'UPDATE'
+             ) AS runtime_update,
+             pg_catalog.has_table_privilege(
+               'grainline_app_runtime', relation.oid, 'DELETE'
+             ) AS runtime_delete
+        FROM pg_catalog.pg_class AS relation
+       WHERE relation.oid = 'public."SellerMetrics"'::pg_catalog.regclass
+    `));
+    assert.deepEqual(posture, [{
+      enabled: true,
+      forced: true,
+      policy_count: 0,
+      runtime_select: false,
+      runtime_insert: false,
+      runtime_update: false,
+      runtime_delete: false,
+    }]);
+
+    await expectSqlState(
+      runtime.query(
+        "SELECT * FROM public.grainline_seller_metrics_owner_state(3, false)",
+      ),
+      "42501",
+    );
+    const metrics = await ownerMetrics(runtime, seller.userId, { force: true });
+    assert.equal(metrics.length, 1);
+    assertMetricsRow(metrics[0], seller.sellerProfileId);
+
+    await beginActor(runtime, seller.userId);
+    await expectSqlState(
+      runtime.query(
+        `SELECT * FROM public."SellerMetrics" WHERE "sellerProfileId" = $1`,
+        [seller.sellerProfileId],
+      ),
+      "42501",
+    );
+    await closeTransaction(runtime);
+
+    await beginActor(runtime, seller.userId);
+    await expectSqlState(
+      runtime.query(
+        `UPDATE public."SellerMetrics"
+            SET "reviewCount" = "reviewCount"
+          WHERE "sellerProfileId" = $1`,
+        [seller.sellerProfileId],
+      ),
+      "42501",
+    );
+    await closeTransaction(runtime);
+
+    const cascadeSeller = await seedSellerProfilePrivateFixture(database, {
+      suffix: `seller_metrics_cascade_${Date.now()}`,
+    });
+    try {
+      const cascadeMetrics = await ownerMetrics(
+        runtime,
+        cascadeSeller.userId,
+        { force: true },
+      );
+      assertMetricsRow(cascadeMetrics[0], cascadeSeller.sellerProfileId);
+      await database.query(
+        'DELETE FROM public."SellerProfile" WHERE id = $1',
+        [cascadeSeller.sellerProfileId],
+      );
+      const remaining = rowsOf(await database.query(
+        `SELECT pg_catalog.count(*)::integer AS count
+           FROM public."SellerMetrics"
+          WHERE "sellerProfileId" = $1`,
+        [cascadeSeller.sellerProfileId],
+      ))[0]?.count;
+      assert.equal(remaining, 0, "hard seller deletion must cascade under FORCE");
+    } finally {
+      await database.query(
+        'DELETE FROM public."SellerProfile" WHERE id = $1',
+        [cascadeSeller.sellerProfileId],
+      ).catch(() => {});
+      await database.query('DELETE FROM public."User" WHERE id = $1', [
+        cascadeSeller.userId,
+      ]).catch(() => {});
+    }
+  } finally {
+    await closeTransaction(runtime);
+    await runtime.end();
+    await database.query("ALTER ROLE grainline_app_runtime PASSWORD NULL");
+  }
+}
+
+export async function proveSellerMetricsRlsRollback({
+  connectionString,
+  database,
+  seller,
+}) {
+  const runtimePassword = randomBytes(24).toString("base64url");
+  await database.query(
+    `ALTER ROLE grainline_app_runtime PASSWORD '${runtimePassword}'`,
+  );
+  const runtimeUrl = runtimeConnectionString(connectionString, runtimePassword);
+  const runtime = await connectRuntime(runtimeUrl, "seller_metrics_rls_rollback");
+  try {
+    const posture = rowsOf(await database.query(`
+      SELECT relation.relrowsecurity AS enabled,
+             relation.relforcerowsecurity AS forced,
+             (SELECT pg_catalog.count(*)::integer
+                FROM pg_catalog.pg_policy AS policy
+               WHERE policy.polrelid = relation.oid) AS policy_count
+        FROM pg_catalog.pg_class AS relation
+       WHERE relation.oid = 'public."SellerMetrics"'::pg_catalog.regclass
+    `));
+    assert.deepEqual(posture, [{
+      enabled: false,
+      forced: false,
+      policy_count: 0,
+    }]);
+    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+      const allowed = rowsOf(await database.query(
+        `SELECT pg_catalog.has_table_privilege(
+           'grainline_app_runtime', 'public."SellerMetrics"', $1
+         ) AS allowed`,
+        [privilege],
+      ))[0]?.allowed;
+      assert.equal(allowed, true, `${privilege} must be restored first`);
+    }
+    await runtime.query("BEGIN");
+    const direct = await runtime.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM public."SellerMetrics"
+        WHERE "sellerProfileId" = $1`,
+      [seller.sellerProfileId],
+    );
+    assert.equal(Number(direct.rows[0]?.count) >= 0, true);
+    await runtime.query(
+      `UPDATE public."SellerMetrics"
+          SET "reviewCount" = "reviewCount"
+        WHERE "sellerProfileId" = $1`,
+      [seller.sellerProfileId],
+    );
+    await runtime.query("ROLLBACK");
+  } finally {
+    await closeTransaction(runtime);
+    await runtime.end();
     await database.query("ALTER ROLE grainline_app_runtime PASSWORD NULL");
   }
 }

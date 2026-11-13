@@ -6177,6 +6177,57 @@ SELECT pg_catalog.format(
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- SellerMetrics has exactly two accepted table postures: predecessor CRUD
+-- while RLS is fully off, or policyless ENABLE+FORCE with no runtime table
+-- authority. Refuse partial activation instead of silently weakening it.
+WITH posture AS (
+  SELECT class.relrowsecurity AS rls_enabled,
+         class.relforcerowsecurity AS rls_forced,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'SellerMetrics'
+     AND class.relkind = 'r'
+), state AS (
+  SELECT rls_enabled AND rls_forced AND policy_count = 0 AS active,
+         NOT rls_enabled AND NOT rls_forced AND policy_count = 0
+           AS clean_predecessor
+    FROM posture
+), failure AS (
+  SELECT
+    'SellerMetrics RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM state
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+       COALESCE((SELECT message FROM failure LIMIT 1), '')
+         AS grainline_role_provisioning_failure,
+       COALESCE((SELECT active FROM state), false)
+         AS seller_metrics_rls_active;
+\gset
+
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_seller_metrics_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_seller_metrics_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :seller_metrics_rls_active
+REVOKE ALL ON TABLE public."SellerMetrics" FROM PUBLIC, :"runtime_role";
+\endif
+\unset seller_metrics_rls_active
+
 -- ReviewVote keeps predecessor CRUD while RLS is off. Once the reviewed owner
 -- policy is active, convergence must reduce the runtime role to SELECT only.
 -- Refuse every partial RLS/policy posture instead of guessing which side of

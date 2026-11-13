@@ -143,7 +143,10 @@ import {
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import {
   SELLER_METRICS_PREPARATION_MIGRATION,
+  SELLER_METRICS_RLS_MIGRATION,
   proveSellerMetricsPreparedAuthorities,
+  proveSellerMetricsRlsAuthorities,
+  proveSellerMetricsRlsRollback,
 } from "../tools/database-full-chain/scenarios/seller-metrics-authorities.mjs";
 import {
   SELLER_BROADCAST_PREPARATION_MIGRATION,
@@ -202,6 +205,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   [USER_REPORT_RLS_MIGRATION, "user_report_v1"],
   [SELLER_FAQ_RLS_MIGRATION, "seller_faq_v1"],
   [SELLER_BROADCAST_RLS_MIGRATION, "seller_broadcast_v1"],
+  [SELLER_METRICS_RLS_MIGRATION, "seller_metrics_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -332,6 +336,8 @@ test(
       let emailServiceLeastPrivilegeFixture;
       let emailServiceLeastPrivilegePreparationProved = false;
       let emailServiceLeastPrivilegeActivationPreflightPath;
+      let emailServiceLeastPrivilegeActivationPostflightClosed = false;
+      let emailServiceLeastPrivilegeActivationPostflight;
       let followRollbackReapplyProven = false;
       let sellerBroadcastPredecessorEligibilityGap;
       const privateActivationPreflightPaths = new Map();
@@ -506,6 +512,30 @@ test(
             emailServiceLeastPrivilegePreparationProved = true;
           }
           if (artifact.name === SELLER_BROADCAST_PREPARATION_MIGRATION) {
+            assert.ok(
+              emailServiceLeastPrivilegeActivationPreflightPath,
+              "email-service activation preflight must precede SellerBroadcast preparation",
+            );
+            const activationPostflight = await inspectPrivilegeReleaseProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVILEGE_RELEASE_ID: "email_service_v1",
+                PRIVILEGE_RELEASE_PHASE: "postflight",
+                PRIVILEGE_RELEASE_EVIDENCE_PATH: join(
+                  preparationEvidenceDirectory,
+                  "email-service-least-privilege-activation-postflight.json",
+                ),
+                PRIVILEGE_RELEASE_PREVIOUS_EVIDENCE_PATH:
+                  emailServiceLeastPrivilegeActivationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(activationPostflight.state, "applied");
+            assert.equal(activationPostflight.catalog.posture, "successor");
+            assert.equal(activationPostflight.functions.length, 31);
+            emailServiceLeastPrivilegeActivationPostflight = activationPostflight;
+            emailServiceLeastPrivilegeActivationPostflightClosed = true;
             assert.ok(
               fixture,
               "seller fixture must exist before SellerBroadcast predecessor proof",
@@ -693,6 +723,37 @@ test(
               );
             assert.equal(preparationPreflight.state, "pending");
             assert.equal(preparationPreflight.catalog.functions.length, 0);
+          }
+          if (artifact.name === SELLER_METRICS_RLS_MIGRATION) {
+            assert.ok(
+              sellerMetricsPreparationPreflightPath,
+              "SellerMetrics preparation preflight must precede activation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "seller-metrics-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    sellerMetricsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "7".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 3);
+            assert.deepEqual(preparationPostflight.catalog.triggers, []);
+            assert.ok(fixture, "seller fixture must exist before SellerMetrics proof");
+            await proveSellerMetricsPreparedAuthorities({
+              connectionString: proofDatabaseUrl,
+              database: adapter,
+              seller: fixture,
+            });
           }
           if (artifact.name === BLOCK_PREPARATION_MIGRATION) {
             blockPreparationPreflightPath = join(
@@ -1008,36 +1069,6 @@ test(
         ],
       );
 
-      assert.ok(
-        sellerMetricsPreparationPreflightPath,
-        "SellerMetrics preparation preflight did not run",
-      );
-      const sellerMetricsPreparationPostflight =
-        await inspectPrivateTablePreparationProduction(
-          {
-            DIRECT_URL: proofDatabaseUrl,
-            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1",
-            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
-            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
-              preparationEvidenceDirectory,
-              "seller-metrics-preparation-postflight.json",
-            ),
-            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
-              sellerMetricsPreparationPreflightPath,
-            PRODUCTION_MIGRATION_RELEASE_COMMIT: "7".repeat(40),
-          },
-          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
-        );
-      assert.equal(sellerMetricsPreparationPostflight.state, "applied");
-      assert.equal(sellerMetricsPreparationPostflight.catalog.functions.length, 3);
-      assert.deepEqual(sellerMetricsPreparationPostflight.catalog.triggers, []);
-      assert.ok(fixture, "seller fixture must exist before SellerMetrics proof");
-      await proveSellerMetricsPreparedAuthorities({
-        connectionString: proofDatabaseUrl,
-        database: adapter,
-        seller: fixture,
-      });
-
       for (const releaseId of PRIVATE_TABLE_ACTIVATION_RELEASES.values()) {
         const previousPath = privateActivationPreflightPaths.get(releaseId);
         assert.ok(previousPath, `${releaseId} activation preflight did not run`);
@@ -1057,6 +1088,36 @@ test(
         );
         assert.equal(activationPostflight.state, "active");
       }
+      assert.ok(fixture, "seller fixture must exist before SellerMetrics activation proof");
+      await proveSellerMetricsRlsAuthorities({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        seller: fixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          "docs/rls-drafts/seller-metrics-activation-rollback.sql",
+        ),
+        "utf8",
+      ));
+      await proveSellerMetricsRlsRollback({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        seller: fixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${SELLER_METRICS_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveSellerMetricsRlsAuthorities({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        seller: fixture,
+      });
 
       assert.ok(
         stockNotificationPreparationPreflightPath,
@@ -1415,26 +1476,13 @@ test(
           emailServiceLeastPrivilegeActivationPreflightPath,
           "email-service activation preflight must run before migration",
         );
-        const activationPostflight = await inspectPrivilegeReleaseProduction(
-          {
-            DIRECT_URL: proofDatabaseUrl,
-            PRIVILEGE_RELEASE_ID: "email_service_v1",
-            PRIVILEGE_RELEASE_PHASE: "postflight",
-            PRIVILEGE_RELEASE_EVIDENCE_PATH: join(
-              preparationEvidenceDirectory,
-              "email-service-least-privilege-activation-postflight.json",
-            ),
-            PRIVILEGE_RELEASE_PREVIOUS_EVIDENCE_PATH:
-              emailServiceLeastPrivilegeActivationPreflightPath,
-            PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
-          },
-          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
-        );
-        assert.equal(activationPostflight.state, "applied");
-        assert.equal(activationPostflight.catalog.posture, "successor");
-        assert.equal(activationPostflight.functions.length, 31);
         assert.equal(
-          activationPostflight.functions.find(
+          emailServiceLeastPrivilegeActivationPostflightClosed,
+          true,
+          "email-service activation postflight must close before later function replacements",
+        );
+        assert.equal(
+          emailServiceLeastPrivilegeActivationPostflight?.functions.find(
             (entry) => entry.signature
               === "public.grainline_account_deletion_email_key_core(text)",
           )?.runtimeExecute,

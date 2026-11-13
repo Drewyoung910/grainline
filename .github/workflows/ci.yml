@@ -564,10 +564,13 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-metrics-preparation"
-          migration=20261102030000_prepare_seller_metrics_authorities
+          preparation=20261102030000_prepare_seller_metrics_authorities
+          activation=20261102040000_activate_seller_metrics_rls
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate service and reference least-privilege migration until historical release guards pass
         shell: bash
         run: |
@@ -7180,10 +7183,15 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-metrics-preparation"
-          migration=20261102030000_prepare_seller_metrics_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for migration in \
+            20261102030000_prepare_seller_metrics_authorities \
+            20261102040000_activate_seller_metrics_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore service and reference least-privilege migration after historical release guards
         shell: bash
         run: |
@@ -7337,6 +7345,7 @@ jobs:
           seller_broadcast_migration=20261101100000_prepare_seller_broadcast_authorities
           seller_broadcast_activation_migration=20261101110000_activate_seller_broadcast_rls
           seller_metrics_migration=20261102030000_prepare_seller_metrics_authorities
+          seller_metrics_activation_migration=20261102040000_activate_seller_metrics_rls
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$deletion_migration" "$holding/migrations/$deletion_migration"
           mv "prisma/migrations/$eligibility_migration" "$holding/migrations/$eligibility_migration"
@@ -7350,6 +7359,7 @@ jobs:
           mv "prisma/migrations/$seller_broadcast_migration" "$holding/migrations/$seller_broadcast_migration"
           mv "prisma/migrations/$seller_broadcast_activation_migration" "$holding/migrations/$seller_broadcast_activation_migration"
           mv "prisma/migrations/$seller_metrics_migration" "$holding/migrations/$seller_metrics_migration"
+          mv "prisma/migrations/$seller_metrics_activation_migration" "$holding/migrations/$seller_metrics_activation_migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
@@ -7482,6 +7492,9 @@ jobs:
           mv \
             "$holding/migrations/$seller_metrics_migration" \
             "prisma/migrations/$seller_metrics_migration"
+          mv \
+            "$holding/migrations/$seller_metrics_activation_migration" \
+            "prisma/migrations/$seller_metrics_activation_migration"
           rmdir "$holding/migrations" "$holding"
           npx prisma migrate deploy
           npx prisma migrate status

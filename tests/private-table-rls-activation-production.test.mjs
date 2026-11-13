@@ -136,7 +136,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
   const entries = selectedRelease.preparation.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRole: entry.executeRole ?? "runtime",
+    executeRoles: entry.executeRoles ?? [entry.executeRole ?? "runtime"],
     source: selectedVerified.preparation.functionSources.get(entry.name),
   }));
   for (const retained of selectedRelease.functionChanges.retained) {
@@ -144,9 +144,9 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       name: retained.name,
       arguments: retained.arguments,
       securityDefiner: retained.securityDefiner,
-      executeRole: active
+      executeRoles: [active
         ? retained.activatedExecuteRole
-        : retained.predecessorExecuteRole,
+        : retained.predecessorExecuteRole],
       source: retainedSourceByName.get(retained.name) ?? "retained source",
     });
   }
@@ -159,12 +159,12 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       entries.push({
         ...predecessor,
         name: replacement.compatibilityName,
-        executeRole: "none",
+        executeRoles: [],
       });
       entries.push({
         name: replacement.name,
         arguments: replacement.arguments,
-        executeRole: predecessor.executeRole,
+        executeRoles: predecessor.executeRoles,
         source: selectedVerified.activeFunctionSources.get(replacement.name),
       });
     }
@@ -172,7 +172,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       entries.push({
         name: addition.name,
         arguments: addition.arguments,
-        executeRole: addition.executeRole,
+        executeRoles: [addition.executeRole],
         source: selectedVerified.activeFunctionSources.get(addition.name),
       });
     }
@@ -186,8 +186,8 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       security_definer: entry.securityDefiner ?? true,
       configuration: ["search_path=pg_catalog"],
       source: entry.source,
-      runtime_execute: entry.executeRole === "runtime",
-      staff_execute: entry.executeRole === "staff",
+      runtime_execute: entry.executeRoles.includes("runtime"),
+      staff_execute: entry.executeRoles.includes("staff"),
       public_execute: false,
     }))
     .sort((left, right) => (

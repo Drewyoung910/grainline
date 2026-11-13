@@ -133,6 +133,8 @@ const sellerBroadcastActivationMigration =
   "20261101110000_activate_seller_broadcast_rls";
 const sellerMetricsPreparationMigration =
   "20261102030000_prepare_seller_metrics_authorities";
+const sellerMetricsActivationMigration =
+  "20261102040000_activate_seller_metrics_rls";
 const serviceReferenceLeastPrivilegeMigration =
   "20261101020000_narrow_service_reference_runtime_privileges";
 const emailServiceLeastPrivilegeMigration =
@@ -1014,6 +1016,9 @@ test("final Production build applies email service after its required email corr
   const sellerMetricsHold = finalBuild.indexOf(
     'mv "prisma/migrations/$seller_metrics_migration" "$holding/migrations/$seller_metrics_migration"',
   );
+  const sellerMetricsActivationHold = finalBuild.indexOf(
+    'mv "prisma/migrations/$seller_metrics_activation_migration" "$holding/migrations/$seller_metrics_activation_migration"',
+  );
   const lockOrderRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$lock_order_correction_migration"',
   );
@@ -1032,6 +1037,9 @@ test("final Production build applies email service after its required email corr
   const sellerMetricsRestore = finalBuild.lastIndexOf(
     '"$holding/migrations/$seller_metrics_migration"',
   );
+  const sellerMetricsActivationRestore = finalBuild.lastIndexOf(
+    '"$holding/migrations/$seller_metrics_activation_migration"',
+  );
 
   assert.ok(emailServiceHold >= 0);
   assert.ok(emailServiceActivationHold >= 0);
@@ -1043,14 +1051,19 @@ test("final Production build applies email service after its required email corr
       && sellerBroadcastActivationHold < fullChain,
   );
   assert.ok(sellerMetricsHold >= 0 && sellerMetricsHold < fullChain);
+  assert.ok(
+    sellerMetricsActivationHold >= 0
+      && sellerMetricsActivationHold < fullChain,
+  );
   assert.ok(lockOrderRestore < emailServiceRestore);
   assert.ok(emailServiceRestore < emailServiceActivationRestore);
   assert.ok(emailServiceActivationRestore < sellerBroadcastRestore);
   assert.ok(sellerBroadcastRestore < sellerBroadcastActivationRestore);
   assert.ok(sellerBroadcastActivationRestore < sellerMetricsRestore);
+  assert.ok(sellerMetricsRestore < sellerMetricsActivationRestore);
   assert.ok(
     finalBuild.indexOf('rmdir "$holding/migrations" "$holding"')
-      > sellerMetricsRestore,
+      > sellerMetricsActivationRestore,
   );
   assert.match(
     finalBuild.slice(emailServiceRestore),
@@ -1410,6 +1423,22 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const sellerMetricsActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerMetricsActivationMigration,
+    );
+    if (!existsSync(sellerMetricsActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          sellerMetricsActivationMigration,
+          "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        sellerMetricsActivationTarget,
+        { recursive: true },
+      );
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
@@ -1584,6 +1613,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${sellerBroadcastActivationMigration}/migration.sql`;
     const sellerMetricsPreparationPath =
       `prisma/migrations/${sellerMetricsPreparationMigration}/migration.sql`;
+    const sellerMetricsActivationPath =
+      `prisma/migrations/${sellerMetricsActivationMigration}/migration.sql`;
     const serviceReferenceLeastPrivilegePath =
       `prisma/migrations/${serviceReferenceLeastPrivilegeMigration}/migration.sql`;
     const emailServiceLeastPrivilegePath =
@@ -1629,6 +1660,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       sellerBroadcastPreparationPath,
       sellerBroadcastActivationPath,
       sellerMetricsPreparationPath,
+      sellerMetricsActivationPath,
       serviceReferenceLeastPrivilegePath,
       emailServiceLeastPrivilegePath,
       emailServiceLeastPrivilegeActivationPath,
@@ -1718,6 +1750,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, sellerBroadcastPreparationPath)), false);
     assert.equal(existsSync(path.join(root, sellerBroadcastActivationPath)), false);
     assert.equal(existsSync(path.join(root, sellerMetricsPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, sellerMetricsActivationPath)), false);
     assert.equal(existsSync(path.join(root, serviceReferenceLeastPrivilegePath)), false);
     assert.equal(existsSync(path.join(root, emailServiceLeastPrivilegePath)), false);
     assert.equal(

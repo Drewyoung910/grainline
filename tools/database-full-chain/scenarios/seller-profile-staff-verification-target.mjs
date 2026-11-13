@@ -68,7 +68,18 @@ export async function proveSellerProfileStaffVerificationTarget({ database, sell
       (id, "sellerProfileId", "calculatedAt", "periodMonths", "averageRating",
        "reviewCount", "onTimeShippingRate", "responseRate", "totalSalesCents",
        "completedOrderCount", "activeCaseCount", "accountAgeDays")
-     VALUES ($1, $2, $3, 3, 4.9, 18, 0.98, 0.97, 425000, 21, 0, 500)`,
+     VALUES ($1, $2, $3, 3, 4.9, 18, 0.98, 0.97, 425000, 21, 0, 500)
+     ON CONFLICT ("sellerProfileId") DO UPDATE SET
+       "calculatedAt" = EXCLUDED."calculatedAt",
+       "periodMonths" = EXCLUDED."periodMonths",
+       "averageRating" = EXCLUDED."averageRating",
+       "reviewCount" = EXCLUDED."reviewCount",
+       "onTimeShippingRate" = EXCLUDED."onTimeShippingRate",
+       "responseRate" = EXCLUDED."responseRate",
+       "totalSalesCents" = EXCLUDED."totalSalesCents",
+       "completedOrderCount" = EXCLUDED."completedOrderCount",
+       "activeCaseCount" = EXCLUDED."activeCaseCount",
+       "accountAgeDays" = EXCLUDED."accountAgeDays"`,
     [metricsId, seller.sellerProfileId, now],
   );
 

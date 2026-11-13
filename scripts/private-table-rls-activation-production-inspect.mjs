@@ -167,7 +167,7 @@ function expectedFunctions(verified, active) {
   const entries = verified.preparation.release.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRole: entry.executeRole ?? "runtime",
+    executeRoles: entry.executeRoles ?? [entry.executeRole ?? "runtime"],
     source: verified.preparation.functionSources.get(entry.name),
   }));
   for (const retained of verified.release.functionChanges.retained) {
@@ -175,9 +175,9 @@ function expectedFunctions(verified, active) {
       name: retained.name,
       arguments: retained.arguments,
       securityDefiner: retained.securityDefiner,
-      executeRole: active
+      executeRoles: [active
         ? retained.activatedExecuteRole
-        : retained.predecessorExecuteRole,
+        : retained.predecessorExecuteRole],
       sourceMd5: retained.sourceMd5,
     });
   }
@@ -191,12 +191,12 @@ function expectedFunctions(verified, active) {
       entries.push({
         ...predecessor,
         name: replacement.compatibilityName,
-        executeRole: "none",
+        executeRoles: [],
       });
       entries.push({
         name: replacement.name,
         arguments: replacement.arguments,
-        executeRole: predecessor.executeRole,
+        executeRoles: predecessor.executeRoles,
         source: verified.activeFunctionSources.get(replacement.name),
       });
     }
@@ -204,7 +204,7 @@ function expectedFunctions(verified, active) {
       entries.push({
         name: addition.name,
         arguments: addition.arguments,
-        executeRole: addition.executeRole,
+        executeRoles: [addition.executeRole],
         source: verified.activeFunctionSources.get(addition.name),
       });
     }
@@ -258,12 +258,12 @@ async function readFunctions(client, verified, tableOwner, active) {
     assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
     assert.equal(
       row.runtime_execute,
-      entry.executeRole === "runtime",
+      entry.executeRoles.includes("runtime"),
       `${identity} runtime EXECUTE drifted`,
     );
     assert.equal(
       row.staff_execute,
-      entry.executeRole === "staff",
+      entry.executeRoles.includes("staff"),
       `${identity} staff EXECUTE drifted`,
     );
     assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);

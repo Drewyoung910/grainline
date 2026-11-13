@@ -46,6 +46,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
   seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+  seller_metrics_v1: "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -56,6 +57,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
   seller_broadcast_v1: "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
+  seller_metrics_v1: "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -318,6 +320,36 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       additions: Object.freeze([]),
     }),
   }),
+  seller_metrics_v1: Object.freeze({
+    preparationReleaseId: "seller_metrics_v1",
+    minimumCompatibleAppCommit:
+      "7c43e2fe32f2afd123b1f3103e2dabaa06020d2a",
+    migration: "20261102040000_activate_seller_metrics_rls",
+    migrationSha256:
+      "035e3540499ec009a578ceba54d2e8bf7ef17ccc0fba3109b19176f4e198b41a",
+    rollbackPath: "docs/rls-drafts/seller-metrics-activation-rollback.sql",
+    rollbackSha256:
+      "1742c9de413860f822307d944506add51c422f7935133d78cefcafbc0e647baf",
+    table: "SellerMetrics",
+    additionalLocks: Object.freeze([
+      Object.freeze({
+        table: "SellerProfile",
+        mode: "SHARE UPDATE EXCLUSIVE",
+      }),
+    ]),
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedAccountDeletionPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/seller-metrics-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
@@ -496,9 +528,34 @@ export function verifyPrivateTableRlsActivationSource(
   }
   const quotedTable = escapeRegExp(release.table);
   const tablePattern = `public\\."${quotedTable}"`;
-  const activationTableStatements = [
-    ...activation.sql.matchAll(/\b(?:ALTER|LOCK)\s+TABLE\s+public\."([^"]+)"/giu),
+  const additionalLocks = release.additionalLocks ?? [];
+  if (
+    !Array.isArray(additionalLocks)
+    || additionalLocks.some((lock) => (
+      typeof lock !== "object"
+      || lock === null
+      || typeof lock.table !== "string"
+      || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(lock.table)
+      || lock.table === release.table
+      || !["SHARE UPDATE EXCLUSIVE"].includes(lock.mode)
+    ))
+    || new Set(additionalLocks.map((lock) => lock.table)).size
+      !== additionalLocks.length
+  ) {
+    throw stopped("activation auxiliary-lock catalog is invalid");
+  }
+  const activationAlterTables = [
+    ...activation.sql.matchAll(/\bALTER\s+TABLE\s+public\."([^"]+)"/giu),
   ].map((match) => match[1]);
+  const activationLocks = [
+    ...activation.sql.matchAll(
+      /\bLOCK\s+TABLE\s+public\."([^"]+)"\s+IN\s+(ACCESS EXCLUSIVE|SHARE UPDATE EXCLUSIVE)\s+MODE/giu,
+    ),
+  ].map((match) => `${match[1]}:${match[2].toUpperCase()}`);
+  const expectedLocks = [
+    `${release.table}:ACCESS EXCLUSIVE`,
+    ...additionalLocks.map((lock) => `${lock.table}:${lock.mode}`),
+  ];
   if (
     !["owner_policy_combined_enable_force", "policyless_combined_enable_force"]
       .includes(release.mode)
@@ -522,8 +579,9 @@ export function verifyPrivateTableRlsActivationSource(
       `LOCK\\s+TABLE\\s+${tablePattern}\\s+IN\\s+ACCESS\\s+EXCLUSIVE\\s+MODE`,
       "iu",
     ).test(activation.sql)
-    || activationTableStatements.length !== 3
-    || activationTableStatements.some((table) => table !== release.table)
+    || activationAlterTables.length !== 2
+    || activationAlterTables.some((table) => table !== release.table)
+    || activationLocks.join("|") !== expectedLocks.join("|")
     || /\b(?:NO\s+FORCE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(activation.sql)
     || /\bDROP\s+(?:TABLE|COLUMN|POLICY|TRIGGER)\b/iu.test(activation.sql)
   ) {
