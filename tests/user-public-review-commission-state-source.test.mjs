@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import yaml from "js-yaml";
 
 import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -93,9 +94,7 @@ describe("User public review and commission state source boundary", () => {
     const distance = read("src/app/commission/page.tsx");
     assert.match(distance, /publicCommissionRequestPage\(meId,/);
     assert.doesNotMatch(distance, /\$queryRaw/);
-    const authority = read(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const authority = readFileSync(commissionDomainPreparationMigrationPath, "utf8");
     const publicPage = authority.slice(
       authority.indexOf("CREATE FUNCTION public.grainline_commission_request_public_page"),
       authority.indexOf("CREATE FUNCTION public.grainline_commission_request_public_detail"),

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -61,7 +62,7 @@ describe("verified audit follow-up guardrails", () => {
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
     const interestAccess = source("src/lib/commissionInterestMessageAccess.ts");
     const commissionPreparation = source(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+      commissionDomainPreparationMigrationPath,
     );
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
     const transitionFunction = commissionPreparation.slice(
@@ -89,7 +90,7 @@ describe("verified audit follow-up guardrails", () => {
     const page = source("src/app/commission/page.tsx");
     const access = source("src/lib/commissionRequestAccess.ts");
     const preparation = source(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+      commissionDomainPreparationMigrationPath,
     );
 
     assert.match(page, /publicCommissionRequestCount\(meId, requestFilter\)/);

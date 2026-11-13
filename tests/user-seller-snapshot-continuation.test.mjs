@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { auditUserIndirectAccess } from "../scripts/audit-user-indirect-access.mjs";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -12,7 +13,7 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   const commission = source("src/app/api/commission/[id]/route.ts");
   const expire = source("src/app/api/cron/commission-expire/route.ts");
   const commissionAuthority = source(
-    "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+    commissionDomainPreparationMigrationPath,
   );
   const broadcast = source("src/app/api/seller/broadcast/route.ts");
   const mirror = source("src/lib/stripeWebhookMirror.ts");

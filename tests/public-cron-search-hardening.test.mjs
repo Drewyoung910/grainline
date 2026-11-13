@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -211,10 +212,7 @@ describe("cron and public route hardening", () => {
   it("keeps public commission reads bounded and rate-limited", () => {
     const commission = source("src/app/api/commission/route.ts");
     const commissionDetail = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
-    const commissionAuthority = source(
-      process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH?.trim() ||
-        "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const commissionAuthority = source(commissionDomainPreparationMigrationPath);
 
     assert.match(commission, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(commission, /rateLimitResponse\(rate\.reset, "Too many commission requests\."\)/);

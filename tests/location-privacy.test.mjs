@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 import {
   COMMISSION_LOCATION_MIN_PRIVACY_RADIUS_METERS,
@@ -150,7 +151,7 @@ describe("public location source boundaries", () => {
     const route = source("src/app/api/commission/route.ts");
     const page = source("src/app/commission/page.tsx");
     const authority = source(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+      commissionDomainPreparationMigrationPath,
     );
 
     assert.match(route, /userClerkCommissionContext\(prisma, userId\)/);

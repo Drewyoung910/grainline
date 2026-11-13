@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import yaml from "js-yaml";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -99,8 +100,9 @@ describe("User public seller-state source boundary", () => {
     assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
 
     const commission = read("src/app/commission/page.tsx");
-    const commissionAuthority = read(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+    const commissionAuthority = readFileSync(
+      commissionDomainPreparationMigrationPath,
+      "utf8",
     );
     assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
     assert.match(commission, /publicCommissionRequestPage\(meId, \{/);

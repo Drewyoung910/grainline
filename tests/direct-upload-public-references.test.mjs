@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 const migrationPath =
   "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql";
@@ -182,7 +183,7 @@ describe("DirectUpload fixed public reference families", () => {
       assert.doesNotMatch(text, /claimDirectUploadFor(?:Url|Key)|claimDirectUploadsForUrls/, path);
     }
     assert.match(
-      source("prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql"),
+      source(commissionDomainPreparationMigrationPath),
       /CREATE FUNCTION public\.grainline_commission_request_owner_create\([\s\S]*grainline_direct_upload_sync_commission_request\(actor_id, p_id\)/,
     );
   });

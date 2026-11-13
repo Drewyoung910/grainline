@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
@@ -28,7 +29,7 @@ describe("account-state residue hardening", () => {
     const ban = source("src/lib/ban.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const authority = source(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+      commissionDomainPreparationMigrationPath,
     );
 
     assert.match(ban, /closeCommissionRequestsForStaffBan/);

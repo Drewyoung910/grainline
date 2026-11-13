@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -60,7 +61,7 @@ describe("DirectUpload RLS audit contracts", () => {
       assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
     assert.match(
-      source("prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql"),
+      source(commissionDomainPreparationMigrationPath),
       /CREATE FUNCTION public\.grainline_commission_request_owner_create\([\s\S]*grainline_direct_upload_sync_commission_request\(actor_id, p_id\)/,
     );
     assert.match(

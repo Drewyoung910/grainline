@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 const {
   DIRECT_UPLOAD_STATUS,
@@ -163,7 +164,7 @@ describe("direct upload lifecycle", () => {
         assert.match(text, /normalizeBlogCoverImageUrl\([\s\S]*author\.id/, path);
       } else if (path === "src/app/api/commission/route.ts") {
         const commissionAuthority = source(
-          "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+          commissionDomainPreparationMigrationPath,
         );
         assert.match(
           commissionAuthority,

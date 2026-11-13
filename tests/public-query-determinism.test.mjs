@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 
 function source(path) {
@@ -393,7 +394,7 @@ describe("public query determinism", () => {
     const commissionAccess = source("src/lib/commissionRequestAccess.ts");
     const commissionInterestAccess = source("src/lib/commissionInterestCount.ts");
     const commissionPreparation = source(
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
+      commissionDomainPreparationMigrationPath,
     );
     const commissionInterestAuthority = source(
       "prisma/migrations/20261020235700_correct_seller_profile_projection_timestamps/migration.sql",
