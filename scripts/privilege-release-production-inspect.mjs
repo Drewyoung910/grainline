@@ -93,7 +93,12 @@ function classify(rows, release) {
   });
 }
 
-export function classifyPrivilegeReleaseFunctions(rows, release, posture) {
+export function classifyPrivilegeReleaseFunctions(
+  rows,
+  release,
+  posture,
+  retiredRuntimeSignatures = new Set(),
+) {
   const retained = Object.keys(release.functions ?? {}).sort();
   const predecessorOnly = [...(release.predecessorRuntimeFunctions ?? [])].sort();
   assert.equal(
@@ -123,7 +128,7 @@ export function classifyPrivilegeReleaseFunctions(rows, release, posture) {
     const predecessorFunction = predecessorOnly.includes(row.signature);
     const expectedRuntimeExecute = predecessorFunction
       ? posture === "predecessor"
-      : true;
+      : !retiredRuntimeSignatures.has(row.signature);
     assert.equal(
       row.runtime_execute,
       expectedRuntimeExecute,
@@ -305,10 +310,26 @@ export async function inspectPrivilegeReleaseProduction(
        WHERE runtime_role.rolname = 'grainline_app_runtime'
        ORDER BY expected.signature COLLATE "C"
     `, [functionSignatures])).rows;
+    const retiredRuntimeSignatures = new Set();
+    for (const [signature, retirement] of Object.entries(
+      release.laterRuntimeRetirements ?? {},
+    )) {
+      const retirementLedger = (await client.query(`
+        SELECT migration_name, checksum, finished_at, rolled_back_at,
+               applied_steps_count::integer AS applied_steps_count
+          FROM public._prisma_migrations
+         WHERE migration_name = $1
+         ORDER BY started_at
+      `, [retirement.migration])).rows;
+      if (successfulMigration(retirementLedger, retirement)) {
+        retiredRuntimeSignatures.add(signature);
+      }
+    }
     const functions = classifyPrivilegeReleaseFunctions(
       functionRows,
       release,
       catalog.posture,
+      retiredRuntimeSignatures,
     );
     for (const table of release.emptyTables ?? []) {
       assert.ok(Object.hasOwn(release.tables, table), "empty table is outside release catalog");

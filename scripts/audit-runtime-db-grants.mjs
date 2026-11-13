@@ -138,9 +138,13 @@ const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
 const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_faq_v1");
+const SELLER_BROADCAST_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("seller_broadcast_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
+export const SELLER_BROADCAST_TABLE =
+  SELLER_BROADCAST_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -660,6 +664,11 @@ export const NOTIFICATION_SERVICE_RPC_FUNCTIONS = Object.freeze([
 
 const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
   "grainline_notification_create_core",
+]);
+
+export const SELLER_BROADCAST_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze([
+  "grainline_email_outbox_cancel_seller_broadcast",
+  "grainline_notification_delete_seller_broadcast",
 ]);
 
 // Trigger functions run through their owning table triggers, and transition
@@ -1721,6 +1730,22 @@ export function sellerFaqRlsForceExpected(inventory) {
   );
 }
 
+export function sellerBroadcastRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    SELLER_BROADCAST_TABLE,
+    "sellerBroadcastRlsActivationApplied",
+  );
+}
+
+export function sellerBroadcastRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    SELLER_BROADCAST_TABLE,
+    "sellerBroadcastRlsActivationApplied",
+  );
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -1760,6 +1785,7 @@ export function runtimePrivateFunctionNames(inventory) {
     typeof inventory?.blockRlsActivationApplied === "boolean"
       ? inventory.blockRlsActivationApplied
       : blockRlsActivationExpected(inventory);
+  const sellerBroadcastActivated = sellerBroadcastRlsActivationExpected(inventory);
   // The preparation adds canonical-email expression indexes while the
   // predecessor application can still write these tables directly. PostgreSQL
   // evaluates the helper for those writes, so runtime needs EXECUTE only for
@@ -1782,6 +1808,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !sellerProfilePrivatePredecessorPrepared
     && !followActivated
     && !blockActivated
+    && !sellerBroadcastActivated
   ) {
     return [...baseRuntimePrivateFunctions];
   }
@@ -1813,6 +1840,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(blockActivated
       ? BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(sellerBroadcastActivated
+      ? SELLER_BROADCAST_ACTIVATED_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -2299,6 +2329,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
     ...(sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+    ...(sellerBroadcastRlsActivationExpected(inventory)
+      ? [SELLER_BROADCAST_TABLE]
+      : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -2807,7 +2840,12 @@ export async function readMessagePolicyState(client) {
   return readExactRlsPolicyState(client, "Message");
 }
 
-export function collectNotificationFunctionIssues(rows, runtimeRole, migrationRole) {
+export function collectNotificationFunctionIssues(
+  rows,
+  runtimeRole,
+  migrationRole,
+  inventory = {},
+) {
   const issues = [];
   const functionRows = Array.isArray(rows) ? rows : [];
   const recipientNames = new Set(NOTIFICATION_RECIPIENT_RPC_FUNCTIONS);
@@ -2856,7 +2894,11 @@ export function collectNotificationFunctionIssues(rows, runtimeRole, migrationRo
       issues.push(`${label} grants EXECUTE to unexpected roles: ${row.other_role_execute.join(", ")}`);
     }
 
-    const runtimeExecuteExpected = !NOTIFICATION_PRIVATE_RPC_FUNCTIONS.has(functionName);
+    const runtimeExecuteExpected = !NOTIFICATION_PRIVATE_RPC_FUNCTIONS.has(functionName)
+      && !(
+        functionName === "grainline_notification_delete_seller_broadcast"
+        && sellerBroadcastRlsActivationExpected(inventory)
+      );
     if (Boolean(row.runtime_direct_execute) !== runtimeExecuteExpected) {
       issues.push(
         runtimeExecuteExpected
@@ -3361,6 +3403,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     || (
       tableName === SELLER_FAQ_TABLE
       && sellerFaqRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === SELLER_BROADCAST_TABLE
+      && sellerBroadcastRlsActivationExpected(inventory)
     )
     || (
       tableName === SELLER_PROFILE_TABLE
@@ -4631,6 +4677,7 @@ export async function auditLiveDatabase({
         functionResult.rows.filter((row) => notificationFunctionNames.has(row.function_name)),
         runtimeRole,
         migrationRole,
+        liveAuthorityInventory,
       ),
     );
   }

@@ -297,6 +297,8 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
 ];
 const SELLER_BROADCAST_PREPARATION_MIGRATION =
   "prisma/migrations/20261101100000_prepare_seller_broadcast_authorities/migration.sql";
+const SELLER_BROADCAST_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101110000_activate_seller_broadcast_rls/migration.sql";
 const SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES = [
   "grainline_seller_broadcast_owner_cooldown",
   "grainline_seller_broadcast_owner_create",
@@ -574,6 +576,9 @@ const {
   userReportRlsForceExpected,
   sellerFaqRlsActivationExpected,
   sellerFaqRlsForceExpected,
+  sellerBroadcastRlsActivationExpected,
+  sellerBroadcastRlsForceExpected,
+  SELLER_BROADCAST_TABLE,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1404,6 +1409,62 @@ describe("database grant inventory guardrails", () => {
           true,
         );
       }
+    }
+    if (typeof sellerBroadcastRlsActivationExpected === "function") {
+      const sellerBroadcastPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const sellerBroadcastActivatedInventory = {
+        rlsEnableTables: [SELLER_BROADCAST_TABLE],
+        rlsForceTables: [SELLER_BROADCAST_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(
+          sellerBroadcastPredecessorInventory,
+        ),
+        false,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerBroadcastActivatedInventory,
+        ).includes(SELLER_BROADCAST_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: SELLER_BROADCAST_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], sellerBroadcastActivatedInventory), []);
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
@@ -4041,6 +4102,11 @@ describe("database grant inventory guardrails", () => {
       source(SELLER_BROADCAST_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const sellerBroadcastRlsActivationPresent = existsSync(
+      SELLER_BROADCAST_ACTIVATION_MIGRATION,
+    ) && source(SELLER_BROADCAST_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL PRIVILEGES ON TABLE public."SellerBroadcast"',
+    );
     const reviewVoteAuthorityPrepared = existsSync(
       REVIEW_VOTE_PREPARATION_MIGRATION,
     ) && REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -4416,6 +4482,9 @@ describe("database grant inventory guardrails", () => {
         + (sellerBroadcastAuthorityPrepared
           ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
             + 1 // reasserted provider-attempt PUBLIC/runtime revoke
+          : 0)
+        + (sellerBroadcastRlsActivationPresent
+          ? 3 // table plus two retired cleanup functions
           : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
@@ -4932,6 +5001,7 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
         ...(typeof sellerFaqRlsActivationExpected === "function"
           && sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
@@ -5000,6 +5070,7 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
         ...(typeof sellerFaqRlsForceExpected === "function"
           && sellerFaqRlsForceExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
@@ -5104,11 +5175,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 7);
+    assert.equal(auditMatches.length, 8);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 7);
+    assert.equal(combinedStaffStageMatches.length, 8);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -5178,6 +5249,16 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreEmailServiceActivation,
     );
+    const restoreSellerBroadcast = stagedProof.indexOf(
+      '"$holding/migrations/$seller_broadcast_migration" \\\n            "prisma/migrations/$seller_broadcast_migration"',
+    );
+    const restoreSellerBroadcastActivation = stagedProof.indexOf(
+      '"$holding/migrations/$seller_broadcast_activation_migration" \\\n            "prisma/migrations/$seller_broadcast_activation_migration"',
+    );
+    const applyPostEmailDomain = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreSellerBroadcastActivation,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -5207,7 +5288,10 @@ describe("database grant inventory guardrails", () => {
       && applyEmailService < emailServiceAudit
       && emailServiceAudit < restoreEmailServiceActivation
       && restoreEmailServiceActivation < applyEmailServiceActivation
-      && applyEmailServiceActivation < finalAudit,
+      && applyEmailServiceActivation < restoreSellerBroadcast
+      && restoreSellerBroadcast < restoreSellerBroadcastActivation
+      && restoreSellerBroadcastActivation < applyPostEmailDomain
+      && applyPostEmailDomain < finalAudit,
     );
   });
 
@@ -6642,6 +6726,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const sellerBroadcastProvisioningPresent = provision.includes(
+      "seller_broadcast_rls_active",
+    );
     const serviceReferenceLeastPrivilegeProvisioningPresent = provision.includes(
       "grainline_service_reference_least_privilege_applied",
     );
@@ -6659,6 +6746,7 @@ describe("database grant inventory guardrails", () => {
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
         + Number(reviewVoteProvisioningPresent)
+        + Number(sellerBroadcastProvisioningPresent)
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
         + Number(emailServiceLeastPrivilegeProvisioningPresent),
     );
@@ -6989,7 +7077,7 @@ describe("database grant inventory guardrails", () => {
     );
     assert.equal(
       (provision.match(/^REVOKE ALL ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
-      25,
+      25 + Number(sellerBroadcastProvisioningPresent),
     );
     assert.equal(
       (provision.match(/^GRANT EXECUTE ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,

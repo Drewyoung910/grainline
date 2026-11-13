@@ -22,6 +22,8 @@ const OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT =
   "0c0e9e67081c2ad7b27d97bc3f5956ecd2090549";
 const BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT =
   "47cec35f29d3bdea3376e10a52659f6587ca7af5";
+const SELLER_BROADCAST_MINIMUM_COMPATIBLE_COMMIT =
+  "db2e4f00d8975114989e4e902bfbad56fa64c540";
 const PREDECESSOR_CRUD = Object.freeze([
   "SELECT",
   "INSERT",
@@ -43,6 +45,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -52,6 +55,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -270,6 +274,49 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     ]),
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  seller_broadcast_v1: Object.freeze({
+    preparationReleaseId: "seller_broadcast_v1",
+    minimumCompatibleAppCommit: SELLER_BROADCAST_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261101110000_activate_seller_broadcast_rls",
+    migrationSha256:
+      "39775d2cf3bf050b87a04dcc7ce0bb7ec0bf95c0e8f9acadefa6c56fe6d1b37a",
+    rollbackPath: "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+    rollbackSha256:
+      "114b54218c80baf31f8b05cbe222270154ddc2dd91c88e792fb2dab9b46e653e",
+    table: "SellerBroadcast",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/seller-broadcast-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: Object.freeze({
+      retained: Object.freeze([
+        Object.freeze({
+          name: "grainline_email_outbox_cancel_seller_broadcast",
+          arguments: "text",
+          sourceMd5: "2ee96ea4aba4137f5720bb7179c9b9ed",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+        Object.freeze({
+          name: "grainline_notification_delete_seller_broadcast",
+          arguments: "text",
+          sourceMd5: "a34d24cf5abbb0795249c812467d5ab2",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+      ]),
+      replacements: Object.freeze([]),
+      additions: Object.freeze([]),
+    }),
   }),
 });
 

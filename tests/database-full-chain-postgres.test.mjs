@@ -143,8 +143,11 @@ import {
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import {
   SELLER_BROADCAST_PREPARATION_MIGRATION,
+  SELLER_BROADCAST_RLS_MIGRATION,
   proveSellerBroadcastEligibilityGapClosed,
   proveSellerBroadcastPreparedAuthorities,
+  proveSellerBroadcastRlsAuthorities,
+  proveSellerBroadcastRlsRollback,
   seedSellerBroadcastPredecessorEligibilityGap,
 } from
   "../tools/database-full-chain/scenarios/seller-broadcast-authorities.mjs";
@@ -194,6 +197,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   [BLOCK_RLS_MIGRATION, "block_v1"],
   [USER_REPORT_RLS_MIGRATION, "user_report_v1"],
   [SELLER_FAQ_RLS_MIGRATION, "seller_faq_v1"],
+  [SELLER_BROADCAST_RLS_MIGRATION, "seller_broadcast_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -1142,6 +1146,7 @@ test(
         database: adapter,
         connectionString: proofDatabaseUrl,
       });
+      await proveSellerBroadcastRlsAuthorities({ database: adapter });
       await proveSellerProfileOwnerBootstrapAuthority({
         database: adapter,
         seller: fixture,
@@ -1380,6 +1385,21 @@ test(
           false,
         );
         await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+        // SellerBroadcast depends on the email cleanup authority during its
+        // predecessor interval. Roll back the dependent boundary before
+        // exercising the base email rollback, then reactivate in dependency
+        // order below.
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+          ),
+          "utf8",
+        ));
+        await proveSellerBroadcastRlsRollback({
+          database: adapter,
+          seller: fixture,
+        });
         await client.query(readFileSync(
           join(
             repositoryRoot,
@@ -1427,6 +1447,14 @@ test(
           migration: "email-service-activation-restoration-proof",
         });
         await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            `prisma/migrations/${SELLER_BROADCAST_RLS_MIGRATION}/migration.sql`,
+          ),
+          "utf8",
+        ));
+        await proveSellerBroadcastRlsAuthorities({ database: adapter });
       }
       assert.deepEqual(stockNotificationPredecessorEvidence, {
         blockedNotificationCreated: true,

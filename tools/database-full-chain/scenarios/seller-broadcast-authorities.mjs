@@ -7,6 +7,8 @@ import { seedSellerProfilePrivateFixture } from "./seller-profile-private-fixtur
 
 export const SELLER_BROADCAST_PREPARATION_MIGRATION =
   "20261101100000_prepare_seller_broadcast_authorities";
+export const SELLER_BROADCAST_RLS_MIGRATION =
+  "20261101110000_activate_seller_broadcast_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -865,4 +867,107 @@ export async function proveSellerBroadcastPreparedAuthorities({
     staffBoundaryProven: true,
     accountDeletionProviderLockOrderProven: true,
   });
+}
+
+export async function proveSellerBroadcastRlsAuthorities({ database }) {
+  const posture = (await database.query(
+    `SELECT class.relrowsecurity AS enabled,
+            class.relforcerowsecurity AS forced,
+            (SELECT pg_catalog.count(*)::integer
+               FROM pg_catalog.pg_policy AS policy
+              WHERE policy.polrelid = class.oid) AS "policyCount"
+       FROM pg_catalog.pg_class AS class
+      WHERE class.oid = 'public."SellerBroadcast"'::pg_catalog.regclass`,
+  )).rows[0];
+  assert.deepEqual(posture, {
+    enabled: true,
+    forced: true,
+    policyCount: 0,
+  });
+
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      `broadcast_rls_denied_${randomUUID()}`,
+      'SELECT id FROM public."SellerBroadcast" LIMIT 1',
+    ),
+    (error) => error?.code === "42501",
+    "ordinary runtime must have no direct SellerBroadcast reads",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      `broadcast_rls_denied_${randomUUID()}`,
+      `INSERT INTO public."SellerBroadcast"
+         (id, "sellerProfileId", message, "sentAt", "recipientCount")
+       VALUES ($1, $2, 'denied', pg_catalog.clock_timestamp(), 0)`,
+      [randomUUID(), `missing_${randomUUID()}`],
+    ),
+    (error) => error?.code === "42501",
+    "ordinary runtime must have no direct SellerBroadcast writes",
+  );
+  for (const signature of [
+    "public.grainline_email_outbox_cancel_seller_broadcast(text)",
+    "public.grainline_notification_delete_seller_broadcast(text)",
+  ]) {
+    const allowed = (await database.query(
+      `SELECT pg_catalog.has_function_privilege(
+         'grainline_app_runtime', $1, 'EXECUTE'
+       ) AS allowed`,
+      [signature],
+    )).rows[0]?.allowed;
+    assert.equal(allowed, false, `${signature} remains runtime-callable after activation`);
+  }
+}
+
+export async function proveSellerBroadcastRlsRollback({ database, seller }) {
+  const posture = (await database.query(
+    `SELECT class.relrowsecurity AS enabled,
+            class.relforcerowsecurity AS forced,
+            (SELECT pg_catalog.count(*)::integer
+               FROM pg_catalog.pg_policy AS policy
+              WHERE policy.polrelid = class.oid) AS "policyCount"
+       FROM pg_catalog.pg_class AS class
+      WHERE class.oid = 'public."SellerBroadcast"'::pg_catalog.regclass`,
+  )).rows[0];
+  assert.deepEqual(posture, {
+    enabled: false,
+    forced: false,
+    policyCount: 0,
+  });
+  for (const signature of [
+    "public.grainline_email_outbox_cancel_seller_broadcast(text)",
+    "public.grainline_notification_delete_seller_broadcast(text)",
+  ]) {
+    const allowed = (await database.query(
+      `SELECT pg_catalog.has_function_privilege(
+         'grainline_app_runtime', $1, 'EXECUTE'
+       ) AS allowed`,
+      [signature],
+    )).rows[0]?.allowed;
+    assert.equal(allowed, true, `${signature} was not restored by rollback`);
+  }
+
+  const id = randomUUID();
+  await runtimeQuery(
+    database,
+    seller.userId,
+    `INSERT INTO public."SellerBroadcast"
+       (id, "sellerProfileId", message, "sentAt", "recipientCount")
+     VALUES ($1, $2, 'rollback proof', pg_catalog.clock_timestamp(), 0)`,
+    [id, seller.sellerProfileId],
+  );
+  const rows = await runtimeQuery(
+    database,
+    seller.userId,
+    'SELECT id FROM public."SellerBroadcast" WHERE id = $1',
+    [id],
+  );
+  assert.deepEqual(rows.map((row) => row.id), [id]);
+  await runtimeQuery(
+    database,
+    seller.userId,
+    'DELETE FROM public."SellerBroadcast" WHERE id = $1',
+    [id],
+  );
 }

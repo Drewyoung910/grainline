@@ -40,6 +40,13 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     predecessorRuntimeFunctions: Object.freeze([
       "public.grainline_account_deletion_email_key_core(text)",
     ]),
+    laterRuntimeRetirements: Object.freeze({
+      "public.grainline_email_outbox_cancel_seller_broadcast(text)": Object.freeze({
+        migration: "20261101110000_activate_seller_broadcast_rls",
+        migrationSha256:
+          "39775d2cf3bf050b87a04dcc7ce0bb7ec0bf95c0e8f9acadefa6c56fe6d1b37a",
+      }),
+    }),
     functions: Object.freeze({
       "public.grainline_email_hard_suppression_apply(text,text,\"EmailSuppressionReason\",text,text,jsonb)": "26b56879c36244c42a16eeae66f06813d1c5d53fad5b0eb59a71410910dc942b",
       "public.grainline_email_account_deletion_suppression_clear(text)": "2a4e35437f915c3fcf9877f79dd32ea4abeebc1741b92d6c1e15a0fc8029c05a",
