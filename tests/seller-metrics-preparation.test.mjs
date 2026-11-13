@@ -5,13 +5,13 @@ import { describe, it } from "node:test";
 import {
   privateTablePreparation,
 } from "../scripts/private-table-preparation-catalog.mjs";
+import {
+  sellerMetricsPreparationMigrationPath,
+} from "./helpers/seller-metrics-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
-
-const migrationPath =
-  "prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql";
 
 describe("SellerMetrics compatible preparation", () => {
   it("keeps the generic release catalog free of unnecessary cache triggers", () => {
@@ -31,7 +31,7 @@ describe("SellerMetrics compatible preparation", () => {
   });
 
   it("adds validated value invariants and purpose-bound operations without activating RLS", () => {
-    const migration = source(migrationPath);
+    const migration = readFileSync(sellerMetricsPreparationMigrationPath(), "utf8");
 
     for (const constraint of [
       "SellerMetrics_period_months_chk",
@@ -95,7 +95,7 @@ describe("SellerMetrics compatible preparation", () => {
   });
 
   it("moves every reviewed direct operation behind the SellerMetrics access module", () => {
-    const migration = source(migrationPath);
+    const migration = readFileSync(sellerMetricsPreparationMigrationPath(), "utf8");
     const metrics = source("src/lib/metrics.ts");
     const analytics = source("src/app/api/seller/analytics/route.ts");
     const verification = source("src/app/dashboard/verification/page.tsx");

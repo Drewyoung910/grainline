@@ -7,6 +7,9 @@ import {
   validateCaseSellerActiveCount,
   validateCaseVerificationEligibility,
 } from "../src/lib/caseSellerAggregateResult.ts";
+import {
+  sellerMetricsPreparationMigrationPath,
+} from "./helpers/seller-metrics-preparation-migration-path.mjs";
 
 function source(path) {
   return fs.readFileSync(path, "utf8");
@@ -84,9 +87,10 @@ describe("Case seller aggregate application authority", () => {
       const body = source(path);
       assert.doesNotMatch(body, /\b(?:prisma|db|tx)\.case\./, path);
     }
+    assert.match(source("src/lib/metrics.ts"), /grainline_seller_metrics_owner_state/u);
     assert.match(
-      source("src/lib/metrics.ts"),
-      /getCaseSellerActiveCount\(sellerProfileId, db\)/,
+      source(sellerMetricsPreparationMigrationPath()),
+      /grainline_case_seller_active_count\(\s*p_seller_profile_id\s*\)/u,
     );
     for (const path of files.slice(0, 3)) {
       assert.match(
