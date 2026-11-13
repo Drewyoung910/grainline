@@ -38,6 +38,7 @@ import {
 import * as Sentry from "@sentry/nextjs";
 import { refreshRatingSummariesForReviewer } from "@/lib/sellerRatingSummary";
 import {
+  buildAccountDeletionAuditJsonPatches,
   markAccountDeletionAuditMetadata,
   redactAccountDeletionAuditMetadata,
   redactAccountDeletionText,
@@ -100,6 +101,11 @@ import {
   applyEmailServiceAccountDeletion,
   redactDeletedSellerEmailOutbox,
 } from "@/lib/emailServiceAccess";
+import {
+  acquireAdminAuditLogAccountDeletionWriteFence,
+  adminAuditLogAccountDeletionCandidates,
+  appendAdminAuditLog,
+} from "@/lib/adminAuditLogAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -137,10 +143,12 @@ export type AccountDeletionBlocker = {
 type AuditLogRedactionCandidate = {
   metadata: Prisma.JsonValue;
   reason: string | null;
+  metadataSha256: string;
+  reasonSha256: string;
   directAccountReference: boolean;
 };
 
-type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
+type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw">;
 type AccountDeletionMediaDb = Pick<
   Prisma.TransactionClient,
   "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
@@ -189,21 +197,6 @@ export async function releaseAccountDeletionLock(lock: AccountDeletionLock): Pro
   });
 }
 
-function mergeAuditLogRedactionCandidate(
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  id: string,
-  metadata: Prisma.JsonValue,
-  reason: string | null,
-  directAccountReference: boolean,
-) {
-  const existing = candidates.get(id);
-  candidates.set(id, {
-    metadata: existing?.metadata ?? metadata,
-    reason: existing?.reason ?? reason,
-    directAccountReference: Boolean(existing?.directAccountReference || directAccountReference),
-  });
-}
-
 function normalizedSensitiveValues(values: Iterable<string | null | undefined>) {
   const seen = new Set<string>();
   return [...values]
@@ -217,108 +210,49 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
     });
 }
 
-function auditMetadataExactAccountReferenceSql(value: string) {
-  return Prisma.sql`jsonb_path_exists(
-    metadata,
-    '$.** ? (@ == $account_reference)'::jsonpath,
-    jsonb_build_object('account_reference', to_jsonb(${value}::text)),
-    true
-  )`;
-}
-
-async function collectAuditLogsByExactAccountMetadataReference(
-  db: AuditLogRedactionDb,
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  accountReferenceValues: string[],
-) {
-  for (const value of accountReferenceValues) {
-    const exactReferenceSql = auditMetadataExactAccountReferenceSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, metadata, reason
-          FROM "AdminAuditLog"
-          WHERE id > ${cursor}
-            AND ${exactReferenceSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, metadata, reason
-          FROM "AdminAuditLog"
-          WHERE ${exactReferenceSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; metadata: Prisma.JsonValue; reason: string | null }[] = await db.$queryRaw(query);
-      matches.forEach((log) => mergeAuditLogRedactionCandidate(
-        candidates,
-        log.id,
-        log.metadata,
-        log.reason,
-        true,
-      ));
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-}
-
-async function collectAuditLogsByAccountReference(
-  db: AuditLogRedactionDb,
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  adminId: string,
-  targetIds: string[],
-) {
-  let cursor: string | undefined;
-  const where: Prisma.AdminAuditLogWhereInput = {
-    OR: [
-      { adminId },
-      ...(targetIds.length > 0 ? [{ targetId: { in: targetIds } }] : []),
-    ],
-  };
-
-  for (;;) {
-    const matches = await db.adminAuditLog.findMany({
-      where,
-      select: { id: true, metadata: true, reason: true },
-      orderBy: { id: "asc" },
-      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-
-    matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, log.reason, true));
-
-    if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-    cursor = matches[matches.length - 1]?.id;
-    if (!cursor) break;
-  }
-}
-
 async function collectAdminAuditLogRedactionUpdates({
   db,
+  claim,
   adminId,
   targetIds,
   accountReferenceValues,
   sensitiveValues,
 }: {
   db: AuditLogRedactionDb;
+  claim: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  };
   adminId: string;
   targetIds: string[];
   accountReferenceValues: string[];
   sensitiveValues: string[];
 }): Promise<AccountDeletionAuditRedactionUpdate[]> {
   const candidates = new Map<string, AuditLogRedactionCandidate>();
-  await collectAuditLogsByAccountReference(db, candidates, adminId, targetIds);
-  await collectAuditLogsByExactAccountMetadataReference(
-    db,
-    candidates,
-    accountReferenceValues,
-  );
+  let cursor: string | null = null;
+  for (;;) {
+    const matches = await adminAuditLogAccountDeletionCandidates(db, {
+      ...claim,
+      userId: adminId,
+      targetIds,
+      referenceValues: accountReferenceValues,
+      afterId: cursor,
+      limit: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+    });
+    for (const log of matches) {
+      candidates.set(log.id, {
+        metadata: log.metadata,
+        reason: log.reason,
+        metadataSha256: log.metadataSha256,
+        reasonSha256: log.reasonSha256,
+        directAccountReference: true,
+      });
+    }
+    if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+    cursor = matches[matches.length - 1]?.id ?? null;
+    if (!cursor) break;
+  }
 
   const updates: AccountDeletionAuditRedactionUpdate[] = [];
   for (const [id, candidate] of candidates) {
@@ -336,8 +270,19 @@ async function collectAdminAuditLogRedactionUpdates({
     if (!redacted.changed && !marked.changed && !reason.changed) continue;
     updates.push({
       logId: id,
-      metadata: marked.metadata,
-      ...(reason.changed && reason.text !== null ? { reason: reason.text } : {}),
+      expectedMetadataSha256: candidate.metadataSha256,
+      expectedReasonSha256: candidate.reasonSha256,
+      ...(redacted.changed || marked.changed
+        ? {
+            metadataPatches: buildAccountDeletionAuditJsonPatches(
+              candidate.metadata as Parameters<typeof buildAccountDeletionAuditJsonPatches>[0],
+              marked.metadata,
+            ),
+          }
+        : {}),
+      ...(reason.changed && reason.text !== null
+        ? { reasonPatches: reason.patches }
+        : {}),
     });
   }
   return updates;
@@ -906,6 +851,12 @@ export async function anonymizeUserAccount(
   });
 
   const result = await withDbUserContext(userId, async (tx) => {
+    await acquireAdminAuditLogAccountDeletionWriteFence(tx, {
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
+      userId,
+    });
     // This is the account-lifecycle side of the message send protocol. Sends
     // take FOR SHARE on both participants before their final block check and
     // insert. Deletion takes FOR UPDATE before scanning/redacting messages, so
@@ -962,10 +913,6 @@ export async function anonymizeUserAccount(
       return {
         ok: true,
         alreadyDeleted: true,
-        auditTargetIds: [],
-        accountAuditReferenceValues: [],
-        accountAuditSensitiveValues: [],
-        accountSensitiveValues: [],
       };
     }
 
@@ -1075,20 +1022,17 @@ export async function anonymizeUserAccount(
       userId: user.id,
     });
 
-    await tx.adminAuditLog.create({
-      data: {
-        adminId: user.id,
-        action: "USER_ACCOUNT_DELETE",
-        targetType: "USER",
-        targetId: user.id,
-        reason: "User requested account deletion",
-        metadata: {
-          actorKind: "user",
-          hadSellerProfile: Boolean(user.sellerProfile),
-          hadStripeAccount: Boolean(stripeAccountId),
-          stripeRejectSucceeded,
-          deletedAt: now.toISOString(),
-        },
+    await appendAdminAuditLog(tx, {
+      adminId: user.id,
+      action: "USER_ACCOUNT_DELETE",
+      targetType: "USER",
+      targetId: user.id,
+      reason: "User requested account deletion",
+      metadata: {
+        hadSellerProfile: Boolean(user.sellerProfile),
+        hadStripeAccount: Boolean(stripeAccountId),
+        stripeRejectSucceeded,
+        deletedAt: now.toISOString(),
       },
     });
 
@@ -1266,6 +1210,31 @@ export async function anonymizeUserAccount(
       },
     });
 
+    const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
+      db: tx,
+      claim: {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      },
+      adminId: user.id,
+      targetIds: auditTargetIds,
+      accountReferenceValues: accountAuditReferenceValues,
+      sensitiveValues: accountAuditSensitiveValues,
+    });
+    await enqueueAccountDeletionAuditRedactionSideEffects(
+      tx,
+      {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      },
+      user.id,
+      auditTargetIds,
+      accountAuditReferenceValues,
+      redactionUpdates,
+    );
+
     await deleteCurrentUserEmailAddressHistory(tx);
 
     await finalizeUserAccountDeletion(tx, {
@@ -1278,12 +1247,13 @@ export async function anonymizeUserAccount(
     return {
       ok: true,
       alreadyDeleted: false,
-      auditTargetIds,
-      accountAuditReferenceValues,
-      accountAuditSensitiveValues,
-      accountSensitiveValues,
     };
-  }, { timeout: 30000, maxWait: 10000 }).catch((error) => {
+  }, {
+    timeout: 30000,
+    maxWait: 10000,
+    transactionRetry: true,
+    attempts: 3,
+  }).catch((error) => {
     if (stripeRejectSucceeded && stripeAccountId) {
       Sentry.captureException(error, {
         tags: { source: "account_delete_partial" },
@@ -1309,33 +1279,14 @@ export async function anonymizeUserAccount(
     revalidateDeletedAccountSearchCaches(userId);
     await refreshRatingSummariesForReviewer(userId);
 
-    try {
-      const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
-        db: prisma,
-        adminId: userId,
-        targetIds: result.auditTargetIds,
-        accountReferenceValues: result.accountAuditReferenceValues,
-        sensitiveValues: result.accountAuditSensitiveValues,
-      });
-      await enqueueAccountDeletionAuditRedactionSideEffects(
-        getAccountDeletionSideEffectClient(),
-        userId,
-        redactionUpdates,
-      );
-      const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
-        ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
-      ]);
-      if (redactionResult.failed > 0) {
-        Sentry.captureMessage("Account deletion audit redaction side effects pending retry", {
-          level: "warning",
-          tags: { source: "account_delete_audit_redaction" },
-          extra: { userId, failed: redactionResult.failed },
-        });
-      }
-    } catch (error) {
-      Sentry.captureException(error, {
+    const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
+      ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
+    ]);
+    if (redactionResult.failed > 0) {
+      Sentry.captureMessage("Account deletion audit redaction side effects pending retry", {
+        level: "warning",
         tags: { source: "account_delete_audit_redaction" },
-        extra: { userId },
+        extra: { userId, failed: redactionResult.failed },
       });
     }
 

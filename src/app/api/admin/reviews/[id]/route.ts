@@ -9,6 +9,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 export async function DELETE(
   request: Request,
@@ -38,7 +39,7 @@ export async function DELETE(
   });
   if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(admin.id, async (tx) => {
     await tx.review.delete({ where: { id } });
     await refreshSellerRatingSummary(review.listing.sellerId, tx);
     await logAdminActionOrThrow({

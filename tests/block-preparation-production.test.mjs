@@ -67,6 +67,7 @@ function fakeClientClass({ applied }) {
             columns: 0,
             constraints: 0,
             functions: applied ? release.functions.length : 0,
+            constraints: 0,
           }],
         };
       }

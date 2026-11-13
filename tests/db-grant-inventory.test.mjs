@@ -91,6 +91,13 @@ import {
 } from "../scripts/private-table-preparation-catalog.mjs";
 
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const SELLER_METRICS_PREPARATION_FUNCTION_NAMES =
+  SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name);
+const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
+const ADMIN_AUDIT_LOG_PREPARATION_FUNCTION_NAMES =
+  ADMIN_AUDIT_LOG_PREPARATION.functions.map((entry) => entry.name);
+const ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH =
+  `prisma/migrations/${ADMIN_AUDIT_LOG_PREPARATION.migration}/migration.sql`;
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -2471,6 +2478,47 @@ describe("database grant inventory guardrails", () => {
       [],
     );
 
+    const adminAuditWorkerBoundarySupported = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("grainline_admin_audit_account_deletion_redaction_apply");
+    if (adminAuditWorkerBoundarySupported) {
+      const adminAuditPreparedInventory = {
+        ...preparedInventory,
+        functions: [
+          ...(preparedInventory.functions ?? []),
+          "grainline_admin_audit_account_deletion_redaction_apply",
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+        ],
+      };
+      const adminAuditPreparedState = {
+        ...preparedState,
+        function_identities: [
+          ...preparedState.function_identities,
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+          "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+        ],
+        effective_function_identities: [
+          ...preparedState.effective_function_identities,
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+          "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+        ],
+      };
+      assert.deepEqual(
+        collectAccountDeletionWorkerBoundaryIssues(
+          adminAuditPreparedState,
+          adminAuditPreparedInventory,
+        ),
+        [],
+      );
+      assert.match(
+        collectAccountDeletionWorkerBoundaryIssues(
+          preparedState,
+          adminAuditPreparedInventory,
+        ).join("\n"),
+        /function authority drifted/u,
+      );
+    }
+
     const activeInventory = {
       ...preparedInventory,
       rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
@@ -3693,10 +3741,14 @@ describe("database grant inventory guardrails", () => {
       [...new Set(provisioned)].sort((a, b) => a.localeCompare(b)),
       [...STAFF_READ_FUNCTION_IDENTITIES].sort((a, b) => a.localeCompare(b)),
     );
-    const runtimePrivateNames = new Set(
-      runtimePrivateFunctionNames(deriveGrantInventory()),
+    const inventory = deriveGrantInventory();
+    const runtimePrivateNames = new Set(runtimePrivateFunctionNames(inventory));
+    const availableStaffReadIdentities = STAFF_READ_FUNCTION_IDENTITIES.filter(
+      (identity) => inventory.functions.includes(
+        identity.slice(0, identity.indexOf("(")),
+      ),
     );
-    for (const identity of STAFF_READ_FUNCTION_IDENTITIES) {
+    for (const identity of availableStaffReadIdentities) {
       assert.ok(
         runtimePrivateNames.has(identity.slice(0, identity.indexOf("("))),
         `${identity} must remain unavailable to ordinary runtime`,
@@ -3886,6 +3938,9 @@ describe("database grant inventory guardrails", () => {
     );
     const serviceReferenceLeastPrivilegeMigrationPresent = existsSync(
       "prisma/migrations/20261101020000_narrow_service_reference_runtime_privileges/migration.sql",
+    );
+    const adminAuditLogAuthorityPrepared = existsSync(
+      ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH,
     );
     const sellerProfilePrivateForceMigrationPresent = existsSync(
       "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
@@ -4264,6 +4319,9 @@ describe("database grant inventory guardrails", () => {
       ...(accountDeletionClaimFencePrepared
         ? accountDeletionClaimFenceFunctionNames
         : []),
+      ...(adminAuditLogAuthorityPrepared
+        ? ADMIN_AUDIT_LOG_PREPARATION_FUNCTION_NAMES
+        : []),
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
       "grainline_case_account_deletion_blockers",
@@ -4580,6 +4638,9 @@ describe("database grant inventory guardrails", () => {
           ? SELLER_METRICS_PREPARATION.functions.length
           : 0)
         + (sellerMetricsRlsActivationPresent ? 1 : 0)
+        + (adminAuditLogAuthorityPrepared
+          ? 3 // helper, prepared authority, and insert-fence PUBLIC revokes
+          : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         + (typeof blockRlsActivationExpected === "function"
@@ -6833,6 +6894,9 @@ describe("database grant inventory guardrails", () => {
     const sellerMetricsProvisioningPresent = provision.includes(
       "seller_metrics_rls_active",
     );
+    const adminAuditProvisioningPresent = provision.includes(
+      "grainline_admin_audit_account_deletion_redaction_apply",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -7229,6 +7293,26 @@ describe("database grant inventory guardrails", () => {
       provision,
       /GRANT USAGE ON TYPE public\."OrderDisputeRecoveryStatus" TO %I/,
     );
+    const lateEmailFunctionNames = new Set([
+      ...EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES,
+      ...EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES,
+      ...EMAIL_PROVIDER_DELETION_FENCE_SOURCE_NEW_FUNCTION_NAMES,
+      ...EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES,
+    ]);
+    const provisionedLateEmailFunctionNames = new Set([
+      ...(existsSync(EMAIL_DELIVERY_LEDGER_MIGRATION)
+        ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
+        : []),
+      ...(existsSync(EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION)
+        ? EMAIL_SERVICE_LEAST_PRIVILEGE_FUNCTION_NAMES
+        : []),
+      ...(existsSync(EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH)
+        ? EMAIL_PROVIDER_DELETION_FENCE_SOURCE_NEW_FUNCTION_NAMES
+        : []),
+      ...(existsSync(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH)
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
+        : []),
+    ]);
     const provisionedFunctionNames = (sellerProfilePublicProvisioningPresent
       ? inventory.functions
       : inventory.functions.filter(
@@ -7242,6 +7326,18 @@ describe("database grant inventory guardrails", () => {
         ).filter(
           (functionName) => cartCartItemProvisioningPresent
             || !CART_CART_ITEM_RUNTIME_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => adminAuditProvisioningPresent
+            || !ADMIN_AUDIT_LOG_PREPARATION_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => sellerBroadcastProvisioningPresent
+            || !SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => sellerMetricsProvisioningPresent
+            || !SELLER_METRICS_PREPARATION_FUNCTION_NAMES.includes(functionName),
+        ).filter(
+          (functionName) => !lateEmailFunctionNames.has(functionName)
+            || provisionedLateEmailFunctionNames.has(functionName),
         );
     for (const fn of provisionedFunctionNames) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;

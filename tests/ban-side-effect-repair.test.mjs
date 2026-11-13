@@ -37,9 +37,10 @@ describe("ban side-effect repair cron guardrails", () => {
 
     assert.match(repair, /readBanAuditMetadata\(candidate\.metadata\)/);
     assert.match(repair, /metadata\.externalSyncVersion !== 1/);
-    assert.match(repair, /latestClerkSyncActionForBan/);
-    assert.match(repair, /hasCheckoutExpiryLogForBan/);
-    assert.match(repair, /const checkoutAlreadyExpired = await hasCheckoutExpiryLogForBan/);
+    assert.match(repair, /adminAuditLogBanRepairCandidates/);
+    assert.match(repair, /adminAuditLogBanRepairState/);
+    assert.match(repair, /appendAdminAuditLogBanRepairEvent/);
+    assert.match(repair, /const checkoutAlreadyExpired = repairState\.checkoutExpired/);
     assert.match(repair, /latestSyncAction === "BAN_USER_CLERK_SYNC"/);
     assert.match(repair, /expireOpenCheckoutSessionsForSeller\(\{/);
     assert.match(repair, /checkoutRepaired = true/);

@@ -126,6 +126,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "39775d2cf3bf050b87a04dcc7ce0bb7ec0bf95c0e8f9acadefa6c56fe6d1b37a",
   ],
   [
+    "20261102010000_prepare_admin_audit_log_authorities",
+    "91b1ca2a5477e86311d704622399db04e4cb2515b284a5add56d0b8cf8291803",
+  ],
+  [
     "20261102030000_prepare_seller_metrics_authorities",
     "36d862f03f1f49631f35ae2770f63d621ed20338fb02af6375f558fb9d3a07d9",
   ],

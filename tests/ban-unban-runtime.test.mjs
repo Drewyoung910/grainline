@@ -69,6 +69,14 @@ function fixture({
       restoreBannedSellerOrderReviews: async () => [],
     },
     "./orderStaffReadDb": { getOrderStaffReadClient: () => ({}) },
+    "./adminAuditLogAccess": {
+      adminAuditLogStaffBanRows: async () => [{ metadata: banMetadata }],
+      appendAdminAuditLog: async (_client, input) => {
+        state.audits.push(input);
+        return { id: "audit" };
+      },
+      appendAdminAuditLogForActor: async () => ({ id: "audit-sync" }),
+    },
     "./emailOutboxSanitize": { sanitizeEmailOutboxError: (error) => String(error) },
     "./audit": { sanitizeAdminAuditReason: (reason) => reason },
     "./banSideEffectRepair": { repairBanUserExternalSideEffects: async () => {} },

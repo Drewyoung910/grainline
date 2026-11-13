@@ -11,24 +11,45 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
 
     assert.match(accountDeletion, /withDbUserContext\(userId, async \(tx\) =>/);
-    assert.match(accountDeletion, /\}, \{ timeout: 30000, maxWait: 10000 \}\)\.catch/);
+    assert.match(
+      accountDeletion,
+      /timeout: 30000,\s*maxWait: 10000,\s*transactionRetry: true,\s*attempts: 3,/s,
+    );
     assert.match(accountDeletion, /source: "account_delete_partial"/);
     assert.match(accountDeletion, /throw error/);
   });
 
-  it("keeps audit-log scans outside the deletion transaction", () => {
+  it("makes audit-redaction plans durable before the deletion transaction commits", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
-    const transactionEnd = accountDeletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
+    const transactionEnd = accountDeletion.indexOf(
+      "  }).catch((error) => {",
+      transactionStart,
+    );
     assert.notEqual(transactionStart, -1);
     assert.notEqual(transactionEnd, -1);
 
     const transactionBody = accountDeletion.slice(transactionStart, transactionEnd);
-    assert.doesNotMatch(transactionBody, /collectAdminAuditLogRedactionUpdates\(\{/);
-    assert.match(accountDeletion.slice(transactionEnd), /collectAdminAuditLogRedactionUpdates\(\{\s*db: prisma/s);
-    assert.match(
+    const writeFence = transactionBody.indexOf(
+      "await acquireAdminAuditLogAccountDeletionWriteFence(",
+    );
+    const snapshot = transactionBody.indexOf("await getUserAccountDeletionSnapshot(");
+    assert.ok(writeFence >= 0 && writeFence < snapshot);
+    assert.match(transactionBody, /collectAdminAuditLogRedactionUpdates\(\{\s*db: tx,/s);
+    assert.match(transactionBody, /enqueueAccountDeletionAuditRedactionSideEffects\(\s*tx,/s);
+    const enqueue = transactionBody.indexOf("await enqueueAccountDeletionAuditRedactionSideEffects(");
+    const finalize = transactionBody.indexOf("await finalizeUserAccountDeletion(");
+    assert.ok(enqueue > -1 && finalize > -1 && enqueue < finalize);
+    assert.ok(
+      transactionEnd < accountDeletion.indexOf(
+        "await markAccountDeletionLocalAnonymizeDone(",
+        transactionEnd,
+      ),
+      "the durable redaction plan must commit before local anonymization is completed",
+    );
+    assert.doesNotMatch(
       accountDeletion.slice(transactionEnd),
-      /enqueueAccountDeletionAuditRedactionSideEffects\(\s*getAccountDeletionSideEffectClient\(\),\s*userId,\s*redactionUpdates/s,
+      /collectAdminAuditLogRedactionUpdates\(\{/,
     );
     assert.match(accountDeletion, /source: "account_delete_audit_redaction"/);
     assert.match(accountDeletion, /source: "account_delete_media_cleanup"/);
@@ -163,7 +184,10 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const auditCreate = accountDeletion.indexOf('action: "USER_ACCOUNT_DELETE"');
     const userRedaction = accountDeletion.indexOf("deletedEmail");
     const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
-    const transactionEnd = accountDeletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
+    const transactionEnd = accountDeletion.indexOf(
+      "  }).catch((error) => {",
+      transactionStart,
+    );
 
     assert.notEqual(auditCreate, -1);
     assert.ok(auditCreate > transactionStart && auditCreate < transactionEnd);
@@ -172,7 +196,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /targetType: "USER"/);
     assert.match(accountDeletion, /targetId: user\.id/);
     assert.match(accountDeletion, /reason: "User requested account deletion"/);
-    assert.match(accountDeletion, /actorKind: "user"/);
+    assert.match(accountDeletion, /await appendAdminAuditLog\(tx, \{/);
     assert.match(accountDeletion, /hadStripeAccount: Boolean\(stripeAccountId\)/);
     assert.match(accountDeletion, /stripeRejectSucceeded/);
   });

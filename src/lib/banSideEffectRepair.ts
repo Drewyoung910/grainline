@@ -1,29 +1,19 @@
 import * as Sentry from "@sentry/nextjs";
-import { prisma } from "@/lib/db";
 import { banClerkUserAndRevokeSessions } from "@/lib/clerkUserLifecycle";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { readBanAuditMetadata } from "@/lib/banAuditMetadata";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { userBanRepairTarget } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import {
+  adminAuditLogBanRepairCandidates,
+  adminAuditLogBanRepairState,
+  appendAdminAuditLogBanRepairEvent,
+} from "@/lib/adminAuditLogAccess";
 
-const BAN_SYNC_REPAIR_LOOKBACK_DAYS = 14;
 const BAN_SYNC_REPAIR_SCAN_LIMIT = 100;
-const BAN_SYNC_RELATED_LOG_LIMIT = 25;
-
-const BAN_USER_SYNC_ACTIONS = [
-  "BAN_USER_CLERK_SYNC",
-  "BAN_USER_CLERK_SYNC_FAILED",
-] as const;
-
-function originalActionIdFromMetadata(metadata: unknown) {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
-  const originalActionId = (metadata as Record<string, unknown>).originalActionId;
-  return typeof originalActionId === "string" ? originalActionId : null;
-}
 
 async function createBanSideEffectAuditLog(input: {
-  adminId: string;
   action:
     | "BAN_USER_CLERK_SYNC"
     | "BAN_USER_CLERK_SYNC_FAILED"
@@ -33,17 +23,11 @@ async function createBanSideEffectAuditLog(input: {
   metadata: Record<string, unknown>;
 }) {
   try {
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId: input.adminId,
-        action: input.action,
-        targetType: "USER",
-        targetId: input.targetId,
-        metadata: {
-          originalActionId: input.originalActionId,
-          ...input.metadata,
-        },
-      },
+    await appendAdminAuditLogBanRepairEvent(getOrderStaffReadClient(), {
+      originalActionId: input.originalActionId,
+      action: input.action,
+      targetId: input.targetId,
+      metadata: input.metadata,
     });
   } catch (error) {
     Sentry.captureException(error, {
@@ -53,42 +37,18 @@ async function createBanSideEffectAuditLog(input: {
   }
 }
 
-async function latestClerkSyncActionForBan(originalActionId: string, targetId: string) {
-  const logs = await prisma.adminAuditLog.findMany({
-    where: {
-      action: { in: [...BAN_USER_SYNC_ACTIONS] },
-      targetType: "USER",
-      targetId,
-    },
-    orderBy: { createdAt: "desc" },
-    take: BAN_SYNC_RELATED_LOG_LIMIT,
-    select: { action: true, metadata: true },
-  });
-  return logs.find((log) => originalActionIdFromMetadata(log.metadata) === originalActionId)?.action ?? null;
-}
-
-async function hasCheckoutExpiryLogForBan(originalActionId: string, targetId: string) {
-  const logs = await prisma.adminAuditLog.findMany({
-    where: {
-      action: "BAN_USER_CHECKOUT_SESSIONS_EXPIRED",
-      targetType: "USER",
-      targetId,
-    },
-    orderBy: { createdAt: "desc" },
-    take: BAN_SYNC_RELATED_LOG_LIMIT,
-    select: { metadata: true },
-  });
-  return logs.some((log) => originalActionIdFromMetadata(log.metadata) === originalActionId);
-}
-
 export async function repairBanUserExternalSideEffects(input: {
   originalActionId: string;
-  adminId: string;
   targetId: string;
 }) {
-  const latestSyncAction = await latestClerkSyncActionForBan(input.originalActionId, input.targetId);
+  const staffClient = getOrderStaffReadClient();
+  const repairState = await adminAuditLogBanRepairState(staffClient, {
+    originalActionId: input.originalActionId,
+    targetId: input.targetId,
+  });
+  const latestSyncAction = repairState.latestSyncAction;
 
-  const target = await userBanRepairTarget(getOrderStaffReadClient(), {
+  const target = await userBanRepairTarget(staffClient, {
     originalActionId: input.originalActionId,
     targetId: input.targetId,
   });
@@ -97,7 +57,7 @@ export async function repairBanUserExternalSideEffects(input: {
   let checkoutRepaired = false;
   let checkoutFailed = false;
   if (target.sellerProfileId && target.stripeAccountId) {
-    const checkoutAlreadyExpired = await hasCheckoutExpiryLogForBan(input.originalActionId, input.targetId);
+    const checkoutAlreadyExpired = repairState.checkoutExpired;
     if (!checkoutAlreadyExpired) {
       try {
         const expiryResult = await expireOpenCheckoutSessionsForSeller({
@@ -106,7 +66,6 @@ export async function repairBanUserExternalSideEffects(input: {
           source: "ban_user_repair",
         });
         await createBanSideEffectAuditLog({
-          adminId: input.adminId,
           action: "BAN_USER_CHECKOUT_SESSIONS_EXPIRED",
           targetId: input.targetId,
           originalActionId: input.originalActionId,
@@ -141,7 +100,6 @@ export async function repairBanUserExternalSideEffects(input: {
   try {
     const result = await banClerkUserAndRevokeSessions(target.clerkId);
     await createBanSideEffectAuditLog({
-      adminId: input.adminId,
       action: "BAN_USER_CLERK_SYNC",
       targetId: input.targetId,
       originalActionId: input.originalActionId,
@@ -159,7 +117,6 @@ export async function repairBanUserExternalSideEffects(input: {
       extra: { targetId: input.targetId, originalActionId: input.originalActionId, clerkUserId: target.clerkId },
     });
     await createBanSideEffectAuditLog({
-      adminId: input.adminId,
       action: "BAN_USER_CLERK_SYNC_FAILED",
       targetId: input.targetId,
       originalActionId: input.originalActionId,
@@ -174,18 +131,10 @@ export async function repairBanUserExternalSideEffects(input: {
 }
 
 export async function processBanUserExternalSideEffectRepairBatch({ take = 20 } = {}) {
-  const cutoff = new Date(Date.now() - BAN_SYNC_REPAIR_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-  const candidates = await prisma.adminAuditLog.findMany({
-    where: {
-      action: "BAN_USER",
-      targetType: "USER",
-      undone: false,
-      createdAt: { gte: cutoff },
-    },
-    orderBy: { createdAt: "desc" },
-    take: BAN_SYNC_REPAIR_SCAN_LIMIT,
-    select: { id: true, adminId: true, targetId: true, metadata: true },
-  });
+  const candidates = await adminAuditLogBanRepairCandidates(
+    getOrderStaffReadClient(),
+    { limit: BAN_SYNC_REPAIR_SCAN_LIMIT },
+  );
 
   let checked = 0;
   let repaired = 0;
@@ -200,7 +149,6 @@ export async function processBanUserExternalSideEffectRepairBatch({ take = 20 } 
 
     const result = await repairBanUserExternalSideEffects({
       originalActionId: candidate.id,
-      adminId: candidate.adminId,
       targetId: candidate.targetId,
     });
     if (result.status === "repaired") repaired += 1;

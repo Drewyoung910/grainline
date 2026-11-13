@@ -74,6 +74,22 @@ import {
 const { Client } = pg;
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
+const ADMIN_AUDIT_STAFF_FUNCTION_IDENTITIES = Object.freeze(
+  ADMIN_AUDIT_LOG_PREPARATION.functions
+    .filter((entry) => privateTableFunctionExecuteRoles(entry).includes("staff"))
+    .map((entry) => `${entry.name}(${entry.arguments.replaceAll(", ", ",")})`),
+);
+const ADMIN_AUDIT_ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set(
+  ADMIN_AUDIT_LOG_PREPARATION.functions
+    .filter((entry) => privateTableFunctionExecuteRoles(entry).includes("account_deletion"))
+    .map((entry) => `${entry.name}(${entry.arguments.replaceAll(", ", ",")})`),
+);
+const ADMIN_AUDIT_RUNTIME_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  ADMIN_AUDIT_LOG_PREPARATION.functions
+    .filter((entry) => !privateTableFunctionExecuteRoles(entry).includes("runtime"))
+    .map((entry) => entry.name),
+);
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
 const SELLER_METRICS_PRIVATE_FUNCTION_NAMES = Object.freeze(
   SELLER_METRICS_PREPARATION.functions
@@ -431,6 +447,7 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_seller_broadcast_staff_count(text,text)",
   "grainline_seller_broadcast_staff_page(text,text,integer,integer)",
   "grainline_seller_broadcast_staff_delete(text,text)",
+  ...ADMIN_AUDIT_STAFF_FUNCTION_IDENTITIES,
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
   [
@@ -466,6 +483,7 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_seller_broadcast_staff_count(text,text)",
     "grainline_seller_broadcast_staff_page(text,text,integer,integer)",
     "grainline_seller_broadcast_staff_delete(text,text)",
+    ...ADMIN_AUDIT_STAFF_FUNCTION_IDENTITIES,
   ],
 );
 export const MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -1295,13 +1313,20 @@ export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
   const effectiveFunctions = sortedUnique(
     (state.effective_function_identities ?? []).map((value) => String(value).replace(/\s*,\s*/g, ",")),
   );
-  const expectedFunctions = [...ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES].sort();
-  if (actualFunctions.join("|") !== expectedFunctions.join("|")) {
+  const expectedFunctions = new Set(ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES);
+  const functionNames = new Set(inventory?.functions ?? []);
+  if (functionNames.has("grainline_admin_audit_account_deletion_redaction_apply")) {
+    for (const identity of ADMIN_AUDIT_ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES) {
+      expectedFunctions.add(identity);
+    }
+  }
+  const sortedExpectedFunctions = [...expectedFunctions].sort();
+  if (actualFunctions.join("|") !== sortedExpectedFunctions.join("|")) {
     issues.push(
       `account-deletion worker function authority drifted: ${actualFunctions.join(", ") || "none"}`,
     );
   }
-  if (effectiveFunctions.join("|") !== expectedFunctions.join("|")) {
+  if (effectiveFunctions.join("|") !== sortedExpectedFunctions.join("|")) {
     issues.push(
       `account-deletion worker effective function authority drifted: ${effectiveFunctions.join(", ") || "none"}`,
     );
@@ -1813,6 +1838,9 @@ export function runtimePrivateFunctionNames(inventory) {
       ? inventory.blockRlsActivationApplied
       : blockRlsActivationExpected(inventory);
   const sellerBroadcastActivated = sellerBroadcastRlsActivationExpected(inventory);
+  const adminAuditPrepared = (inventory?.functions ?? []).includes(
+    "grainline_admin_audit_append",
+  );
   // The preparation adds canonical-email expression indexes while the
   // predecessor application can still write these tables directly. PostgreSQL
   // evaluates the helper for those writes, so runtime needs EXECUTE only for
@@ -1836,6 +1864,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !followActivated
     && !blockActivated
     && !sellerBroadcastActivated
+    && !adminAuditPrepared
   ) {
     return [...baseRuntimePrivateFunctions];
   }
@@ -1870,6 +1899,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(sellerBroadcastActivated
       ? SELLER_BROADCAST_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(adminAuditPrepared
+      ? ADMIN_AUDIT_RUNTIME_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }

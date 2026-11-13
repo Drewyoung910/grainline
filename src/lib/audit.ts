@@ -1,6 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
 import type { Prisma } from '@prisma/client'
-import { prisma } from './db'
 import { adminUndoActorBlockReason, adminUndoWindowBlockReason } from './adminAuditUndoState'
 import { listingUndoCurrentStatusWhere, listingUndoDataFromMetadata } from './adminListingUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
@@ -29,10 +28,17 @@ import {
   sellerStaffOrderabilityState,
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
+import {
+  type AdminAuditLogUndoSource,
+  appendAdminAuditLog,
+  appendAdminAuditLogForActor,
+  adminAuditLogStaffUndoSource,
+  adminAuditLogUndoClaim,
+} from './adminAuditLogAccess'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
-type AdminAuditLogClient = Pick<Prisma.TransactionClient, 'adminAuditLog'>
+type AdminAuditLogClient = Pick<Prisma.TransactionClient, '$queryRaw'>
 
 type AdminAuditLogInput = {
   adminId: string
@@ -58,39 +64,18 @@ export function sanitizeAdminAuditReason(reason: string | null | undefined): str
   return reason ? truncateText(sanitizeText(reason), 500) || null : undefined
 }
 
-function originalActionIdFromMetadata(metadata: unknown) {
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
-  return typeof (metadata as Record<string, unknown>).originalActionId === 'string'
-    ? (metadata as Record<string, unknown>).originalActionId as string
-    : null
-}
-
 function dateFromMetadata(value: string | null) {
   if (!value) return null
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-async function retryUndoBanClerkSyncIfPending(log: {
-  id: string;
-  action: string;
-  targetType: string;
-  targetId: string;
-}, adminId: string) {
+async function retryUndoBanClerkSyncIfPending(
+  log: AdminAuditLogUndoSource,
+  adminId: string,
+) {
   if (log.action !== 'BAN_USER') return false
-
-  const syncLogs = await prisma.adminAuditLog.findMany({
-    where: {
-      action: { in: ['UNDO_BAN_USER_CLERK_SYNC', 'UNDO_BAN_USER_CLERK_SYNC_FAILED'] },
-      targetType: log.targetType,
-      targetId: log.targetId,
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 25,
-    select: { action: true, metadata: true },
-  })
-  const latestRelatedSyncLog = syncLogs.find((syncLog) => originalActionIdFromMetadata(syncLog.metadata) === log.id)
-  if (!latestRelatedSyncLog || latestRelatedSyncLog.action !== 'UNDO_BAN_USER_CLERK_SYNC_FAILED') {
+  if (log.latestUndoSyncAction !== 'UNDO_BAN_USER_CLERK_SYNC_FAILED') {
     return false
   }
 
@@ -138,7 +123,7 @@ async function retryUndoBanClerkSyncIfPending(log: {
 }
 
 async function createAdminAuditLog({
-  client = prisma,
+  client,
   adminId,
   action,
   targetType,
@@ -146,16 +131,17 @@ async function createAdminAuditLog({
   reason,
   metadata = {},
 }: AdminAuditLogInput & { client?: AdminAuditLogClient }): Promise<string> {
-  const log = await client.adminAuditLog.create({
-    data: {
-      adminId,
-      action,
-      targetType,
-      targetId,
-      reason: sanitizeAdminAuditReason(reason),
-      metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
-    }
-  })
+  const auditInput = {
+    adminId,
+    action,
+    targetType,
+    targetId,
+    reason: sanitizeAdminAuditReason(reason) ?? undefined,
+    metadata,
+  }
+  const log = client
+    ? await appendAdminAuditLog(client, auditInput)
+    : await appendAdminAuditLogForActor(auditInput)
   return log.id
 }
 
@@ -250,7 +236,11 @@ export async function undoAdminAction({
   adminId: string
   reason: string
 }) {
-  const log = await prisma.adminAuditLog.findUnique({ where: { id: logId } })
+  const staffClient = getOrderStaffReadClient()
+  const log = await adminAuditLogStaffUndoSource(staffClient, {
+    actorId: adminId,
+    logId,
+  })
   if (!log) throw new Error('Action not found')
   if (!isUndoableAdminAction(log.action)) throw new Error(`Action '${log.action}' cannot be undone`)
   const actorBlockReason = adminUndoActorBlockReason({
@@ -264,6 +254,8 @@ export async function undoAdminAction({
   }
   const windowBlockReason = adminUndoWindowBlockReason({ createdAt: log.createdAt })
   if (windowBlockReason) throw new Error(windowBlockReason)
+  const sanitizedUndoReason = sanitizeAdminAuditReason(reason)
+  if (!sanitizedUndoReason) throw new Error('Undo reason is invalid')
 
   const metadata = (log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata))
     ? log.metadata as Record<string, unknown>
@@ -311,7 +303,6 @@ export async function undoAdminAction({
       }
     }
   }
-  const staffClient = getOrderStaffReadClient()
   const clerkUnbanTarget = log.action === 'BAN_USER'
     ? await userStaffBanTarget(staffClient, {
         actorId: adminId,
@@ -352,13 +343,21 @@ export async function undoAdminAction({
     : null
 
   await withDbUserContext(adminId, async (tx) => {
-    // Atomic lock: only one undo can succeed, and the flag rolls back if the
-    // undo operation fails.
-    const locked = await tx.adminAuditLog.updateMany({
-      where: { id: logId, undone: false },
-      data: { undone: true, undoneAt: new Date(), undoneBy: adminId, undoneReason: reason },
-    })
-    if (locked.count === 0) throw new Error('Already undone (concurrent request)')
+    // The source-bound authority locks the exact reviewed row, repeats the
+    // actor/window/state checks, and writes the one-way undo evidence. All of
+    // it rolls back if any domain restoration below fails.
+    try {
+      await adminAuditLogUndoClaim(tx, {
+        actorId: adminId,
+        reason: sanitizedUndoReason,
+        source: log,
+      })
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Already undone (concurrent request)')) {
+        throw new Error('Already undone (concurrent request)')
+      }
+      throw error
+    }
 
     switch (log.action) {
       case 'BAN_USER': {
@@ -429,17 +428,6 @@ export async function undoAdminAction({
       default:
         throw new Error(`Action '${log.action}' cannot be undone`)
     }
-
-    await tx.adminAuditLog.create({
-      data: {
-        adminId,
-        action: `UNDO_${log.action}`,
-        targetType: log.targetType,
-        targetId: log.targetId,
-        reason: sanitizeAdminAuditReason(reason),
-        metadata: { originalActionId: logId },
-      },
-    })
   })
 
   if (log.action === 'BAN_USER') {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { adminAuditLogPreparationMigrationPath } from "./helpers/admin-audit-log-preparation-migration-path.mjs";
 import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
@@ -392,6 +393,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("redacts account identifiers from admin audit reasons as well as metadata", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const preparation = source(adminAuditLogPreparationMigrationPath());
     const referenceStart = deletion.indexOf(
       "const accountAuditReferenceValues = normalizedSensitiveValues",
     );
@@ -421,15 +423,24 @@ describe("Round 9 account deletion PII guardrails", () => {
       auditNeedlesBlock,
       /shippingCity|shippingState|shippingPostalCode|sellerProfile\?\.(?:city|state|shipFromCity|shipFromState|shipFromPostal|tagline)/,
     );
-    assert.match(deletion, /jsonb_path_exists\(/);
-    assert.match(deletion, /@ == \$account_reference/);
+    assert.match(deletion, /adminAuditLogAccountDeletionCandidates/);
+    assert.match(preparation, /jsonb_path_exists\(/);
+    assert.match(preparation, /@ == \$account_reference/);
     assert.doesNotMatch(deletion, /collectAuditLogsBySensitiveMetadata/);
     assert.doesNotMatch(deletion, /position\(\$\{normalized\} in lower\(metadata::text\)\)/);
     assert.match(
       deletion,
       /redactAccountDeletionText\(candidate\.reason, sensitiveValues, undefined, 1000\)/,
     );
-    assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
+    assert.match(deletion, /expectedMetadataSha256: candidate\.metadataSha256/);
+    assert.match(deletion, /buildAccountDeletionAuditJsonPatches/);
+    assert.match(deletion, /expectedReasonSha256: candidate\.reasonSha256/);
+    assert.match(deletion, /metadataSha256: log\.metadataSha256/);
+    assert.match(deletion, /reasonSha256: log\.reasonSha256/);
+    assert.doesNotMatch(
+      source("src/lib/accountDeletionSideEffects.ts"),
+      /sensitiveValues:/,
+    );
   });
 
   it("resets retained deleted-account role while keeping deleted accounts blocked", () => {

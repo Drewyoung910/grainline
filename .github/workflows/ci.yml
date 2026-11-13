@@ -109,6 +109,20 @@ jobs:
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - name: Generate Prisma client for candidate behavior tests
         run: npx prisma generate
+      - name: Verify SellerMetrics source packages
+        run: >-
+          node --test
+          tests/seller-metrics-preparation.test.mjs
+          tests/seller-metrics-preparation-postgres.test.mjs
+          tests/seller-metrics-rls-activation.test.mjs
+      - name: Verify AdminAuditLog source packages
+        run: >-
+          node --test --test-concurrency=1
+          tests/admin-audit-log-account-deletion-concurrency-proof.test.mjs
+          tests/admin-audit-log-consumer-contracts.test.mjs
+          tests/admin-audit-log-preparation-postgres.test.mjs
+          tests/admin-audit-log-preparation-rollback.test.mjs
+          tests/private-table-preparation-production.test.mjs
       - name: Verify C-1180 Resend webhook receipt recovery source package
         run: >-
           node --test --test-concurrency=1
@@ -571,6 +585,20 @@ jobs:
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate AdminAuditLog candidates until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/admin-audit-log-preparation"
+          mkdir -p "$holding/migrations"
+          preparation=20261102010000_prepare_admin_audit_log_authorities
+          activation=20261102020000_activate_admin_audit_log_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          echo "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          if [[ -d "prisma/migrations/$activation" ]]; then
+            mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+            echo "ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+          fi
       - name: Isolate service and reference least-privilege migration until historical release guards pass
         shell: bash
         run: |
@@ -7192,6 +7220,20 @@ jobs:
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore AdminAuditLog candidates after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/admin-audit-log-preparation"
+          preparation=20261102010000_prepare_admin_audit_log_authorities
+          activation=20261102020000_activate_admin_audit_log_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          if [[ -d "$holding/migrations/$activation" ]]; then
+            mv "$holding/migrations/$activation" "prisma/migrations/$activation"
+          fi
+          rmdir "$holding/migrations" "$holding"
+          echo "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore service and reference least-privilege migration after historical release guards
         shell: bash
         run: |
@@ -7538,3 +7580,7 @@ jobs:
         run: npx prisma generate
       - name: Prove full migration chain and behavior on PostgreSQL 17
         run: npm run test:database-full-chain
+      - name: Prove AdminAuditLog account-deletion concurrency on PostgreSQL 17
+        env:
+          ADMIN_AUDIT_LOG_CONCURRENCY_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci
+        run: npm run audit:admin-audit-log-concurrency

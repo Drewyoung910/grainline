@@ -25,11 +25,13 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   // Email-service least privilege removes eight additional app-side query
   // shapes by moving their bounded behavior behind fixed SQL authorities.
   // SellerBroadcast preparation removes the remaining public broadcast query.
-  assert.equal(result.reviewedOpaqueShapes, 132);
+  // AdminAuditLog preparation removes its deletion selector and retry payload
+  // construction from the app-side opaque frontier.
+  assert.equal(result.reviewedOpaqueShapes, 130);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
   assert.equal(result.opaqueNonTargetFactoryCalls, 110);
-  assert.equal(result.opaqueNonTargetResiduals, 22);
+  assert.equal(result.opaqueNonTargetResiduals, 20);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,
     PUBLIC_ELIGIBILITY: 0,
