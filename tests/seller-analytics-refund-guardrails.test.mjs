@@ -20,7 +20,9 @@ describe("seller analytics refund guardrails", () => {
     const metricsAuthority = source(
       "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
     );
-    assert.match(metrics, /readOrderSellerMetricsFacts/);
+    assert.match(metrics, /withDbUserContext\(actorUserId/);
+    assert.match(metrics, /grainline_seller_metrics_owner_state/);
+    assert.match(metrics, /sellerMetricsResult\(rows\)/);
     assert.match(metricsAuthority, /source_order\."paymentRefundBlocked" = false/);
     assert.doesNotMatch(
       metrics,

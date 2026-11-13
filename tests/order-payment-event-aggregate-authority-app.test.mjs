@@ -35,8 +35,8 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
     ]);
     const sellerMetricsConsumers = new Set([
       "src/app/admin/verification/page.tsx",
-      "src/lib/metrics.ts",
     ]);
+    const sellerMetricsOwnerConsumers = new Set(["src/lib/metrics.ts"]);
     for (const file of aggregateConsumers) {
       const value = source(file);
       assert.match(
@@ -47,6 +47,8 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
             ? /orderSellerAnalyticsAuthority|readSeller|countSellerCompletedOrders/
           : sellerMetricsConsumers.has(file)
             ? /orderSellerMetricsAuthority|readOrderSellerMetricsFacts/
+          : sellerMetricsOwnerConsumers.has(file)
+            ? /grainline_seller_metrics_owner_state/
           : /lockReviewEligibleOrderItem/,
         `${file} lost its fixed payment eligibility projection`,
       );
@@ -74,7 +76,9 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
 
   it("keeps raw aggregate consumers set-based on Order projections", () => {
     const metrics = source("src/lib/metrics.ts");
-    assert.match(metrics, /readOrderSellerMetricsFacts/u);
+    assert.match(metrics, /withDbUserContext/u);
+    assert.match(metrics, /grainline_seller_metrics_owner_state/u);
+    assert.match(metrics, /sellerMetricsResult\(rows\)/u);
     assert.doesNotMatch(metrics, /FROM "Order"|JOIN "OrderItem"/u);
     assert.doesNotMatch(metrics, /Promise\.all\([^)]*orders\.map/u);
 
