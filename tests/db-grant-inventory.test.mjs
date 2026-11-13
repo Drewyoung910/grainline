@@ -1425,11 +1425,7 @@ describe("database grant inventory guardrails", () => {
         );
       }
     }
-    if (
-      typeof sellerBroadcastRlsActivationExpected === "function"
-      && typeof sellerBroadcastRlsForceExpected === "function"
-      && typeof SELLER_BROADCAST_TABLE === "string"
-    ) {
+    if (typeof sellerBroadcastRlsActivationExpected === "function") {
       const sellerBroadcastPredecessorInventory = {
         rlsEnableTables: [],
         rlsForceTables: [],
@@ -1485,11 +1481,7 @@ describe("database grant inventory guardrails", () => {
         policy_count: 0,
       }], sellerBroadcastActivatedInventory), []);
     }
-    if (
-      typeof sellerMetricsRlsActivationExpected === "function"
-      && typeof sellerMetricsRlsForceExpected === "function"
-      && typeof SELLER_METRICS_TABLE === "string"
-    ) {
+    if (typeof sellerMetricsRlsActivationExpected === "function") {
       const sellerMetricsPredecessorInventory = {
         rlsEnableTables: [],
         rlsForceTables: [],
@@ -1750,9 +1742,9 @@ describe("database grant inventory guardrails", () => {
             "grainline_review_vote_update_forbidden",
           ]
         : []),
-      ...(typeof sellerMetricsRlsActivationExpected === "function"
-        ? ["grainline_seller_metrics_refresh_prepared_impl"]
-        : []),
+      ...(deriveGrantInventory().functions.includes(
+        "grainline_seller_metrics_refresh_prepared_impl",
+      ) ? ["grainline_seller_metrics_refresh_prepared_impl"] : []),
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
@@ -5331,11 +5323,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 7);
+    assert.equal(auditMatches.length, 8);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 7);
+    assert.equal(combinedStaffStageMatches.length, 8);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -5405,6 +5397,19 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreEmailServiceActivation,
     );
+    const restoreSellerBroadcast = stagedProof.indexOf(
+      '"$holding/migrations/$seller_broadcast_migration" \\\n            "prisma/migrations/$seller_broadcast_migration"',
+    );
+    const restoreSellerBroadcastActivation = stagedProof.indexOf(
+      '"$holding/migrations/$seller_broadcast_activation_migration" \\\n            "prisma/migrations/$seller_broadcast_activation_migration"',
+    );
+    const restoreSellerMetrics = stagedProof.indexOf(
+      '"$holding/migrations/$seller_metrics_migration" \\\n            "prisma/migrations/$seller_metrics_migration"',
+    );
+    const applyPostEmailDomains = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreSellerMetrics,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -5434,7 +5439,11 @@ describe("database grant inventory guardrails", () => {
       && applyEmailService < emailServiceAudit
       && emailServiceAudit < restoreEmailServiceActivation
       && restoreEmailServiceActivation < applyEmailServiceActivation
-      && applyEmailServiceActivation < finalAudit,
+      && applyEmailServiceActivation < restoreSellerBroadcast
+      && restoreSellerBroadcast < restoreSellerBroadcastActivation
+      && restoreSellerBroadcastActivation < restoreSellerMetrics
+      && restoreSellerMetrics < applyPostEmailDomains
+      && applyPostEmailDomains < finalAudit,
     );
   });
 
