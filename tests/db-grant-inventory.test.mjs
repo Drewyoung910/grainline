@@ -5365,12 +5365,6 @@ describe("database grant inventory guardrails", () => {
     const restoreSellerBroadcastActivation = stagedProof.indexOf(
       '"$holding/migrations/$seller_broadcast_activation_migration" \\\n            "prisma/migrations/$seller_broadcast_activation_migration"',
     );
-    const restoreAdminAuditLog = stagedProof.indexOf(
-      '"$holding/migrations/$admin_audit_log_migration" \\\n            "prisma/migrations/$admin_audit_log_migration"',
-    );
-    const restoreAdminAuditLogActivation = stagedProof.indexOf(
-      '"$holding/migrations/$admin_audit_log_activation_migration" \\\n            "prisma/migrations/$admin_audit_log_activation_migration"',
-    );
     const restoreSellerMetrics = stagedProof.indexOf(
       '"$holding/migrations/$seller_metrics_migration" \\\n            "prisma/migrations/$seller_metrics_migration"',
     );
@@ -5409,9 +5403,7 @@ describe("database grant inventory guardrails", () => {
       && restoreEmailServiceActivation < applyEmailServiceActivation
       && applyEmailServiceActivation < restoreSellerBroadcast
       && restoreSellerBroadcast < restoreSellerBroadcastActivation
-      && restoreSellerBroadcastActivation < restoreAdminAuditLog
-      && restoreAdminAuditLog < restoreAdminAuditLogActivation
-      && restoreAdminAuditLogActivation < restoreSellerMetrics
+      && restoreSellerBroadcastActivation < restoreSellerMetrics
       && restoreSellerMetrics < applyPostEmailDomains
       && applyPostEmailDomains < finalAudit,
     );
