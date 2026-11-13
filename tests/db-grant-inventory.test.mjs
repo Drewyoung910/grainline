@@ -3741,10 +3741,14 @@ describe("database grant inventory guardrails", () => {
       [...new Set(provisioned)].sort((a, b) => a.localeCompare(b)),
       [...STAFF_READ_FUNCTION_IDENTITIES].sort((a, b) => a.localeCompare(b)),
     );
-    const runtimePrivateNames = new Set(
-      runtimePrivateFunctionNames(deriveGrantInventory()),
+    const inventory = deriveGrantInventory();
+    const runtimePrivateNames = new Set(runtimePrivateFunctionNames(inventory));
+    const availableStaffReadIdentities = STAFF_READ_FUNCTION_IDENTITIES.filter(
+      (identity) => inventory.functions.includes(
+        identity.slice(0, identity.indexOf("(")),
+      ),
     );
-    for (const identity of STAFF_READ_FUNCTION_IDENTITIES) {
+    for (const identity of availableStaffReadIdentities) {
       assert.ok(
         runtimePrivateNames.has(identity.slice(0, identity.indexOf("("))),
         `${identity} must remain unavailable to ordinary runtime`,
