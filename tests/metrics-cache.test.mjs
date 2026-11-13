@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import {
+  sellerMetricsPreparationMigrationPath,
+} from "./helpers/seller-metrics-preparation-migration-path.mjs";
 
 const { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } = await import("../src/lib/metricsFreshness.ts");
 
@@ -24,7 +27,7 @@ describe("seller metrics cache freshness", () => {
 
   it("serializes refreshes inside the fixed SellerMetrics database operation", () => {
     const source = readFileSync(
-      "prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql",
+      sellerMetricsPreparationMigrationPath(),
       "utf8",
     );
 

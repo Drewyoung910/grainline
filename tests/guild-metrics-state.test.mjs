@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import {
+  sellerMetricsPreparationMigrationPath,
+} from "./helpers/seller-metrics-preparation-migration-path.mjs";
 
 const {
   GUILD_MASTER_REQUIREMENTS,
@@ -47,13 +50,7 @@ describe("Guild metrics state", () => {
 
   it("derives response rate from message history instead of the cached first-response timestamp", () => {
     const source = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
-    const preparation = readFileSync(
-      new URL(
-        "../prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
+    const preparation = readFileSync(sellerMetricsPreparationMigrationPath(), "utf8");
     const authority = readFileSync(
       new URL("../src/lib/conversationMessageAuthority.ts", import.meta.url),
       "utf8",
@@ -68,8 +65,11 @@ describe("Guild metrics state", () => {
     );
 
     assert.doesNotMatch(source, /firstResponseAt/);
-    assert.match(source, /grainline_seller_metrics_owner_state/);
-    assert.match(preparation, /grainline_seller_message_response_metrics\(\s*source_seller_user_id,\s*period_start/u);
+    assert.match(source, /grainline_seller_metrics_owner_state/u);
+    assert.match(
+      preparation,
+      /grainline_seller_message_response_metrics\(\s*source_seller_user_id,\s*period_start\s*\)/u,
+    );
     assert.match(authority, /public\.grainline_seller_message_response_metrics/);
     assert.match(metricFunction, /WITH seller_conversation AS/);
     assert.match(metricFunction, /DISTINCT ON \(message\."conversationId"\)/);
@@ -97,22 +97,16 @@ describe("Guild metrics state", () => {
   it("keeps private and custom verified purchases in Guild trust metrics by policy", () => {
     const metricsSource = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
     const metricsPreparation = readFileSync(
-      new URL(
-        "../prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql",
-        import.meta.url,
-      ),
+      sellerMetricsPreparationMigrationPath(),
       "utf8",
     );
     const orderAuthority = readFileSync(
-      new URL(
-        "../prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
-        import.meta.url,
-      ),
+      new URL("../prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql", import.meta.url),
       "utf8",
     );
     const verificationPage = readFileSync(new URL("../src/app/admin/verification/page.tsx", import.meta.url), "utf8");
 
-    assert.match(metricsSource, /grainline_seller_metrics_owner_state/);
+    assert.match(metricsSource, /grainline_seller_metrics_owner_state/u);
     assert.match(metricsPreparation, /listing\."sellerId" = p_seller_profile_id\s+AND review\."reviewerAccountActive" = true/u);
     assert.match(
       metricsPreparation,

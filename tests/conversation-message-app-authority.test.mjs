@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import {
+  sellerMetricsPreparationMigrationPath,
+} from "./helpers/seller-metrics-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -280,7 +283,11 @@ describe("Conversation and Message application authority conversion", () => {
       serviceSql.indexOf("REVOKE ALL ON FUNCTION"),
     );
 
-    assert.match(metrics, /getSellerMessageResponseMetrics\(seller\.userId, periodStart, db\)/);
+    assert.match(metrics, /grainline_seller_metrics_owner_state/u);
+    assert.match(
+      source(sellerMetricsPreparationMigrationPath()),
+      /grainline_seller_message_response_metrics\(\s*source_seller_user_id,\s*period_start\s*\)/u,
+    );
     assert.match(helper, /public\.grainline_seller_message_response_metrics/);
     assert.match(helper, /sellerRespondedCount > buyerInitiatedCount/);
     assert.doesNotMatch(metrics, /FROM "(?:Conversation|Message)"/);
