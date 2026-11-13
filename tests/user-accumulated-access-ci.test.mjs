@@ -1441,6 +1441,23 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const commissionDomainPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      commissionDomainPreparationMigration,
+    );
+    if (!existsSync(commissionDomainPreparationTarget)) {
+      cpSync(
+        privateTablePreparationMigrationSourcePath(
+          commissionDomainPreparationMigration,
+          "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
+          "Commission domain",
+        ),
+        commissionDomainPreparationTarget,
+        { recursive: true },
+      );
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
