@@ -53,13 +53,15 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // by moving their bounded behavior behind fixed SQL authorities.
   // SellerBroadcast preparation also moves the feed cursor predicate into its
   // fixed page authority, removing the last app-side broadcast cursor shape.
-  assert.equal(report.opaqueShapes.length, 132);
-  assert.equal(reviewedFactories.length, 102);
+  // Commission preparation removes fifteen more reviewed app-side factory
+  // calls while retaining the same residual frontier.
+  assert.equal(report.opaqueShapes.length, 117);
+  assert.equal(reviewedFactories.length, 87);
   assert.equal(reviewedResidual.length, 30);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 82,
-    sha256: "00128cb518eafe7687e8a28ac85c7745b33dca57dd7b9e465192e87f687def62",
+    unique: 69,
+    sha256: "75c2dc97bafe37b88d36357b530d287eaf2f152a004c0421b4e43b38f5c1c87b",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 25,

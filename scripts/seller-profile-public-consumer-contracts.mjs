@@ -157,7 +157,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // calls behind fixed SQL authorities without adding SellerProfile access.
       // SellerBroadcast's fixed authorities replace the remaining public
       // seller broadcast query factory while preserving its visibility rules.
-      || reviewedNonTargetFactoryCalls.length !== 110
+      // Commission preparation replaces fifteen reviewed app-side factory
+      // calls with fixed CommissionRequest/CommissionInterest authorities.
+      // Their visibility, actor, and bound contracts are executed separately.
+      || reviewedNonTargetFactoryCalls.length !== 95
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
