@@ -137,7 +137,7 @@ export default async function VerificationPage() {
   let masterCriteria = null;
   if (showSectionB && !isMasterActive) {
     try {
-      masterMetrics = await getFreshSellerMetrics(seller.id);
+      masterMetrics = await getFreshSellerMetrics(me.id);
       masterCriteria = meetsGuildMasterRequirements(masterMetrics);
     } catch {
       // metrics unavailable — don't block rendering
@@ -245,7 +245,7 @@ export default async function VerificationPage() {
     ) {
       redirect("/dashboard/verification");
     }
-    const metrics = await calculateSellerMetrics(s.id);
+    const metrics = await calculateSellerMetrics(s.userId);
     const criteria = meetsGuildMasterRequirements(metrics);
     if (!criteria.allMet) redirect("/dashboard/verification");
 

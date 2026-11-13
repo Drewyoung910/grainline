@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
+import {
+  sellerMetricsPreparationMigrationPath,
+} from "./helpers/seller-metrics-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -63,12 +66,15 @@ describe("guild and listing-edit audit follow-ups", () => {
     );
     const adminVerification = source("src/app/admin/verification/page.tsx");
 
-    assert.match(metrics, /getCaseSellerActiveCount\(sellerProfileId, db\)/);
+    assert.match(metrics, /grainline_seller_metrics_owner_state/u);
+    assert.match(
+      source(sellerMetricsPreparationMigrationPath()),
+      /grainline_case_seller_active_count\(\s*p_seller_profile_id\s*\)/u,
+    );
     assert.doesNotMatch(metrics, /\b(?:db|prisma)\.case\./);
     assert.match(metrics, /from "@\/lib\/metricsState"/);
     assert.match(metricsState, /export const METRICS_PERIOD_DAYS_PER_MONTH = 30/);
-    assert.match(metrics, /const now = new Date\(\)/);
-    assert.match(metrics, /metricsPeriodStart\(now, periodMonths\)/);
+    assert.match(source(sellerMetricsPreparationMigrationPath()), /period_start := \(/u);
     assert.doesNotMatch(metricsState, /setMonth\(/);
     assert.match(revocationAuthority, /grainline_case_guild_unresolved_guard/);
     assert.doesNotMatch(revocationAuthority, /p_case_created_before/);

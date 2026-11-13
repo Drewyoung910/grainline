@@ -504,7 +504,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
   try {
     metrics = cachedMetrics && isSellerMetricsFresh(cachedMetrics)
       ? cachedMetricsToResult(verification.sellerProfileId, cachedMetrics)
-      : await getFreshSellerMetrics(verification.sellerProfileId);
+      : await getFreshSellerMetrics(verification.sellerProfile.userId);
   } catch (error) {
     Sentry.captureException(error, {
       level: "warning",

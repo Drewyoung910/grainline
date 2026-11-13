@@ -71,6 +71,19 @@ test("private-table readiness catalog covers the exact reviewed preparation batc
     assert.equal(sha256(sourceByIdentity.get(entry.identity)), entry.sourceSha256);
     assert.ok(["runtime", "staff"].includes(entry.executeRole));
   }
+  const identities = new Set(
+    PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS.map((entry) => entry.identity),
+  );
+  assert.equal(
+    identities.has("grainline_seller_metrics_owner_state(integer, boolean)"),
+    true,
+  );
+  for (const ownerOnlyIdentity of [
+    "grainline_seller_metrics_refresh_prepared_impl(text, integer, boolean, text)",
+    "grainline_seller_guild_metrics_apply_prepared_impl(text, timestamp without time zone)",
+  ]) {
+    assert.equal(identities.has(ownerOnlyIdentity), false);
+  }
 });
 
 test("later reviewed releases supersede an earlier function body without dropping the body pin", () => {
@@ -181,6 +194,7 @@ test("production readiness checks runtime and staff functions read-only", async 
         "block_report_seller_faq_v1",
         "email_service_v1",
         "seller_broadcast_v1",
+        "seller_metrics_v1",
       ],
       runtimeFunctionCount: runtimeCount,
       staffFunctionCount: staffCount,

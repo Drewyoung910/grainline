@@ -5,9 +5,9 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import {
+  floorMetric,
   getFreshSellerMetrics,
   meetsGuildMasterRequirements,
-  SELLER_METRICS_SELECT,
 } from "@/lib/metrics";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -270,11 +270,7 @@ export async function GET(req: Request) {
       GROUP BY bucket
       ORDER BY bucket ASC
     `;
-    const existingMetricsPromise = prisma.sellerMetrics.findUnique({
-      where: { sellerProfileId: sellerId },
-      select: SELLER_METRICS_SELECT,
-    });
-
+    const metricsPromise = getFreshSellerMetrics(me.id, 3);
     const [
       orderSummary,
       activeListingCount,
@@ -286,7 +282,7 @@ export async function GET(req: Request) {
       chartOrderRows,
       topListingRows,
       ratingRows,
-      existingMetrics,
+      metrics,
     ] = await Promise.all([
       orderSummaryPromise,
       activeListingCountPromise,
@@ -298,7 +294,7 @@ export async function GET(req: Request) {
       chartOrderRowsPromise,
       topListingRowsPromise,
       ratingRowsPromise,
-      existingMetricsPromise,
+      metricsPromise,
     ]);
 
     if (!orderSummary || orderSummary.sellerProfileId !== sellerId) {
@@ -471,7 +467,9 @@ export async function GET(req: Request) {
 
     // ── Guild metrics ───────────────────────────────────────────────────────────
 
-    const metrics = await getFreshSellerMetrics(sellerId, 3, existingMetrics);
+    if (metrics.sellerProfileId !== sellerId) {
+      throw new Error("Seller metrics authority returned another seller");
+    }
 
     const guildCriteria = meetsGuildMasterRequirements(metrics);
     const failingKeys = Object.entries(guildCriteria)
@@ -479,10 +477,10 @@ export async function GET(req: Request) {
       .map(([k]) => k);
 
     const humanFailures: Record<string, string> = {
-      ratingMet: `Average rating < 4.5 (currently ${metrics.averageRating.toFixed(1)})`,
+      ratingMet: `Average rating < 4.5 (currently ${floorMetric(metrics.averageRating).toFixed(1)})`,
       reviewsMet: `Reviews < 25 (currently ${metrics.reviewCount})`,
-      shippingMet: `On-time shipping < 95% (currently ${(metrics.onTimeShippingRate * 100).toFixed(1)}%)`,
-      responseMet: `Response rate < 90% (currently ${(metrics.responseRate * 100).toFixed(1)}%)`,
+      shippingMet: `On-time shipping < 95% (currently ${floorMetric(metrics.onTimeShippingRate * 100).toFixed(1)}%)`,
+      responseMet: `Response rate < 90% (currently ${floorMetric(metrics.responseRate * 100).toFixed(1)}%)`,
       ageMet: `Account age < 180 days (currently ${metrics.accountAgeDays} days)`,
       salesMet: `Sales < $1,000 (currently ${formatCurrencyCents(metrics.totalSalesCents)})`,
       casesMet: `Open cases: ${metrics.activeCaseCount}`,

@@ -86,6 +86,11 @@ import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
+import {
+  privateTablePreparation,
+} from "../scripts/private-table-preparation-catalog.mjs";
+
+const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -1673,6 +1678,9 @@ describe("database grant inventory guardrails", () => {
             "grainline_review_vote_update_forbidden",
           ]
         : []),
+      ...(deriveGrantInventory().functions.includes(
+        "grainline_seller_metrics_refresh_prepared_impl",
+      ) ? ["grainline_seller_metrics_refresh_prepared_impl"] : []),
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
@@ -4124,6 +4132,13 @@ describe("database grant inventory guardrails", () => {
     ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
+    const sellerMetricsAuthorityPrepared = existsSync(
+      `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
+    ) && SELLER_METRICS_PREPARATION.functions.every((entry) =>
+      source(
+        `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
+      ).includes(`FUNCTION public.${entry.name}(`),
+    );
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -4368,6 +4383,9 @@ describe("database grant inventory guardrails", () => {
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerMetricsAuthorityPrepared
+        ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
+        : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
         : []),
@@ -4494,6 +4512,9 @@ describe("database grant inventory guardrails", () => {
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
         + (makerVerificationActivationPresent ? 1 : 0)
+        + (sellerMetricsAuthorityPrepared
+          ? SELLER_METRICS_PREPARATION.functions.length
+          : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         + (typeof blockRlsActivationExpected === "function"
@@ -4634,6 +4655,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerMetricsAuthorityPrepared
+        ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
         : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
@@ -5255,9 +5279,12 @@ describe("database grant inventory guardrails", () => {
     const restoreSellerBroadcastActivation = stagedProof.indexOf(
       '"$holding/migrations/$seller_broadcast_activation_migration" \\\n            "prisma/migrations/$seller_broadcast_activation_migration"',
     );
-    const applyPostEmailDomain = stagedProof.indexOf(
+    const restoreSellerMetrics = stagedProof.indexOf(
+      '"$holding/migrations/$seller_metrics_migration" \\\n            "prisma/migrations/$seller_metrics_migration"',
+    );
+    const applyPostEmailDomains = stagedProof.indexOf(
       "npx prisma migrate deploy",
-      restoreSellerBroadcastActivation,
+      restoreSellerMetrics,
     );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
@@ -5290,8 +5317,9 @@ describe("database grant inventory guardrails", () => {
       && restoreEmailServiceActivation < applyEmailServiceActivation
       && applyEmailServiceActivation < restoreSellerBroadcast
       && restoreSellerBroadcast < restoreSellerBroadcastActivation
-      && restoreSellerBroadcastActivation < applyPostEmailDomain
-      && applyPostEmailDomain < finalAudit,
+      && restoreSellerBroadcastActivation < restoreSellerMetrics
+      && restoreSellerMetrics < applyPostEmailDomains
+      && applyPostEmailDomains < finalAudit,
     );
   });
 

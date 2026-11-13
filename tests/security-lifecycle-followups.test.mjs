@@ -44,7 +44,7 @@ describe("security lifecycle follow-ups", () => {
     assert.match(functionBody(page, "approveGuildMember"), /const me = await requireStaff\(\)/);
     assert.match(functionBody(page, "approveGuildMember"), /const adminOverride = me\.role === "ADMIN"/);
     assert.match(functionBody(page, "approveGuildMaster"), /const me = await requireStaff\(\)/);
-    assert.match(functionBody(page, "approveGuildMaster"), /await getFreshSellerMetrics\(verification\.sellerProfileId\)/);
+    assert.match(functionBody(page, "approveGuildMaster"), /await getFreshSellerMetrics\(verification\.sellerProfile\.userId\)/);
     assert.match(functionBody(page, "approveGuildMaster"), /No approval was recorded/);
     assert.match(page, /staff\.role === "ADMIN" && \(/);
   });
@@ -164,7 +164,11 @@ describe("security lifecycle follow-ups", () => {
   it("removes seller-derived state and seller-authored replies during account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(deletion, /sellerMetrics\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
+    assert.match(
+      deletion,
+      /clearSellerMetricsForAccountDeletion\(tx, \{\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\}\)/s,
+    );
+    assert.doesNotMatch(deletion, /tx\.sellerMetrics\./);
     assert.match(deletion, /sellerRatingSummary\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /review\.updateMany\(\{\s*where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \},\s*data: \{ sellerReply: null, sellerReplyAt: null \},\s*\}\)/s);
     assert.match(deletion, /redactUserReportsForAccountDeletion\(tx, \{/);

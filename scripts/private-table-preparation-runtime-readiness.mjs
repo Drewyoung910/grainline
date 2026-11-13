@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
@@ -19,6 +20,7 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS = Object.freeze(
   "block_report_seller_faq_v1",
   "email_service_v1",
   "seller_broadcast_v1",
+  "seller_metrics_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
@@ -30,6 +32,7 @@ const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
   email_service_v1: "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH",
   seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+  seller_metrics_v1: "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -60,15 +63,18 @@ export function privateTableRuntimeReadinessFunctionsForSelections(
         privateTableRuntimeReadinessMigrationOverride(releaseId),
       );
       for (const entry of verified.release.functions) {
-        const readiness = Object.freeze({
-        identity: `${entry.name}(${entry.arguments})`,
-        executeRole: entry.executeRole ?? "runtime",
-        sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
-        });
-        latestByRoleAndIdentity.set(
-          `${readiness.executeRole}\u0000${readiness.identity}`,
-          readiness,
-        );
+        for (const executeRole of privateTableFunctionExecuteRoles(entry)) {
+          if (executeRole !== "runtime" && executeRole !== "staff") continue;
+          const readiness = Object.freeze({
+            identity: `${entry.name}(${entry.arguments})`,
+            executeRole,
+            sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
+          });
+          latestByRoleAndIdentity.set(
+            `${readiness.executeRole}\u0000${readiness.identity}`,
+            readiness,
+          );
+        }
       }
     }
   }
