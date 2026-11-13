@@ -149,6 +149,8 @@ const SELLER_BROADCAST_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_broadcast_v1");
 const SELLER_METRICS_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_metrics_v1");
+const COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("commission_domain_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
@@ -156,6 +158,9 @@ export const SELLER_BROADCAST_TABLE =
   SELLER_BROADCAST_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_METRICS_TABLE =
   SELLER_METRICS_RLS_ACTIVATION_RELEASE.table;
+export const COMMISSION_DOMAIN_TABLES = Object.freeze([
+  ...COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE.tables,
+]);
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -1691,6 +1696,23 @@ export function sellerMetricsRlsForceExpected(inventory) {
     "sellerMetricsRlsActivationApplied",
   );
 }
+
+export function commissionDomainRlsActivationExpected(inventory) {
+  return COMMISSION_DOMAIN_TABLES.every((tableName) => (
+    policylessCatalogActivationExpected(
+      inventory,
+      tableName,
+      "commissionDomainRlsActivationApplied",
+    )
+  ));
+}
+
+export function commissionDomainRlsForceExpected(inventory) {
+  return commissionDomainRlsActivationExpected(inventory)
+    && COMMISSION_DOMAIN_TABLES.every((tableName) => (
+      (inventory?.rlsForceTables ?? []).includes(tableName)
+    ));
+}
 function policylessCatalogActivationExpected(inventory, tableName, stateField) {
   if (typeof inventory?.[stateField] === "boolean") {
     return inventory[stateField];
@@ -2355,6 +2377,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(sellerMetricsRlsActivationExpected(inventory)
       ? [SELLER_METRICS_TABLE]
+      : []),
+    ...(commissionDomainRlsActivationExpected(inventory)
+      ? COMMISSION_DOMAIN_TABLES
       : []),
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
@@ -3443,6 +3468,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && sellerMetricsRlsActivationExpected(inventory)
     )
     || (
+      COMMISSION_DOMAIN_TABLES.includes(tableName)
+      && commissionDomainRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3549,6 +3578,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? makerVerificationRlsForceExpected(inventory)
         : tableName === SELLER_METRICS_TABLE
           ? sellerMetricsRlsForceExpected(inventory)
+        : COMMISSION_DOMAIN_TABLES.includes(tableName)
+          ? commissionDomainRlsForceExpected(inventory)
         : tableName === BLOCK_TABLE
           ? blockRlsForceExpected(inventory)
         : tableName === USER_REPORT_TABLE
