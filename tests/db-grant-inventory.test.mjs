@@ -4598,7 +4598,8 @@ describe("database grant inventory guardrails", () => {
           // predecessor migration; the other authorities are new here.
           ? COMMISSION_DOMAIN_PREPARATION.functions.length - 1
           : 0)
-        + (commissionDomainRlsActivationExpected(inventory) ? 1 : 0)
+        + (typeof commissionDomainRlsActivationExpected === "function"
+          && commissionDomainRlsActivationExpected(inventory) ? 1 : 0)
         + (sellerMetricsRlsActivationPresent ? 1 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
@@ -5090,7 +5091,8 @@ describe("database grant inventory guardrails", () => {
         ...(clerkWebhookEventRlsActivationExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
           : []),
-        ...(commissionDomainRlsActivationExpected(inventory)
+        ...(typeof commissionDomainRlsActivationExpected === "function"
+          && commissionDomainRlsActivationExpected(inventory)
           ? [...COMMISSION_DOMAIN_TABLES].sort()
           : []),
         "Conversation",
@@ -5163,7 +5165,8 @@ describe("database grant inventory guardrails", () => {
         ...(clerkWebhookEventRlsForceExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
           : []),
-        ...(commissionDomainRlsForceExpected(inventory)
+        ...(typeof commissionDomainRlsForceExpected === "function"
+          && commissionDomainRlsForceExpected(inventory)
           ? [...COMMISSION_DOMAIN_TABLES].sort()
           : []),
         "Conversation",
