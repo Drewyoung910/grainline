@@ -7386,6 +7386,8 @@ jobs:
           email_service_activation_migration=20261101090000_activate_email_service_least_privilege
           seller_broadcast_migration=20261101100000_prepare_seller_broadcast_authorities
           seller_broadcast_activation_migration=20261101110000_activate_seller_broadcast_rls
+          admin_audit_log_migration=20261102010000_prepare_admin_audit_log_authorities
+          admin_audit_log_activation_migration=20261102020000_activate_admin_audit_log_rls
           seller_metrics_migration=20261102030000_prepare_seller_metrics_authorities
           seller_metrics_activation_migration=20261102040000_activate_seller_metrics_rls
           mkdir -p "$holding/migrations"
@@ -7400,6 +7402,8 @@ jobs:
           # then restore them only after the email chain is complete.
           mv "prisma/migrations/$seller_broadcast_migration" "$holding/migrations/$seller_broadcast_migration"
           mv "prisma/migrations/$seller_broadcast_activation_migration" "$holding/migrations/$seller_broadcast_activation_migration"
+          mv "prisma/migrations/$admin_audit_log_migration" "$holding/migrations/$admin_audit_log_migration"
+          mv "prisma/migrations/$admin_audit_log_activation_migration" "$holding/migrations/$admin_audit_log_activation_migration"
           mv "prisma/migrations/$seller_metrics_migration" "$holding/migrations/$seller_metrics_migration"
           mv "prisma/migrations/$seller_metrics_activation_migration" "$holding/migrations/$seller_metrics_activation_migration"
           # Historical release proofs intentionally reconstruct some accepted
@@ -7531,6 +7535,12 @@ jobs:
           mv \
             "$holding/migrations/$seller_broadcast_activation_migration" \
             "prisma/migrations/$seller_broadcast_activation_migration"
+          mv \
+            "$holding/migrations/$admin_audit_log_migration" \
+            "prisma/migrations/$admin_audit_log_migration"
+          mv \
+            "$holding/migrations/$admin_audit_log_activation_migration" \
+            "prisma/migrations/$admin_audit_log_activation_migration"
           mv \
             "$holding/migrations/$seller_metrics_migration" \
             "prisma/migrations/$seller_metrics_migration"
