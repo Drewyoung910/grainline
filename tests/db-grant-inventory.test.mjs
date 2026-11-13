@@ -1418,112 +1418,116 @@ describe("database grant inventory guardrails", () => {
         );
       }
     }
-    const sellerBroadcastPredecessorInventory = {
-      rlsEnableTables: [],
-      rlsForceTables: [],
-      rlsPolicyTables: [],
-    };
-    const sellerBroadcastActivatedInventory = {
-      rlsEnableTables: [SELLER_BROADCAST_TABLE],
-      rlsForceTables: [SELLER_BROADCAST_TABLE],
-      rlsPolicyTables: [],
-    };
-    assert.equal(
-      sellerBroadcastRlsActivationExpected(
-        sellerBroadcastPredecessorInventory,
-      ),
-      false,
-    );
-    assert.equal(
-      sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
-      false,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_BROADCAST_TABLE,
-        sellerBroadcastPredecessorInventory,
-      ),
-      REQUIRED_TABLE_PRIVILEGES,
-    );
-    assert.equal(
-      sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
-      true,
-    );
-    assert.equal(
-      sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
-      true,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_BROADCAST_TABLE,
-        sellerBroadcastActivatedInventory,
-      ),
-      [],
-    );
-    assert.equal(
-      policylessServiceRlsTableNames(
-        sellerBroadcastActivatedInventory,
-      ).includes(SELLER_BROADCAST_TABLE),
-      true,
-    );
-    assert.deepEqual(collectPolicylessServiceRlsIssues([{
-      table_name: SELLER_BROADCAST_TABLE,
-      rls_enabled: true,
-      rls_forced: true,
-      policy_count: 0,
-    }], sellerBroadcastActivatedInventory), []);
-    const sellerMetricsPredecessorInventory = {
-      rlsEnableTables: [],
-      rlsForceTables: [],
-      rlsPolicyTables: [],
-    };
-    const sellerMetricsActivatedInventory = {
-      rlsEnableTables: [SELLER_METRICS_TABLE],
-      rlsForceTables: [SELLER_METRICS_TABLE],
-      rlsPolicyTables: [],
-    };
-    assert.equal(
-      sellerMetricsRlsActivationExpected(sellerMetricsPredecessorInventory),
-      false,
-    );
-    assert.equal(
-      sellerMetricsRlsForceExpected(sellerMetricsPredecessorInventory),
-      false,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_METRICS_TABLE,
-        sellerMetricsPredecessorInventory,
-      ),
-      REQUIRED_TABLE_PRIVILEGES,
-    );
-    assert.equal(
-      sellerMetricsRlsActivationExpected(sellerMetricsActivatedInventory),
-      true,
-    );
-    assert.equal(
-      sellerMetricsRlsForceExpected(sellerMetricsActivatedInventory),
-      true,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_METRICS_TABLE,
-        sellerMetricsActivatedInventory,
-      ),
-      [],
-    );
-    assert.equal(
-      policylessServiceRlsTableNames(
-        sellerMetricsActivatedInventory,
-      ).includes(SELLER_METRICS_TABLE),
-      true,
-    );
-    assert.deepEqual(collectPolicylessServiceRlsIssues([{
-      table_name: SELLER_METRICS_TABLE,
-      rls_enabled: true,
-      rls_forced: true,
-      policy_count: 0,
-    }], sellerMetricsActivatedInventory), []);
+    if (typeof sellerBroadcastRlsActivationExpected === "function") {
+      const sellerBroadcastPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const sellerBroadcastActivatedInventory = {
+        rlsEnableTables: [SELLER_BROADCAST_TABLE],
+        rlsForceTables: [SELLER_BROADCAST_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(
+          sellerBroadcastPredecessorInventory,
+        ),
+        false,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerBroadcastActivatedInventory,
+        ).includes(SELLER_BROADCAST_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: SELLER_BROADCAST_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], sellerBroadcastActivatedInventory), []);
+    }
+    if (typeof sellerMetricsRlsActivationExpected === "function") {
+      const sellerMetricsPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const sellerMetricsActivatedInventory = {
+        rlsEnableTables: [SELLER_METRICS_TABLE],
+        rlsForceTables: [SELLER_METRICS_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        sellerMetricsRlsActivationExpected(sellerMetricsPredecessorInventory),
+        false,
+      );
+      assert.equal(
+        sellerMetricsRlsForceExpected(sellerMetricsPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_METRICS_TABLE,
+          sellerMetricsPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        sellerMetricsRlsActivationExpected(sellerMetricsActivatedInventory),
+        true,
+      );
+      assert.equal(
+        sellerMetricsRlsForceExpected(sellerMetricsActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_METRICS_TABLE,
+          sellerMetricsActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerMetricsActivatedInventory,
+        ).includes(SELLER_METRICS_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: SELLER_METRICS_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], sellerMetricsActivatedInventory), []);
+    }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
       rls_enabled: true,
@@ -1731,7 +1735,9 @@ describe("database grant inventory guardrails", () => {
             "grainline_review_vote_update_forbidden",
           ]
         : []),
-      "grainline_seller_metrics_refresh_prepared_impl",
+      ...(deriveGrantInventory().functions.includes(
+        "grainline_seller_metrics_refresh_prepared_impl",
+      ) ? ["grainline_seller_metrics_refresh_prepared_impl"] : []),
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
@@ -5260,11 +5266,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 7);
+    assert.equal(auditMatches.length, 8);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 7);
+    assert.equal(combinedStaffStageMatches.length, 8);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -5334,6 +5340,19 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreEmailServiceActivation,
     );
+    const restoreSellerBroadcast = stagedProof.indexOf(
+      '"$holding/migrations/$seller_broadcast_migration" \\\n            "prisma/migrations/$seller_broadcast_migration"',
+    );
+    const restoreSellerBroadcastActivation = stagedProof.indexOf(
+      '"$holding/migrations/$seller_broadcast_activation_migration" \\\n            "prisma/migrations/$seller_broadcast_activation_migration"',
+    );
+    const restoreSellerMetrics = stagedProof.indexOf(
+      '"$holding/migrations/$seller_metrics_migration" \\\n            "prisma/migrations/$seller_metrics_migration"',
+    );
+    const applyPostEmailDomains = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreSellerMetrics,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -5363,7 +5382,11 @@ describe("database grant inventory guardrails", () => {
       && applyEmailService < emailServiceAudit
       && emailServiceAudit < restoreEmailServiceActivation
       && restoreEmailServiceActivation < applyEmailServiceActivation
-      && applyEmailServiceActivation < finalAudit,
+      && applyEmailServiceActivation < restoreSellerBroadcast
+      && restoreSellerBroadcast < restoreSellerBroadcastActivation
+      && restoreSellerBroadcastActivation < restoreSellerMetrics
+      && restoreSellerMetrics < applyPostEmailDomains
+      && applyPostEmailDomains < finalAudit,
     );
   });
 
@@ -7153,7 +7176,7 @@ describe("database grant inventory guardrails", () => {
     );
     assert.equal(
       (provision.match(/^REVOKE ALL ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
-      26,
+      25 + Number(sellerBroadcastProvisioningPresent),
     );
     assert.equal(
       (provision.match(/^GRANT EXECUTE ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,

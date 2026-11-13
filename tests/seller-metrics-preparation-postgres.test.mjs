@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-function source(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+function source(filePath) {
+  return readFileSync(filePath, "utf8");
 }
 
 test("SellerMetrics complete-schema PostgreSQL proof is wired into the full-chain job", () => {

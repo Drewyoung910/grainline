@@ -559,6 +559,18 @@ jobs:
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate SellerMetrics candidate until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-metrics-preparation"
+          preparation=20261102030000_prepare_seller_metrics_authorities
+          activation=20261102040000_activate_seller_metrics_rls
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate service and reference least-privilege migration until historical release guards pass
         shell: bash
         run: |
@@ -7166,6 +7178,20 @@ jobs:
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerMetrics candidate after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-metrics-preparation"
+          for migration in \
+            20261102030000_prepare_seller_metrics_authorities \
+            20261102040000_activate_seller_metrics_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding/migrations" "$holding"
+          echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore service and reference least-privilege migration after historical release guards
         shell: bash
         run: |
@@ -7316,6 +7342,9 @@ jobs:
           lock_order_correction_migration=20261027030000_correct_email_eligibility_lock_order
           email_service_migration=20261101080000_prepare_email_service_least_privilege
           email_service_activation_migration=20261101090000_activate_email_service_least_privilege
+          seller_broadcast_migration=20261101100000_prepare_seller_broadcast_authorities
+          seller_broadcast_activation_migration=20261101110000_activate_seller_broadcast_rls
+          seller_metrics_migration=20261102030000_prepare_seller_metrics_authorities
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$deletion_migration" "$holding/migrations/$deletion_migration"
           mv "prisma/migrations/$eligibility_migration" "$holding/migrations/$eligibility_migration"
@@ -7323,6 +7352,12 @@ jobs:
           mv "prisma/migrations/$lock_order_correction_migration" "$holding/migrations/$lock_order_correction_migration"
           mv "prisma/migrations/$email_service_migration" "$holding/migrations/$email_service_migration"
           mv "prisma/migrations/$email_service_activation_migration" "$holding/migrations/$email_service_activation_migration"
+          # These domains explicitly depend on the final email-service
+          # contracts. Keep them out of the disposable predecessor rebuild,
+          # then restore them only after the email chain is complete.
+          mv "prisma/migrations/$seller_broadcast_migration" "$holding/migrations/$seller_broadcast_migration"
+          mv "prisma/migrations/$seller_broadcast_activation_migration" "$holding/migrations/$seller_broadcast_activation_migration"
+          mv "prisma/migrations/$seller_metrics_migration" "$holding/migrations/$seller_metrics_migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
@@ -7434,6 +7469,27 @@ jobs:
           mv \
             "$holding/migrations/$email_service_activation_migration" \
             "prisma/migrations/$email_service_activation_migration"
+          npx prisma migrate deploy
+          npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
+
+          # Apply the post-email domains only after their exact predecessor
+          # contracts have been proved. This is the complete candidate chain
+          # used by the final application build.
+          mv \
+            "$holding/migrations/$seller_broadcast_migration" \
+            "prisma/migrations/$seller_broadcast_migration"
+          mv \
+            "$holding/migrations/$seller_broadcast_activation_migration" \
+            "prisma/migrations/$seller_broadcast_activation_migration"
+          mv \
+            "$holding/migrations/$seller_metrics_migration" \
+            "prisma/migrations/$seller_metrics_migration"
           rmdir "$holding/migrations" "$holding"
           npx prisma migrate deploy
           npx prisma migrate status
