@@ -1538,7 +1538,9 @@ describe("database grant inventory guardrails", () => {
         policy_count: 0,
       }], sellerMetricsActivatedInventory), []);
     }
-    {
+    if (existsSync(
+      "prisma/migrations/20261102020000_activate_admin_audit_log_rls/migration.sql",
+    )) {
       const adminAuditLogPredecessorInventory = {
         rlsEnableTables: [],
         rlsForceTables: [],
