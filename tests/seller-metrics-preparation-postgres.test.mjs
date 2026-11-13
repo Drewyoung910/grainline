@@ -7,7 +7,10 @@ function source(path) {
 }
 
 test("SellerMetrics complete-schema PostgreSQL proof is wired into the full-chain job", () => {
-  const fullChain = source("tests/database-full-chain-postgres.test.mjs");
+  const fullChain = source(
+    process.env.DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH?.trim()
+      || "tests/database-full-chain-postgres.test.mjs",
+  );
   assert.match(
     fullChain,
     /import \{\s*SELLER_METRICS_PREPARATION_MIGRATION,\s*proveSellerMetricsPreparedAuthorities,/u,
