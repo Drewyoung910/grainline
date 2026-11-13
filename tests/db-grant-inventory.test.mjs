@@ -1415,60 +1415,62 @@ describe("database grant inventory guardrails", () => {
         );
       }
     }
-    const sellerBroadcastPredecessorInventory = {
-      rlsEnableTables: [],
-      rlsForceTables: [],
-      rlsPolicyTables: [],
-    };
-    const sellerBroadcastActivatedInventory = {
-      rlsEnableTables: [SELLER_BROADCAST_TABLE],
-      rlsForceTables: [SELLER_BROADCAST_TABLE],
-      rlsPolicyTables: [],
-    };
-    assert.equal(
-      sellerBroadcastRlsActivationExpected(
-        sellerBroadcastPredecessorInventory,
-      ),
-      false,
-    );
-    assert.equal(
-      sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
-      false,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_BROADCAST_TABLE,
-        sellerBroadcastPredecessorInventory,
-      ),
-      REQUIRED_TABLE_PRIVILEGES,
-    );
-    assert.equal(
-      sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
-      true,
-    );
-    assert.equal(
-      sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
-      true,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_BROADCAST_TABLE,
-        sellerBroadcastActivatedInventory,
-      ),
-      [],
-    );
-    assert.equal(
-      policylessServiceRlsTableNames(
-        sellerBroadcastActivatedInventory,
-      ).includes(SELLER_BROADCAST_TABLE),
-      true,
-    );
-    assert.deepEqual(collectPolicylessServiceRlsIssues([{
-      table_name: SELLER_BROADCAST_TABLE,
-      rls_enabled: true,
-      rls_forced: true,
-      policy_count: 0,
-    }], sellerBroadcastActivatedInventory), []);
+    if (typeof sellerBroadcastRlsActivationExpected === "function") {
+      const sellerBroadcastPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const sellerBroadcastActivatedInventory = {
+        rlsEnableTables: [SELLER_BROADCAST_TABLE],
+        rlsForceTables: [SELLER_BROADCAST_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(
+          sellerBroadcastPredecessorInventory,
+        ),
+        false,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        sellerBroadcastRlsActivationExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.equal(
+        sellerBroadcastRlsForceExpected(sellerBroadcastActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_BROADCAST_TABLE,
+          sellerBroadcastActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerBroadcastActivatedInventory,
+        ).includes(SELLER_BROADCAST_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: SELLER_BROADCAST_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], sellerBroadcastActivatedInventory), []);
+    }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
       rls_enabled: true,
@@ -1676,7 +1678,9 @@ describe("database grant inventory guardrails", () => {
             "grainline_review_vote_update_forbidden",
           ]
         : []),
-      "grainline_seller_metrics_refresh_prepared_impl",
+      ...(deriveGrantInventory().functions.includes(
+        "grainline_seller_metrics_refresh_prepared_impl",
+      ) ? ["grainline_seller_metrics_refresh_prepared_impl"] : []),
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
@@ -7084,7 +7088,7 @@ describe("database grant inventory guardrails", () => {
     );
     assert.equal(
       (provision.match(/^REVOKE ALL ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
-      26,
+      25 + Number(sellerBroadcastProvisioningPresent),
     );
     assert.equal(
       (provision.match(/^GRANT EXECUTE ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
