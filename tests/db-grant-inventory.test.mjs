@@ -594,6 +594,9 @@ const {
   sellerMetricsRlsActivationExpected,
   sellerMetricsRlsForceExpected,
   SELLER_METRICS_TABLE,
+  adminAuditLogRlsActivationExpected,
+  adminAuditLogRlsForceExpected,
+  ADMIN_AUDIT_LOG_TABLE,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1534,6 +1537,61 @@ describe("database grant inventory guardrails", () => {
         rls_forced: true,
         policy_count: 0,
       }], sellerMetricsActivatedInventory), []);
+    }
+    {
+      const adminAuditLogPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const adminAuditLogActivatedInventory = {
+        tables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsEnableTables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsForceTables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        adminAuditLogRlsActivationExpected(adminAuditLogPredecessorInventory),
+        false,
+      );
+      assert.equal(
+        adminAuditLogRlsForceExpected(adminAuditLogPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          ADMIN_AUDIT_LOG_TABLE,
+          adminAuditLogPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        adminAuditLogRlsActivationExpected(adminAuditLogActivatedInventory),
+        true,
+      );
+      assert.equal(
+        adminAuditLogRlsForceExpected(adminAuditLogActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          ADMIN_AUDIT_LOG_TABLE,
+          adminAuditLogActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          adminAuditLogActivatedInventory,
+        ).includes(ADMIN_AUDIT_LOG_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: ADMIN_AUDIT_LOG_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], adminAuditLogActivatedInventory), []);
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,

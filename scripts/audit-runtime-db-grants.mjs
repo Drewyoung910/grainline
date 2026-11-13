@@ -165,6 +165,8 @@ const SELLER_BROADCAST_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_broadcast_v1");
 const SELLER_METRICS_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_metrics_v1");
+const ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("admin_audit_log_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
@@ -172,6 +174,8 @@ export const SELLER_BROADCAST_TABLE =
   SELLER_BROADCAST_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_METRICS_TABLE =
   SELLER_METRICS_RLS_ACTIVATION_RELEASE.table;
+export const ADMIN_AUDIT_LOG_TABLE =
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -1730,6 +1734,22 @@ export function sellerMetricsRlsForceExpected(inventory) {
     "sellerMetricsRlsActivationApplied",
   );
 }
+
+export function adminAuditLogRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
+  );
+}
+
+export function adminAuditLogRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
+  );
+}
 function policylessCatalogActivationExpected(inventory, tableName, stateField) {
   if (typeof inventory?.[stateField] === "boolean") {
     return inventory[stateField];
@@ -2401,6 +2421,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(sellerMetricsRlsActivationExpected(inventory)
       ? [SELLER_METRICS_TABLE]
+      : []),
+    ...(adminAuditLogRlsActivationExpected(inventory)
+      ? [ADMIN_AUDIT_LOG_TABLE]
       : []),
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
@@ -3489,6 +3512,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && sellerMetricsRlsActivationExpected(inventory)
     )
     || (
+      tableName === ADMIN_AUDIT_LOG_TABLE
+      && adminAuditLogRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3595,6 +3622,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? makerVerificationRlsForceExpected(inventory)
         : tableName === SELLER_METRICS_TABLE
           ? sellerMetricsRlsForceExpected(inventory)
+        : tableName === ADMIN_AUDIT_LOG_TABLE
+          ? adminAuditLogRlsForceExpected(inventory)
         : tableName === BLOCK_TABLE
           ? blockRlsForceExpected(inventory)
         : tableName === USER_REPORT_TABLE
