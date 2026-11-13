@@ -1479,6 +1479,27 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    for (const [migration, envName, label] of [
+      [
+        adminAuditLogCandidateMigrations[0],
+        "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
+        "AdminAuditLog",
+      ],
+      [
+        adminAuditLogCandidateMigrations[1],
+        "ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_PATH",
+        "AdminAuditLog activation",
+      ],
+    ]) {
+      const target = path.join(root, "prisma", "migrations", migration);
+      if (!existsSync(target)) {
+        cpSync(
+          privateTablePreparationMigrationSourcePath(migration, envName, label),
+          target,
+          { recursive: true },
+        );
+      }
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
