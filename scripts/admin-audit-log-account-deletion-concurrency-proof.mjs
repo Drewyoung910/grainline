@@ -379,7 +379,6 @@ async function redactionAfterUndoProof(config, controller, observer) {
   const redactionPid = await configure(redaction, "admin-audit-race-redaction-second");
   try {
     await beginRuntime(undo, undoAdminId);
-    await undo.query(`SELECT id FROM public."AdminAuditLog" WHERE id=$1 FOR UPDATE`, [sourceId]);
     const undoResult = await undo.query(
       `SELECT public.grainline_admin_audit_undo_claim(
          $1, $2, 'concurrency proof', $3, 'BAN_USER', 'USER', $4, $5::jsonb

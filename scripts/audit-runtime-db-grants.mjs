@@ -165,6 +165,8 @@ const SELLER_BROADCAST_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_broadcast_v1");
 const SELLER_METRICS_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_metrics_v1");
+const ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("admin_audit_log_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
@@ -172,6 +174,8 @@ export const SELLER_BROADCAST_TABLE =
   SELLER_BROADCAST_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_METRICS_TABLE =
   SELLER_METRICS_RLS_ACTIVATION_RELEASE.table;
+export const ADMIN_AUDIT_LOG_TABLE =
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -906,6 +910,15 @@ const ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
   "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
 ]);
+const ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES = new Set([
+  "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+  "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+]);
+const ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_NAMES = new Set(
+  [...ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES].map(
+    (identity) => identity.slice(0, identity.indexOf("(")),
+  ),
+);
 const ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])",
 ]);
@@ -1237,6 +1250,9 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
   if (ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
     return !accountDeletionSideEffectRlsActivationExpected(inventory);
   }
+  if (ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES.has(identity)) {
+    return false;
+  }
   if (ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES.has(identity)) {
     return true;
   }
@@ -1525,7 +1541,9 @@ export async function readAccountDeletionWorkerBoundaryState(client) {
              'grainline_user_account_deletion_finalize',
              'grainline_case_account_deletion_redact',
              'grainline_message_redact_for_account_deletion',
-             'grainline_order_account_deletion_scrub'
+             'grainline_order_account_deletion_scrub',
+             'grainline_admin_audit_account_deletion_redaction_apply',
+             'grainline_admin_audit_account_deletion_legacy_redaction_apply'
            )
            AND acl.grantee = 0
            AND acl.privilege_type = 'EXECUTE')
@@ -1714,6 +1732,22 @@ export function sellerMetricsRlsForceExpected(inventory) {
     inventory,
     SELLER_METRICS_TABLE,
     "sellerMetricsRlsActivationApplied",
+  );
+}
+
+export function adminAuditLogRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
+  );
+}
+
+export function adminAuditLogRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
   );
 }
 function policylessCatalogActivationExpected(inventory, tableName, stateField) {
@@ -2387,6 +2421,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(sellerMetricsRlsActivationExpected(inventory)
       ? [SELLER_METRICS_TABLE]
+      : []),
+    ...(adminAuditLogRlsActivationExpected(inventory)
+      ? [ADMIN_AUDIT_LOG_TABLE]
       : []),
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
@@ -3475,6 +3512,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && sellerMetricsRlsActivationExpected(inventory)
     )
     || (
+      tableName === ADMIN_AUDIT_LOG_TABLE
+      && adminAuditLogRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3581,6 +3622,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? makerVerificationRlsForceExpected(inventory)
         : tableName === SELLER_METRICS_TABLE
           ? sellerMetricsRlsForceExpected(inventory)
+        : tableName === ADMIN_AUDIT_LOG_TABLE
+          ? adminAuditLogRlsForceExpected(inventory)
         : tableName === BLOCK_TABLE
           ? blockRlsForceExpected(inventory)
         : tableName === USER_REPORT_TABLE

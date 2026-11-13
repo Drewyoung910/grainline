@@ -10,6 +10,9 @@ import {
   privateTableRlsActivation,
   verifyPrivateTableRlsActivationSource,
 } from "./private-table-rls-activation-catalog.mjs";
+import {
+  privateTableFunctionExecuteRoles,
+} from "./private-table-preparation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import {
   isReviewedSuccessfulMigration,
@@ -56,14 +59,15 @@ function postureFromRow(row) {
     rlsForced: row.rls_forced,
     policyCount: row.policy_count,
     ...Object.fromEntries(
-      ["runtime", "staff", "public"].flatMap((role) =>
+      ["runtime", "staff", "accountDeletion", "public"].flatMap((role) =>
         TABLE_PRIVILEGES.map((privilege) => [
           `${role}${privilege}`,
-          row[`${role}_${privilege.toLowerCase()}`],
+          row[`${role === "accountDeletion" ? "account_deletion" : role}_${privilege.toLowerCase()}`],
         ])),
     ),
     runtimeAnyColumn: row.runtime_any_column,
     staffAnyColumn: row.staff_any_column,
+    accountDeletionAnyColumn: row.account_deletion_any_column,
     publicAnyColumn: row.public_any_column,
     nonOwnerTableAclCount: row.non_owner_table_acl_count,
     nonOwnerColumnAclCount: row.non_owner_column_acl_count,
@@ -89,7 +93,7 @@ function assertReadyPosture(posture, release) {
   for (const [key, value] of Object.entries(expected)) {
     assert.equal(posture[key], value, `${key} drifted before activation`);
   }
-  for (const role of ["staff", "public"]) {
+  for (const role of ["staff", "accountDeletion", "public"]) {
     for (const privilege of TABLE_PRIVILEGES) {
       assert.equal(posture[`${role}${privilege}`], false, `${role}${privilege} drifted`);
     }
@@ -99,6 +103,11 @@ function assertReadyPosture(posture, release) {
   }
   assert.equal(posture.runtimeAnyColumn, true, "runtime predecessor column authority drifted");
   assert.equal(posture.staffAnyColumn, false, "staff predecessor column authority drifted");
+  assert.equal(
+    posture.accountDeletionAnyColumn,
+    false,
+    "account-deletion predecessor column authority drifted",
+  );
   assert.equal(posture.publicAnyColumn, false, "PUBLIC predecessor column authority drifted");
   assert.equal(
     posture.nonOwnerTableAclCount,
@@ -114,6 +123,11 @@ function assertActivePosture(posture, release) {
   assert.equal(posture.policyCount, release.policies.length, "policy count drifted");
   assertRolePrivileges(posture, "runtime", release.activatedRuntimePrivileges);
   assertRolePrivileges(posture, "staff", release.activatedStaffPrivileges);
+  assertRolePrivileges(
+    posture,
+    "accountDeletion",
+    release.activatedAccountDeletionPrivileges ?? [],
+  );
   assertRolePrivileges(posture, "public", release.activatedPublicPrivileges);
   assert.equal(
     posture.runtimeAnyColumn,
@@ -123,11 +137,17 @@ function assertActivePosture(posture, release) {
     "runtime column authority drifted",
   );
   assert.equal(posture.staffAnyColumn, false, "staff column authority remains");
+  assert.equal(
+    posture.accountDeletionAnyColumn,
+    false,
+    "account-deletion column authority remains",
+  );
   assert.equal(posture.publicAnyColumn, false, "PUBLIC column authority remains");
   assert.equal(
     posture.nonOwnerTableAclCount,
     release.activatedRuntimePrivileges.length
       + release.activatedStaffPrivileges.length
+      + (release.activatedAccountDeletionPrivileges ?? []).length
       + release.activatedPublicPrivileges.length,
     "non-owner table ACL drifted",
   );
@@ -167,9 +187,17 @@ function expectedFunctions(verified, active) {
   const entries = verified.preparation.release.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRoles: entry.executeRoles ?? [entry.executeRole ?? "runtime"],
+    executeRoles: privateTableFunctionExecuteRoles(entry),
     source: verified.preparation.functionSources.get(entry.name),
   }));
+  for (const entry of verified.preparation.release.retainedFunctions ?? []) {
+    entries.push({
+      name: entry.name,
+      arguments: entry.arguments,
+      executeRoles: privateTableFunctionExecuteRoles(entry),
+      sourceSha256: entry.sourceSha256,
+    });
+  }
   for (const retained of verified.release.functionChanges.retained) {
     entries.push({
       name: retained.name,
@@ -177,7 +205,7 @@ function expectedFunctions(verified, active) {
       securityDefiner: retained.securityDefiner,
       executeRoles: [active
         ? retained.activatedExecuteRole
-        : retained.predecessorExecuteRole],
+        : retained.predecessorExecuteRole].filter((role) => role !== "none"),
       sourceMd5: retained.sourceMd5,
     });
   }
@@ -204,7 +232,7 @@ function expectedFunctions(verified, active) {
       entries.push({
         name: addition.name,
         arguments: addition.arguments,
-        executeRoles: [addition.executeRole],
+        executeRoles: addition.executeRole === "none" ? [] : [addition.executeRole],
         source: verified.activeFunctionSources.get(addition.name),
       });
     }
@@ -229,6 +257,9 @@ async function readFunctions(client, verified, tableOwner, active) {
            pg_catalog.has_function_privilege(
              'grainline_staff_read_runtime', procedure.oid, 'EXECUTE'
            ) AS staff_execute,
+           pg_catalog.has_function_privilege(
+             'grainline_account_deletion_runtime', procedure.oid, 'EXECUTE'
+           ) AS account_deletion_execute,
            pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
              AS public_execute
       FROM pg_catalog.pg_proc AS procedure
@@ -266,13 +297,24 @@ async function readFunctions(client, verified, tableOwner, active) {
       entry.executeRoles.includes("staff"),
       `${identity} staff EXECUTE drifted`,
     );
+    assert.equal(
+      row.account_deletion_execute,
+      entry.executeRoles.includes("account_deletion"),
+      `${identity} account-deletion EXECUTE drifted`,
+    );
     assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
     if (entry.source !== undefined) {
       assert.equal(row.source, entry.source, `${identity} body drifted`);
-    } else {
+    } else if (entry.sourceMd5 !== undefined) {
       assert.equal(
         createHash("md5").update(row.source, "utf8").digest("hex"),
         entry.sourceMd5,
+        `${identity} body drifted`,
+      );
+    } else {
+      assert.equal(
+        createHash("sha256").update(row.source, "utf8").digest("hex"),
+        entry.sourceSha256,
         `${identity} body drifted`,
       );
     }
@@ -287,6 +329,7 @@ async function readFunctions(client, verified, tableOwner, active) {
     configuration: row.configuration,
     runtimeExecute: row.runtime_execute,
     staffExecute: row.staff_execute,
+    accountDeletionExecute: row.account_deletion_execute,
     publicExecute: row.public_execute,
     sourceSha256: createHash("sha256").update(row.source, "utf8").digest("hex"),
   }));
@@ -344,6 +387,13 @@ export async function inspectPrivateTableRlsActivationProduction(
              pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRUNCATE') AS staff_truncate,
              pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'REFERENCES') AS staff_references,
              pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRIGGER') AS staff_trigger,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'SELECT') AS account_deletion_select,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'INSERT') AS account_deletion_insert,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'UPDATE') AS account_deletion_update,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'DELETE') AS account_deletion_delete,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'TRUNCATE') AS account_deletion_truncate,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'REFERENCES') AS account_deletion_references,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'TRIGGER') AS account_deletion_trigger,
              pg_catalog.has_table_privilege(0, target.oid, 'SELECT') AS public_select,
              pg_catalog.has_table_privilege(0, target.oid, 'INSERT') AS public_insert,
              pg_catalog.has_table_privilege(0, target.oid, 'UPDATE') AS public_update,
@@ -357,6 +407,9 @@ export async function inspectPrivateTableRlsActivationProduction(
              pg_catalog.has_any_column_privilege(
                'grainline_staff_read_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
              ) AS staff_any_column,
+             pg_catalog.has_any_column_privilege(
+               'grainline_account_deletion_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+             ) AS account_deletion_any_column,
              pg_catalog.has_any_column_privilege(
                0, target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
              ) AS public_any_column,
@@ -388,8 +441,12 @@ export async function inspectPrivateTableRlsActivationProduction(
         FROM pg_catalog.pg_roles
        WHERE rolname = ANY($1::text[])
        ORDER BY rolname
-    `, [["grainline_app_runtime", "grainline_staff_read_runtime"]])).rows;
-    assert.equal(roles.length, 2, "restricted role count drifted");
+    `, [[
+      "grainline_account_deletion_runtime",
+      "grainline_app_runtime",
+      "grainline_staff_read_runtime",
+    ]])).rows;
+    assert.equal(roles.length, 3, "restricted role count drifted");
     assertRestrictedRole(
       roles.find((entry) => entry.rolname === "grainline_app_runtime"),
       "grainline_app_runtime",
@@ -397,6 +454,10 @@ export async function inspectPrivateTableRlsActivationProduction(
     assertRestrictedRole(
       roles.find((entry) => entry.rolname === "grainline_staff_read_runtime"),
       "grainline_staff_read_runtime",
+    );
+    assertRestrictedRole(
+      roles.find((entry) => entry.rolname === "grainline_account_deletion_runtime"),
+      "grainline_account_deletion_runtime",
     );
 
     const policies = (await client.query(`
