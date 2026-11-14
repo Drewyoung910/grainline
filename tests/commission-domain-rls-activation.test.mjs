@@ -15,7 +15,8 @@ import {
 } from "../scripts/private-table-rls-activation-catalog.mjs";
 
 const migration = readFileSync(
-  "prisma/migrations/20261113020000_activate_commission_domain_rls/migration.sql",
+  process.env.COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH
+    ?? "prisma/migrations/20261113020000_activate_commission_domain_rls/migration.sql",
   "utf8",
 );
 const rollback = readFileSync(
