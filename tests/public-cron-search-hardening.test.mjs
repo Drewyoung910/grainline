@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -211,17 +212,22 @@ describe("cron and public route hardening", () => {
   it("keeps public commission reads bounded and rate-limited", () => {
     const commission = source("src/app/api/commission/route.ts");
     const commissionDetail = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
+    const commissionAuthority = source(commissionDomainPreparationMigrationPath);
 
     assert.match(commission, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(commission, /rateLimitResponse\(rate\.reset, "Too many commission requests\."\)/);
     assert.match(commission, /parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
-    assert.match(commission, /openCommissionWhere/);
+    assert.match(commission, /publicCommissionRequestCount\(meId, publicFilter\)/);
+    assert.match(commission, /publicCommissionRequestPage\(meId, \{/);
     assert.match(commission, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
-    assert.match(commission, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
-    assert.match(commission, /skip: \(currentPage - 1\) \* pageSize/);
+    assert.match(commission, /offset: \(currentPage - 1\) \* pageSize/);
+    assert.match(commission, /limit: pageSize/);
+    assert.match(commissionAuthority, /p_offset IS NULL OR p_offset < 0 OR p_offset > 999000/);
+    assert.match(commissionAuthority, /eligible\."createdAt" DESC,[\s\S]*eligible\.id DESC[\s\S]*OFFSET p_offset[\s\S]*LIMIT p_limit/);
     assert.match(commissionDetail, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(commissionDetail, /rateLimitResponse\(reset, "Too many commission reads\."\)/);
-    assert.match(commissionDetail, /where: openCommissionWhere\(\{[\s\S]*id,[\s\S]*buyerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
+    assert.match(commissionDetail, /publicCommissionRequestDetail\(meId, id\)/);
+    assert.match(commissionAuthority, /request\.id = p_request_id[\s\S]*NOT EXISTS \([\s\S]*FROM public\."Block" AS blocked_pair/);
     assert.doesNotMatch(commissionDetail, /prisma\.commissionRequest\.findUnique\(\{\s*where: \{ id \}/);
   });
 

@@ -79,7 +79,7 @@ describe("API read route rate-limit sweep", () => {
   it("rate-limits optional-public GET routes before public Prisma work", () => {
     for (const [path, dbNeedle] of [
       ["src/app/api/blog/[slug]/comments/route.ts", "prisma.blogPost.findFirst"],
-      ["src/app/api/commission/[id]/route.ts", "prisma.commissionRequest.findUnique"],
+      ["src/app/api/commission/[id]/route.ts", "publicCommissionRequestDetail(meId, id)"],
       ["src/app/api/follow/[sellerId]/route.ts", "sellerPublicFollowState(sellerId)"],
       ["src/app/api/search/popular-tags/route.ts", "getPopularListingTags(8)"],
       ["src/app/api/search/popular-blog-tags/route.ts", "getPopularBlogTags(8)"],

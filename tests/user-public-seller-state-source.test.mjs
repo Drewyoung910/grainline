@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import yaml from "js-yaml";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -99,11 +100,17 @@ describe("User public seller-state source boundary", () => {
     assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
 
     const commission = read("src/app/commission/page.tsx");
+    const commissionAuthority = readFileSync(
+      commissionDomainPreparationMigrationPath,
+      "utf8",
+    );
     assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
-    assert.match(commission, /cr\."buyerAccountActive" = true/);
-    assert.match(commission, /cr\."buyerName", cr\."buyerImageUrl"/);
-    assert.match(commission, /buyer: \{ name: r\.buyerName, imageUrl: r\.buyerImageUrl \}/);
-    assert.match(commission, /publicCommissionInterestCounts\(rawResults\.map/);
+    assert.match(commission, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(commissionAuthority, /request\."buyerAccountActive" = true/);
+    assert.match(commissionAuthority, /request\."buyerName"::text/);
+    assert.match(commissionAuthority, /request\."buyerImageUrl"::text/);
+    assert.match(commission, /buyer: \{ name: buyerName, imageUrl: buyerImageUrl \}/);
+    assert.match(commission, /publicCommissionInterestCounts\(found\.rows\.map/);
     assert.doesNotMatch(commission, /JOIN (?:public\.)?"SellerProfile"/);
 
     const quality = read("src/lib/quality-score.ts");

@@ -115,7 +115,6 @@ describe("account deletion media cleanup scoping", () => {
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(");
     const releaseRows = deletion.indexOf("await releaseDirectUploadsForAccount({");
 
-    assert.match(deletion, /"reviewPhoto" \| "commissionRequest" \| "blogPost" \| "\$queryRaw"/);
     assert.doesNotMatch(deletion, /"sellerProfile" \| "reviewPhoto"/u);
     assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
     assert.match(
@@ -124,6 +123,8 @@ describe("account deletion media cleanup scoping", () => {
     );
     assert.doesNotMatch(collect, /sellerProfile:\s*\{\s*userId\s*\}/);
     assert.doesNotMatch(collect, /db\.message\./);
+    assert.match(collect, /ownerCommissionReferenceImageUrls\(db\)/);
+    assert.doesNotMatch(collect, /db\.commissionRequest\./);
     assert.match(collect, /accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/s);
     assert.match(
       collect,

@@ -52,10 +52,11 @@ describe("commission interest counts", () => {
   it("removes the public Near Me SellerProfile join", () => {
     const page = source("src/app/commission/page.tsx");
     assert.doesNotMatch(page, /JOIN public\."SellerProfile"|JOIN "SellerProfile"/);
-    assert.match(page, /publicCommissionInterestCounts\(rawResults\.map/);
+    assert.match(page, /publicCommissionRequestPage\(meId,/);
+    assert.match(page, /publicCommissionInterestCounts\(found\.rows\.map/);
   });
 
-  it("routes owner summaries and notification targets through fixed authorities", () => {
+  it("routes owner summaries and close notifications through bounded authorities", () => {
     const access = source("src/lib/commissionInterestResidualAccess.ts");
     assert.match(access, /grainline_seller_owner_commission_interest_summaries/);
     assert.match(access, /grainline_seller_service_commission_interest_targets/);
@@ -65,13 +66,14 @@ describe("commission interest counts", () => {
     assert.match(account, /ownerCommissionInterestSummaries\(/);
     assert.doesNotMatch(account, /interests:\s*\{/);
 
-    for (const path of [
-      "src/app/api/commission/[id]/route.ts",
-      "src/app/api/cron/commission-expire/route.ts",
-    ]) {
-      const routeSource = source(path);
-      assert.match(routeSource, /commissionInterestNotificationTargets\(/);
-      assert.doesNotMatch(routeSource, /sellerProfile:\s*\{/);
-    }
+    const detailRoute = source("src/app/api/commission/[id]/route.ts");
+    assert.match(detailRoute, /transitionOwnerCommissionRequest\(/);
+    assert.match(detailRoute, /transition\.sellerUserIds/);
+    assert.doesNotMatch(detailRoute, /sellerProfile:\s*\{/);
+
+    const expiryRoute = source("src/app/api/cron/commission-expire/route.ts");
+    assert.match(expiryRoute, /expireCommissionRequestBatch\(/);
+    assert.match(expiryRoute, /request\.sellerUserIds/);
+    assert.doesNotMatch(expiryRoute, /sellerProfile:\s*\{/);
   });
 });

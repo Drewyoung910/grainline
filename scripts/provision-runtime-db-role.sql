@@ -6537,4 +6537,41 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public
 -- defaults for functions or types, add explicit runtime default privileges here
 -- and update tests/db-grant-inventory.test.mjs.
 
+-- CommissionRequest and CommissionInterest are a single coupled domain. Keep
+-- their bounded authorities in one reusable convergence block so a runtime-role
+-- repair cannot silently remove access after the preparation migration lands.
+WITH commission_domain_authority(function_signature) AS (
+  VALUES
+    ('public.grainline_commission_request_public_count(text,text,text,double precision,double precision,integer)'),
+    ('public.grainline_commission_request_public_page(text,text,text,double precision,double precision,integer,integer,integer)'),
+    ('public.grainline_commission_request_public_detail(text)'),
+    ('public.grainline_commission_request_public_sitemap_page(integer,integer)'),
+    ('public.grainline_commission_request_public_metro_ids()'),
+    ('public.grainline_commission_interest_actor_request_ids(text[])'),
+    ('public.grainline_commission_interest_actor_create(text,text,text,text)'),
+    ('public.grainline_commission_request_owner_create(text,text,text,text,integer,integer,text,text[],boolean,double precision,double precision,integer)'),
+    ('public.grainline_commission_request_owner_assign_metros(text,text,text)'),
+    ('public.grainline_commission_request_owner_page(integer)'),
+    ('public.grainline_commission_request_owner_export()'),
+    ('public.grainline_commission_request_owner_active_count()'),
+    ('public.grainline_commission_request_owner_reference_image_urls()'),
+    ('public.grainline_commission_interest_owner_export()'),
+    ('public.grainline_seller_owner_commission_interest_summaries(text[],integer)'),
+    ('public.grainline_commission_request_owner_transition(text,text)'),
+    ('public.grainline_commission_account_deletion_prepare(text,bigint,uuid)'),
+    ('public.grainline_commission_account_deletion_redact(text,bigint,uuid)'),
+    ('public.grainline_commission_request_staff_ban_close(text,text)'),
+    ('public.grainline_commission_request_staff_ban_restore(text,text,text[],text[])'),
+    ('public.grainline_commission_request_service_expire_batch(integer)'),
+    ('public.grainline_commission_request_service_expired_count()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM commission_domain_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 COMMIT;

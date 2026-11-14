@@ -75,15 +75,27 @@ describe("seller order mutation ownership guardrails", () => {
   });
 
   it("keeps seller order read surfaces on durable whole-order ownership", () => {
+    const accountExport = source("src/app/api/account/export/route.ts");
+    assert.match(accountExport, /exportSellerOrders\(user\.id\)/);
+    assert.doesNotMatch(accountExport, /prisma\.order/);
+
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    assert.match(accountDeletion, /getOrderAccountDeletionBlockerCounts\(/);
+    assert.match(accountDeletion, /scrubOrderDataForAccountDeletion\(/);
+
+    const ban = source("src/lib/ban.ts");
+    assert.match(ban, /flagBannedSellerOpenOrders\(/);
+    assert.match(ban, /restoreBannedSellerOrderReviews\(/);
+
     for (const path of [
-      "src/app/api/account/export/route.ts",
-      "src/lib/accountDeletion.ts",
-      "src/lib/ban.ts",
+      "prisma/migrations/20260901030000_prepare_order_participant_export_authority/migration.sql",
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+      "prisma/migrations/20260905100000_prepare_order_ban_review_authority/migration.sql",
     ]) {
       const text = source(path);
       assert.match(
         text,
-        /sellerProfileId:/,
+        /source_order\."sellerProfileId"/,
         `${path} must use the checkout-bound Order seller key`,
       );
       assert.doesNotMatch(

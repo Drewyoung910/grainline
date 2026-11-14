@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 const {
   DIRECT_UPLOAD_STATUS,
@@ -148,7 +149,7 @@ describe("direct upload lifecycle", () => {
       ["src/app/dashboard/listings/[id]/edit/page.tsx", /syncListingDirectUploadReferences/],
       ["src/app/api/reviews/route.ts", /syncReviewDirectUploadReferences/],
       ["src/app/api/reviews/[id]/route.ts", /syncReviewDirectUploadReferences/],
-      ["src/app/api/commission/route.ts", /syncCommissionRequestDirectUploadReferences/],
+      ["src/app/api/commission/route.ts", /createOwnerCommissionRequest/],
       ["src/app/dashboard/profile/page.tsx", /syncSellerProfileDirectUploadReferences/],
       ["src/app/dashboard/onboarding/actions.ts", /syncSellerProfileDirectUploadReferences/],
       ["src/app/api/seller/broadcast/route.ts", /syncSellerBroadcastDirectUploadReferences/],
@@ -161,6 +162,15 @@ describe("direct upload lifecycle", () => {
       assert.match(text, syncPattern, path);
       if (path.startsWith("src/app/dashboard/blog/")) {
         assert.match(text, /normalizeBlogCoverImageUrl\([\s\S]*author\.id/, path);
+      } else if (path === "src/app/api/commission/route.ts") {
+        const commissionAuthority = source(
+          commissionDomainPreparationMigrationPath,
+        );
+        assert.match(
+          commissionAuthority,
+          /CREATE FUNCTION public\.grainline_commission_request_owner_create\([\s\S]*grainline_direct_upload_sync_commission_request\(actor_id, p_id\)/,
+          path,
+        );
       } else {
         assert.match(text, /accountUserId:/, path);
       }

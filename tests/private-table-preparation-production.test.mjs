@@ -370,6 +370,27 @@ test("SellerBroadcast preparation is byte-sealed and remains compatible", () => 
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("Commission domain preparation is byte-sealed and remains compatible", () => {
+  const commission = verifyPrivateTablePreparationSource("commission_domain_v1");
+  assert.equal(commission.release.table, "CommissionRequest");
+  assert.deepEqual(commission.release.additionalTables, ["CommissionInterest"]);
+  assert.equal(commission.functionSources.size, 22);
+  assert.deepEqual(commission.release.addedColumns, []);
+  const sql = readFileSync(commission.migrationPath, "utf8");
+  assert.match(sql, /grainline_commission_request_public_page/u);
+  assert.match(sql, /grainline_commission_interest_actor_create/u);
+  assert.match(sql, /grainline_commission_request_owner_transition/u);
+  assert.match(sql, /grainline_commission_account_deletion_prepare/u);
+  assert.match(sql, /grainline_commission_request_staff_ban_close/u);
+  assert.match(sql, /grainline_commission_request_service_expire_batch/u);
+  assert.match(sql, /Commission owner-interest predecessor authority drifted/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("email service preparation is byte-sealed and remains compatible", () => {
   const emailService = verifyPrivateTablePreparationSource("email_service_v1");
   assert.equal(emailService.release.table, "EmailOutbox");
@@ -548,6 +569,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "seller_broadcast_v1",
     "email_service_v1",
     "seller_metrics_v1",
+    "commission_domain_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -578,6 +600,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "seller_broadcast_v1",
       "email_service_v1",
       "seller_metrics_v1",
+      "commission_domain_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
     ],

@@ -571,6 +571,15 @@ jobs:
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate Commission domain preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/commission-domain-preparation"
+          migration=20261113010000_prepare_commission_domain_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate service and reference least-privilege migration until historical release guards pass
         shell: bash
         run: |
@@ -7192,6 +7201,15 @@ jobs:
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_METRICS_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Commission domain preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/commission-domain-preparation"
+          migration=20261113010000_prepare_commission_domain_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore service and reference least-privilege migration after historical release guards
         shell: bash
         run: |

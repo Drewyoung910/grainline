@@ -43,7 +43,8 @@ describe("commission route observability follow-ups", () => {
     assert.notEqual(afterStart, -1);
     assert.match(interestRoute, /createCommissionInterestMessage\(\{/);
     assert.match(access, /createActorCommissionInterest\(input\)/);
-    assert.match(authority, /public\.grainline_message_create_commission_interest/);
+    assert.match(authority, /public\.grainline_commission_interest_actor_create/);
+    assert.match(authority, /withDbUserContext\(sellerUserId/);
     assert.match(commissionFunction, /INSERT INTO public\."CommissionInterest"/);
     assert.match(commissionFunction, /INSERT INTO public\."Message"/);
     assert.match(commissionFunction, /'commission_interest_card',\s*true/);

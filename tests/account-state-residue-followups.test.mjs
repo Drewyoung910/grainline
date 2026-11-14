@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
@@ -24,18 +25,22 @@ describe("account-state residue hardening", () => {
     assert.doesNotMatch(reviews, /r\.reviewer\.(?:banned|deletedAt|imageUrl)/);
   });
 
-  it("removes banned or deleted sellers from commission interest counts", () => {
-    const helper = source("src/lib/commissionInterestCleanup.ts");
+  it("preserves durable commission interest evidence while bounding ban and deletion writes", () => {
     const ban = source("src/lib/ban.ts");
     const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      commissionDomainPreparationMigrationPath,
+    );
 
-    assert.match(helper, /commissionInterest\.findMany/);
-    assert.match(helper, /commissionInterest\.deleteMany\(\{ where: \{ sellerProfileId \} \}\)/);
-    assert.match(helper, /commissionInterest\.count\(\{\s*where: \{ commissionRequestId \}/s);
-    assert.match(helper, /commissionRequest\.update\(\{\s*where: \{ id: commissionRequestId \}/s);
-    assert.match(helper, /data: \{ interestedCount \}/);
-    assert.match(ban, /removeSellerCommissionInterests\(tx, sellerProfile\.id\)/);
-    assert.match(deletion, /removeSellerCommissionInterests\(tx, user\.sellerProfile\.id\)/);
+    assert.match(ban, /closeCommissionRequestsForStaffBan/);
+    assert.match(ban, /Preserve the maker's durable interest and Conversation evidence/);
+    assert.match(deletion, /prepareCommissionAccountDeletion/);
+    assert.match(deletion, /redactCommissionAccountDeletion/);
+    assert.match(authority, /grainline_commission_request_staff_ban_close/);
+    assert.match(authority, /grainline_commission_account_deletion_prepare/);
+    assert.match(authority, /grainline_commission_account_deletion_redact/);
+    assert.doesNotMatch(ban, /commissionInterest\.(?:findMany|deleteMany|count)/);
+    assert.doesNotMatch(deletion, /commissionInterest\.(?:findMany|deleteMany|count)/);
   });
 
   it("invalidates public seller visibility caches when account state removes public content", () => {

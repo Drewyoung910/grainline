@@ -91,6 +91,7 @@ import {
 } from "../scripts/private-table-preparation-catalog.mjs";
 
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const COMMISSION_DOMAIN_PREPARATION = privateTablePreparation("commission_domain_v1");
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -4203,6 +4204,13 @@ describe("database grant inventory guardrails", () => {
     ).includes(
       'ALTER TABLE public."SellerMetrics" FORCE ROW LEVEL SECURITY',
     );
+    const commissionDomainAuthorityPrepared = existsSync(
+      `prisma/migrations/${COMMISSION_DOMAIN_PREPARATION.migration}/migration.sql`,
+    ) && COMMISSION_DOMAIN_PREPARATION.functions.every((entry) =>
+      source(
+        `prisma/migrations/${COMMISSION_DOMAIN_PREPARATION.migration}/migration.sql`,
+      ).includes(`FUNCTION public.${entry.name}(`),
+    );
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -4450,6 +4458,9 @@ describe("database grant inventory guardrails", () => {
       ...(sellerMetricsAuthorityPrepared
         ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
         : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION.functions.map((entry) => entry.name)
+        : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
         : []),
@@ -4578,6 +4589,11 @@ describe("database grant inventory guardrails", () => {
         + (makerVerificationActivationPresent ? 1 : 0)
         + (sellerMetricsAuthorityPrepared
           ? SELLER_METRICS_PREPARATION.functions.length
+          : 0)
+        + (commissionDomainAuthorityPrepared
+          // The seller interest summary already revoked PUBLIC in its
+          // predecessor migration; the other authorities are new here.
+          ? COMMISSION_DOMAIN_PREPARATION.functions.length - 1
           : 0)
         + (sellerMetricsRlsActivationPresent ? 1 : 0)
         + (typeof followRlsActivationExpected === "function"
@@ -4723,6 +4739,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(sellerMetricsAuthorityPrepared
         ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
+        : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION.functions.map((entry) => entry.name)
         : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES

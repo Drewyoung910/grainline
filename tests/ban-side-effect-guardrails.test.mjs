@@ -22,8 +22,9 @@ describe("ban side-effect guardrails", () => {
     const audit = source("src/lib/audit.ts");
     const authority = source("src/lib/orderBanReviewAuthority.ts");
 
-    assert.match(ban, /const BANNED_BUYER_COMMISSION_STATUSES = \['OPEN', 'IN_PROGRESS'\] as const/);
-    assert.match(ban, /status: \{ in: \[\.\.\.BANNED_BUYER_COMMISSION_STATUSES\] \}/);
+    assert.match(ban, /const commissionRequests = await closeCommissionRequestsForStaffBan\(\s*tx,\s*banReviewCapability,\s*userId,\s*\)/s);
+    assert.match(ban, /buildBanAuditMetadata\(\{[\s\S]*commissionRequests,[\s\S]*openOrderSnapshots: flaggedOpenOrders/s);
+    assert.doesNotMatch(ban, /(?:prisma|tx)\.commissionRequest\./);
     assert.match(ban, /flagBannedSellerOpenOrders\(\s*banReviewCapability,\s*userId,\s*tx/s);
     assert.match(ban, /openOrderSnapshots: flaggedOpenOrders/);
     assert.match(ban, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*userId,\s*capabilityBanMetadata\.flaggedOpenOrders,\s*tx/s);

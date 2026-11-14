@@ -63,8 +63,9 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     );
     assert.match(
       mediaCollection,
-      /await sellerAccountDeletionPublicMediaUrls\(db, \{[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await db\.commissionRequest\.findMany[\s\S]*await listActorSentMessageBodiesForDeletion\(userId, db\)[\s\S]*await db\.blogPost\.findMany[\s\S]*await accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/,
+      /await sellerAccountDeletionPublicMediaUrls\(db, \{[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await ownerCommissionReferenceImageUrls\(db\)[\s\S]*await listActorSentMessageBodiesForDeletion\(userId, db\)[\s\S]*await db\.blogPost\.findMany[\s\S]*await accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/,
     );
+    assert.doesNotMatch(mediaCollection, /db\.commissionRequest\./);
     assert.doesNotMatch(mediaCollection, /db\.directUpload\./);
   });
 
