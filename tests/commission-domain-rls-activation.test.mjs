@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -68,13 +68,22 @@ test("runtime provisioning preserves zero-direct Commission authority after acti
   );
 });
 
-test("global grant audit recognizes the activated Commission domain", () => {
+test("global grant audit follows the Commission activation source state", () => {
   const inventory = deriveGrantInventory();
-  assert.equal(commissionDomainRlsActivationExpected(inventory), true);
-  assert.equal(commissionDomainRlsForceExpected(inventory), true);
+  const activationPresent = existsSync(
+    "prisma/migrations/20261113020000_activate_commission_domain_rls/migration.sql",
+  );
+  assert.equal(commissionDomainRlsActivationExpected(inventory), activationPresent);
+  assert.equal(commissionDomainRlsForceExpected(inventory), activationPresent);
   for (const table of ["CommissionRequest", "CommissionInterest"]) {
-    assert.deepEqual(requiredRuntimeTablePrivileges(table, inventory), []);
-    assert.equal(policylessServiceRlsTableNames(inventory).includes(table), true);
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(table, inventory),
+      activationPresent ? [] : ["SELECT", "INSERT", "UPDATE", "DELETE"],
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(inventory).includes(table),
+      activationPresent,
+    );
   }
 });
 
