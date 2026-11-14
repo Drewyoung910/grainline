@@ -363,3 +363,28 @@ separate change and additionally requires:
   grants needed by the still-compatible application;
 - exact compatible deployment, predecessor drain and explicit production
   authorization.
+
+### Isolated activation-candidate evidence (2026-11-13)
+
+The separate activation candidate now closes the source-side activation gates
+without changing Production:
+
+- `CommissionRequest` and `CommissionInterest` are byte-sealed as one
+  policyless ENABLE-plus-FORCE boundary in the shared activation catalog;
+- the shared inspector, provisioning SQL and global grant audit understand the
+  two-table boundary and fail closed on a partially activated pair;
+- the complete 462-migration PostgreSQL 17 proof exercises the prepared
+  anonymous, owner, participant, block, ban, staff, cron, deletion and race
+  behavior before activation, then proves zero direct runtime authority,
+  fixed-operation compatibility, realistic-volume query plans and hard
+  request-to-interest cascade behavior after activation;
+- the database-first rollback restores only predecessor CRUD, proves the
+  predecessor statements, preserves the completed migration ledger, and the
+  same proof reapplies the forward migration cleanly; and
+- the generic preparation and activation workflows expose the coupled release;
+  no Commission-only release workflow was added.
+
+This is isolated candidate evidence only. Preparation must still be merged and
+applied first, a compatible application must be deployed and predecessor
+traffic drained, exact-head CI and independent review must pass, and Drew must
+separately authorize the Production activation.
