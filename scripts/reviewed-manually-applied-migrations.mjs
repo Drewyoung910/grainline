@@ -139,7 +139,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261113020000_activate_commission_domain_rls",
-    "9bd7ab14f7bc679039d4a7bd25e2b1089a605a480a75b6cd01ad3b5cb9a1086b",
+    "3e5aa3051193b2a2a18b0d57d073f9122f3ff15e118c5fee080ee65fc7d737cf",
   ],
 ]);
 

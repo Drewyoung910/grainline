@@ -87,7 +87,7 @@ BEGIN
        AND checksum = 'a189c1114e11df5ae2e57370faeac80da76adbf8fc8cc2bedc31270dea15774c'
        AND finished_at IS NOT NULL
        AND rolled_back_at IS NULL
-       AND applied_steps_count = 1
+       AND applied_steps_count IN (0, 1)
   ) <> 1 OR EXISTS (
     SELECT 1 FROM public._prisma_migrations
      WHERE migration_name = '20261113010000_prepare_commission_domain_authorities'
@@ -95,7 +95,7 @@ BEGIN
          checksum = 'a189c1114e11df5ae2e57370faeac80da76adbf8fc8cc2bedc31270dea15774c'
          AND finished_at IS NOT NULL
          AND rolled_back_at IS NULL
-         AND applied_steps_count = 1
+         AND applied_steps_count IN (0, 1)
        )
   ) THEN
     RAISE EXCEPTION 'Commission preparation ledger drifted';

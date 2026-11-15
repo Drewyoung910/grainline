@@ -35,6 +35,15 @@ test("Commission activation is one atomic policyless two-table boundary", () => 
   assert.equal(verified.rollbackDigest, release.rollbackSha256);
   assert.match(migration, /SET LOCAL lock_timeout = '5s'/u);
   assert.match(migration, /SET LOCAL statement_timeout = '60s'/u);
+  assert.equal(
+    (migration.match(/applied_steps_count IN \(0, 1\)/gu) ?? []).length,
+    2,
+    "activation must accept reviewed direct and manually recorded preparation successes",
+  );
+  assert.doesNotMatch(
+    migration,
+    /20261113010000_prepare_commission_domain_authorities[\s\S]{0,500}applied_steps_count = 1/u,
+  );
   assert.match(
     migration,
     /LOCK TABLE public\."CommissionInterest", public\."CommissionRequest"\s+IN ACCESS EXCLUSIVE MODE/u,

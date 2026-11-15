@@ -100,7 +100,8 @@ Rollback:
 - preparation is additive and leaves predecessor grants unchanged;
 - activation rollback is database-first: restore the exact predecessor table
   privileges required by the compatible app, `NO FORCE`, disable RLS, and
-  verify predecessor statements before rolling back the migration ledger;
+  verify predecessor statements while preserving the successfully applied
+  migration ledger row; reactivation requires a new reviewed forward migration;
 - fixed functions remain compatible throughout rollback and can be retired in
   a later cleanup, not during the emergency.
 
