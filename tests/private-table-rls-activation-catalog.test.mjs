@@ -134,6 +134,21 @@ test("catalog byte-seals policyless SellerMetrics activation", () => {
   assert.equal(source.rollbackDigest, metrics.rollbackSha256);
 });
 
+test("catalog byte-seals the coupled Commission domain activation", () => {
+  const commission = privateTableRlsActivation("commission_domain_v1");
+  const source = verifyPrivateTableRlsActivationSource("commission_domain_v1");
+  assert.equal(commission.table, "CommissionRequest");
+  assert.deepEqual(commission.tables, [
+    "CommissionRequest",
+    "CommissionInterest",
+  ]);
+  assert.equal(commission.mode, "policyless_combined_enable_force");
+  assert.deepEqual(commission.policies, []);
+  assert.deepEqual(commission.activatedRuntimePrivileges, []);
+  assert.equal(source.migrationDigest, commission.migrationSha256);
+  assert.equal(source.rollbackDigest, commission.rollbackSha256);
+});
+
 test("batch source verification prefers each release's staged paths", () => {
   const sourceByRelease = Object.fromEntries(
     privateTableRlsActivationReleaseIds("owner_social_verification_v1")

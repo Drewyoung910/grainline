@@ -900,4 +900,10 @@ export async function proveCommissionDomainPreparedAuthorities({
     (error) => error?.code === "22023",
     "banned owners must not mutate CommissionRequest geography",
   );
+
+  await database.query(
+    `DELETE FROM public."AccountDeletionSideEffect"
+      WHERE id = ANY($1::text[])`,
+    [[buyerDeletionClaim.sideEffectId, sellerDeletionClaim.sideEffectId]],
+  );
 }

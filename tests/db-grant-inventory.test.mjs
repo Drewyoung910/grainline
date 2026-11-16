@@ -588,6 +588,9 @@ const {
   sellerMetricsRlsActivationExpected,
   sellerMetricsRlsForceExpected,
   SELLER_METRICS_TABLE,
+  commissionDomainRlsActivationExpected,
+  commissionDomainRlsForceExpected,
+  COMMISSION_DOMAIN_TABLES,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -4595,6 +4598,8 @@ describe("database grant inventory guardrails", () => {
           // predecessor migration; the other authorities are new here.
           ? COMMISSION_DOMAIN_PREPARATION.functions.length - 1
           : 0)
+        + (typeof commissionDomainRlsActivationExpected === "function"
+          && commissionDomainRlsActivationExpected(inventory) ? 1 : 0)
         + (sellerMetricsRlsActivationPresent ? 1 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
@@ -5086,6 +5091,10 @@ describe("database grant inventory guardrails", () => {
         ...(clerkWebhookEventRlsActivationExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
           : []),
+        ...(typeof commissionDomainRlsActivationExpected === "function"
+          && commissionDomainRlsActivationExpected(inventory)
+          ? [...COMMISSION_DOMAIN_TABLES].sort()
+          : []),
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
@@ -5155,6 +5164,10 @@ describe("database grant inventory guardrails", () => {
         "CheckoutStockReservation",
         ...(clerkWebhookEventRlsForceExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
+          : []),
+        ...(typeof commissionDomainRlsForceExpected === "function"
+          && commissionDomainRlsForceExpected(inventory)
+          ? [...COMMISSION_DOMAIN_TABLES].sort()
           : []),
         "Conversation",
         "DirectUpload",
@@ -6852,6 +6865,9 @@ describe("database grant inventory guardrails", () => {
     const sellerMetricsProvisioningPresent = provision.includes(
       "seller_metrics_rls_active",
     );
+    const commissionDomainProvisioningPresent = provision.includes(
+      "grainline_commission_domain_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6866,7 +6882,8 @@ describe("database grant inventory guardrails", () => {
         + Number(sellerBroadcastProvisioningPresent)
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
         + Number(emailServiceLeastPrivilegeProvisioningPresent)
-        + Number(sellerMetricsProvisioningPresent),
+        + Number(sellerMetricsProvisioningPresent)
+        + Number(commissionDomainProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);

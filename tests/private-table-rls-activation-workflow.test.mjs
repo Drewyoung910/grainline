@@ -205,6 +205,7 @@ test("workflow binds reviewed activations to exact main and Production", async (
     "block_report_seller_faq_v1",
     "seller_broadcast_v1",
     "seller_metrics_v1",
+    "commission_domain_v1",
   ]);
   assert.match(workflow, new RegExp(PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION, "u"));
   assert.match(workflow, /PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID/u);
@@ -273,6 +274,7 @@ test("workflow is sole-pending, restart-aware, readback-bound, and evidence-reta
   assert.match(workflow, /private-table-rls-activation-state\.tsv/u);
   assert.match(workflow, /owner_social_verification_v1/u);
   assert.match(workflow, /seller_metrics_v1/u);
+  assert.match(workflow, /commission_domain_v1/u);
   assert.match(workflow, /block_report_seller_faq_v1/u);
   assert.match(workflow, /--release-ids/u);
   assert.match(workflow, /--migrations/u);

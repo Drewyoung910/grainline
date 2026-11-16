@@ -137,6 +137,8 @@ const sellerMetricsActivationMigration =
   "20261102040000_activate_seller_metrics_rls";
 const commissionDomainPreparationMigration =
   "20261113010000_prepare_commission_domain_authorities";
+const commissionDomainActivationMigration =
+  "20261113020000_activate_commission_domain_rls";
 const serviceReferenceLeastPrivilegeMigration =
   "20261101020000_narrow_service_reference_runtime_privileges";
 const emailServiceLeastPrivilegeMigration =
@@ -1458,6 +1460,22 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const commissionDomainActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      commissionDomainActivationMigration,
+    );
+    if (!existsSync(commissionDomainActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          commissionDomainActivationMigration,
+          "COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        commissionDomainActivationTarget,
+        { recursive: true },
+      );
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
@@ -1636,6 +1654,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${sellerMetricsActivationMigration}/migration.sql`;
     const commissionDomainPreparationPath =
       `prisma/migrations/${commissionDomainPreparationMigration}/migration.sql`;
+    const commissionDomainActivationPath =
+      `prisma/migrations/${commissionDomainActivationMigration}/migration.sql`;
     const serviceReferenceLeastPrivilegePath =
       `prisma/migrations/${serviceReferenceLeastPrivilegeMigration}/migration.sql`;
     const emailServiceLeastPrivilegePath =
@@ -1683,6 +1703,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       sellerMetricsPreparationPath,
       sellerMetricsActivationPath,
       commissionDomainPreparationPath,
+      commissionDomainActivationPath,
       serviceReferenceLeastPrivilegePath,
       emailServiceLeastPrivilegePath,
       emailServiceLeastPrivilegeActivationPath,
@@ -1734,7 +1755,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate SellerFaq source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SellerBroadcast candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SellerMetrics candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
-    execFileSync("bash", ["-c", bashBody("Isolate Commission domain preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate Commission domain stack until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate service and reference least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email service least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1775,6 +1796,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, sellerMetricsPreparationPath)), false);
     assert.equal(existsSync(path.join(root, sellerMetricsActivationPath)), false);
     assert.equal(existsSync(path.join(root, commissionDomainPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, commissionDomainActivationPath)), false);
     assert.equal(existsSync(path.join(root, serviceReferenceLeastPrivilegePath)), false);
     assert.equal(existsSync(path.join(root, emailServiceLeastPrivilegePath)), false);
     assert.equal(
@@ -1858,7 +1880,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore SellerFaq source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerBroadcast candidates after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerMetrics candidate after historical release guards")], { cwd: root, env: scriptEnv });
-    execFileSync("bash", ["-c", bashBody("Restore Commission domain preparation after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore Commission domain stack after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore service and reference least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email service least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });

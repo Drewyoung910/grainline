@@ -16,6 +16,7 @@ on:
           - block_report_seller_faq_v1
           - seller_broadcast_v1
           - seller_metrics_v1
+          - commission_domain_v1
       release_commit:
         description: Exact reviewed main commit
         required: true

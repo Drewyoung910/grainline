@@ -100,7 +100,8 @@ Rollback:
 - preparation is additive and leaves predecessor grants unchanged;
 - activation rollback is database-first: restore the exact predecessor table
   privileges required by the compatible app, `NO FORCE`, disable RLS, and
-  verify predecessor statements before rolling back the migration ledger;
+  verify predecessor statements while preserving the successfully applied
+  migration ledger row; reactivation requires a new reviewed forward migration;
 - fixed functions remain compatible throughout rollback and can be retired in
   a later cleanup, not during the emergency.
 
@@ -147,9 +148,13 @@ It is weaker and not materially cheaper than the selected projection.
 
 ## Activation boundary
 
-Option B authorizes compatible preparation only. Activation remains blocked
-until `docs/commission-domain-pre-rls-audit.md` has no open
-`FIX_BEFORE_ACTIVATION` items and the exact PostgreSQL 17, deployment-skew,
-catalog, denial, concurrency, cascade and rollback proofs pass. No statement in
-this document is standing permission to merge, deploy, inspect production, or
-run a production migration.
+Option B authorized compatible preparation first. A separate isolated
+activation candidate now extends the reusable catalog and inspector for the
+tightly coupled two-table boundary and passes the exact PostgreSQL 17 catalog,
+denial, concurrency, realistic-volume, cascade, rollback and reactivation
+proofs. It deliberately adds no Commission-only workflow or policy layer.
+
+Activation remains gated on the preparation release, compatible application
+deployment and predecessor drain, exact-head CI, independent review and Drew's
+separate Production authorization. No statement in this document is standing
+permission to merge, deploy, inspect production, or run a production migration.

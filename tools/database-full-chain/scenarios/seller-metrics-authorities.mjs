@@ -249,12 +249,15 @@ async function proveDeletionWinsRefreshRace({
     await finalizeDeletion(deletion, seller, sideEffectId, claimToken);
 
     await beginActor(refresh, seller.userId);
-    const waitingRefresh = refresh.query(
-      "SELECT * FROM public.grainline_seller_metrics_owner_state(3, true)",
+    const waitingRefresh = expectSqlState(
+      refresh.query(
+        "SELECT * FROM public.grainline_seller_metrics_owner_state(3, true)",
+      ),
+      "42501",
     );
     await waitForLockWait(database, "seller_metrics_refresh_waiter");
     await deletion.query("COMMIT");
-    await expectSqlState(waitingRefresh, "42501");
+    await waitingRefresh;
     await refresh.query("ROLLBACK");
 
     const count = rowsOf(await database.query(

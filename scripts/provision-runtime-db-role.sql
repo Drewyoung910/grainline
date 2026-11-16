@@ -732,6 +732,62 @@ REVOKE ALL ON TABLE public."MakerVerification"
 \endif
 \unset maker_verification_rls_active
 
+-- CommissionRequest and CommissionInterest are one authority boundary. Keep
+-- predecessor CRUD only while both tables are cleanly unprotected. After the
+-- reviewed policyless ENABLE plus FORCE activation, every provisioning replay
+-- must preserve zero direct table authority on both tables.
+WITH table_state AS (
+  SELECT class.relname, class.relrowsecurity, class.relforcerowsecurity,
+         (SELECT pg_catalog.count(*)
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname IN ('CommissionInterest', 'CommissionRequest')
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT COUNT(*) = 2
+           AND bool_and(
+             relrowsecurity AND relforcerowsecurity AND policy_count = 0
+           ) AS active,
+         COUNT(*) = 2
+           AND bool_and(
+             NOT relrowsecurity AND NOT relforcerowsecurity AND policy_count = 0
+           ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'Commission domain RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+       COALESCE((SELECT message FROM failure LIMIT 1), '')
+         AS grainline_role_provisioning_failure,
+       COALESCE((SELECT active FROM posture), false)
+         AS grainline_commission_domain_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_commission_domain_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_commission_domain_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_commission_domain_rls_active
+REVOKE ALL ON TABLE public."CommissionInterest", public."CommissionRequest"
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_commission_domain_rls_active
+
 -- Block, UserReport and SellerFaq share one reviewed policyless activation
 -- batch. A provisioning replay may preserve predecessor CRUD only while each
 -- table is cleanly unprotected; after activation it must restore zero direct
