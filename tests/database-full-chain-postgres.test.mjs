@@ -213,6 +213,8 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   [SELLER_METRICS_RLS_MIGRATION, "seller_metrics_v1"],
   [COMMISSION_DOMAIN_RLS_MIGRATION, "commission_domain_v1"],
 ]);
+const COMMISSION_DOMAIN_PREPARATION_MIGRATION =
+  "20261113010000_prepare_commission_domain_authorities";
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
   const accountDeletionClient = new pg.Client({ connectionString });
@@ -1041,6 +1043,19 @@ test(
                 database: adapter,
                 seller: fixture,
               });
+              const manuallyRecordedPreparation = await adapter.query(
+                `UPDATE public."_prisma_migrations"
+                    SET applied_steps_count = 0
+                  WHERE migration_name = $1
+                    AND finished_at IS NOT NULL
+                    AND rolled_back_at IS NULL
+                    AND applied_steps_count = 1
+                RETURNING applied_steps_count AS "appliedStepsCount"`,
+                [COMMISSION_DOMAIN_PREPARATION_MIGRATION],
+              );
+              assert.deepEqual(manuallyRecordedPreparation.rows, [
+                { appliedStepsCount: 0 },
+              ]);
               commissionPreparationProved = true;
             }
             const evidencePath = join(
