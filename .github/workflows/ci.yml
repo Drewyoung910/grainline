@@ -3168,7 +3168,7 @@ jobs:
           set -euo pipefail
           psql "$DIRECT_URL" \
             --set=ON_ERROR_STOP=on \
-            --file=prisma/migrations/20261020235999_prepare_seller_profile_staff_listing_review_transition/migration.sql
+            --file="$RUNNER_TEMP/seller-profile-public-candidate/migrations/20261020235999_prepare_seller_profile_staff_listing_review_transition/migration.sql"
           psql "$DIRECT_URL" \
             --set=ON_ERROR_STOP=on \
             --file=prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql

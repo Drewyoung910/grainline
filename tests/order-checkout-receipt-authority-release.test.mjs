@@ -74,7 +74,10 @@ test("CI isolates Listing for the historical Order release chain and restores it
     "202610" + "20235999_prepare_seller_profile_staff_listing_review_transition";
   assert.match(
     listingReplayBlock,
-    new RegExp(`${listingReviewPredecessor}/migration\\.sql`, "u"),
+    new RegExp(
+      `seller-profile-public-candidate/migrations/${listingReviewPredecessor}/migration\\.sql`,
+      "u",
+    ),
   );
   assert.match(
     listingReplayBlock,
