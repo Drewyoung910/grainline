@@ -38,6 +38,8 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     soldOut: `listing-catalog-sold-out-${suffix}`,
   };
   const photoId = `listing-catalog-photo-${suffix}`;
+  const variantGroupId = `listing-catalog-group-${suffix}`;
+  const variantOptionId = `listing-catalog-option-${suffix}`;
   const blockId = `listing-catalog-block-${suffix}`;
   const metroId = `listing-catalog-metro-${suffix}`;
   const ownerTag = `owner-${suffix.slice(0, 12)}`;
@@ -229,6 +231,104 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
              'https://private.example.test/catalog-original.jpg',
              'Catalog photo', 0, $3)`,
     [photoId, listingIds.matching, now],
+  );
+  await database.query(
+    `INSERT INTO public."ListingVariantGroup" (id, "listingId", name, "sortOrder")
+     VALUES ($1, $2, 'Finish', 0)`,
+    [variantGroupId, listingIds.matching],
+  );
+  await database.query(
+    `INSERT INTO public."ListingVariantOption"
+       (id, "groupId", label, "priceAdjustCents", "sortOrder", "inStock")
+     VALUES ($1, $2, 'Natural', 0, 0, true)`,
+    [variantOptionId, variantGroupId],
+  );
+
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(
+      database,
+      null,
+      `SELECT id, title
+         FROM public."Listing"
+        WHERE id = ANY($1::text[])
+        ORDER BY id`,
+      [Object.values(listingIds)],
+    )),
+    [listingIds.matching, listingIds.wrongTag]
+      .sort()
+      .map((id) => ({
+        id,
+        title: id === listingIds.matching
+          ? "Catalog oak table"
+          : "Catalog walnut table",
+      })),
+    "direct Listing reads expose only active public orderable rows",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      `SELECT id, "reservedForUserId"
+         FROM public."Listing"
+        WHERE id = $1`,
+      [listingIds.matching],
+    ),
+    /permission denied/u,
+    "direct Listing reads cannot project private reservation columns",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      actorId,
+      `UPDATE public."Listing" SET title = 'forged' WHERE id = $1`,
+      [listingIds.matching],
+    ),
+    /permission denied/u,
+    "direct Listing writes remain revoked",
+  );
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(
+      database,
+      null,
+      `SELECT id, url FROM public."Photo" WHERE id = $1`,
+      [photoId],
+    )),
+    [{ id: photoId, url: "https://cdn.example.test/catalog.jpg" }],
+    "direct Photo reads expose reviewed public media",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      `SELECT id, "originalUrl" FROM public."Photo" WHERE id = $1`,
+      [photoId],
+    ),
+    /permission denied/u,
+    "direct Photo reads cannot project original media",
+  );
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(
+      database,
+      null,
+      `SELECT id, "listingId", name
+         FROM public."ListingVariantGroup"
+        WHERE id = $1`,
+      [variantGroupId],
+    )),
+    [{ id: variantGroupId, listingId: listingIds.matching, name: "Finish" }],
+    "direct variant-group reads follow public Listing visibility",
+  );
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(
+      database,
+      null,
+      `SELECT id, "groupId", label
+         FROM public."ListingVariantOption"
+        WHERE id = $1`,
+      [variantOptionId],
+    )),
+    [{ id: variantOptionId, groupId: variantGroupId, label: "Natural" }],
+    "direct variant-option reads follow public Listing visibility",
   );
 
   const sourceSql = `
