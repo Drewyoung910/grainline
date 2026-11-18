@@ -10,7 +10,6 @@ import {
   completeCheckoutStockReservation,
   finalizeCheckoutStockReservationRepair,
   pruneCheckoutStockReservationBatch,
-  abortCheckoutStockReservation,
   restoreBuyerExpiredCheckoutStockReservation,
   restoreCheckoutStockReservationFromWebhook,
   restoreSellerExpiredCheckoutStockReservation,

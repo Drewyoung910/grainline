@@ -36,7 +36,6 @@ import {
 } from "@/lib/listingOwnerAccess";
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 
-const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 const customOrderReadyWarning = "Listing is live, but the buyer was not notified. Contact support; delivery is safe to retry.";
 
 type PublishListingResult =

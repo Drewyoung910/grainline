@@ -4,7 +4,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { sendFirstListingCongratsIfFirst } from "@/lib/firstListingEmail";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -51,7 +50,6 @@ import {
   createListingOwner,
   listingOwnerActionState,
   listingOwnerAiReviewContext,
-  listingOwnerCounts,
 } from "@/lib/listingOwnerAccess";
 import type { Metadata } from "next";
 
