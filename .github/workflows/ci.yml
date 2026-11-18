@@ -3157,6 +3157,15 @@ jobs:
           (cd "$source" && node scripts/order-zero-direct-execution-postgres-proof.mjs)
         env:
           ORDER_ZERO_DIRECT_EXECUTION_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
+      # The bounded historical executor reconstructs its exact predecessor
+      # database, so it intentionally removes every authority added later.
+      # Replay the current Listing preparation in its real chronological order
+      # before the shared grant audit proves the two domains compose.
+      - name: Reapply Listing preparation after historical Order executor
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql
       - name: Converge Order participant runtime grants
         run: >-
           psql "$DIRECT_URL"
