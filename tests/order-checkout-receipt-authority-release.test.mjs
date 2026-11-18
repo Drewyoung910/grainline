@@ -24,6 +24,34 @@ test("Order checkout receipt authority is one exact compatible successor pair", 
   assert.equal(result.productionTouched, false);
 });
 
+test("CI isolates and restores the newer Listing preparation around the historical release guard", () => {
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  const isolate = workflow.indexOf(
+    "Temporarily isolate Listing preparation from the historical checkout receipt guard",
+  );
+  const verify = workflow.indexOf(
+    "Verify compatible Order checkout receipt authority release",
+  );
+  const restore = workflow.indexOf(
+    "Restore Listing preparation after the historical checkout receipt guard",
+  );
+  assert.ok(isolate >= 0 && isolate < verify);
+  assert.ok(verify < restore);
+  const isolatedBlock = workflow.slice(isolate, restore);
+  assert.match(
+    isolatedBlock,
+    /order-checkout-receipt-listing-isolation[\s\S]*mv[\s\S]*prisma\/migrations\/20261102050000_prepare_listing_domain_authorities/u,
+  );
+  const restoredBlock = workflow.slice(restore, workflow.indexOf(
+    "Isolate Order checkout receipt authority until snapshot correction passes",
+    restore,
+  ));
+  assert.match(
+    restoredBlock,
+    /order-checkout-receipt-listing-isolation[\s\S]*mv[\s\S]*prisma\/migrations\/20261102050000_prepare_listing_domain_authorities/u,
+  );
+});
+
 test("Order checkout receipt authority fails closed on migration byte drift", () => {
   const root = mkdtempSync(path.join(tmpdir(), "grainline-order-receipt-release-"));
   try {

@@ -1824,8 +1824,26 @@ jobs:
           mv
           prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
           "$RUNNER_TEMP/order-receipt-notification-authority-release"
+      - name: Temporarily isolate Listing preparation from the historical checkout receipt guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-checkout-receipt-listing-isolation"
+          mkdir -p "$holding"
+          mv \
+            prisma/migrations/20261102050000_prepare_listing_domain_authorities \
+            "$holding/20261102050000_prepare_listing_domain_authorities"
       - name: Verify compatible Order checkout receipt authority release
         run: npm run audit:order-checkout-receipt-authority-release
+      - name: Restore Listing preparation after the historical checkout receipt guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-checkout-receipt-listing-isolation"
+          mv \
+            "$holding/20261102050000_prepare_listing_domain_authorities" \
+            prisma/migrations/20261102050000_prepare_listing_domain_authorities
+          rmdir "$holding"
       - name: Isolate Order checkout receipt authority until snapshot correction passes
         run: >-
           mv
