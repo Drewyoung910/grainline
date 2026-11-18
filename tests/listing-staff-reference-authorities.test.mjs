@@ -13,6 +13,7 @@ test("staff Listing references and verification counts use isolated bounded auth
     provision,
     staffProvision,
     runner,
+    fullChainScenario,
   ] = await Promise.all([
     readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
     readFile(new URL("src/lib/listingStaffAccess.ts", root), "utf8"),
@@ -21,6 +22,7 @@ test("staff Listing references and verification counts use isolated bounded auth
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
     readFile(new URL("scripts/provision-order-staff-read-role.sql", root), "utf8"),
     readFile(new URL("tests/database-full-chain-postgres.test.mjs", root), "utf8"),
+    readFile(new URL("tools/database-full-chain/scenarios/listing-domain-staff-references.mjs", root), "utf8"),
   ]);
 
   assert.match(migration, /CREATE FUNCTION public\.grainline_listing_staff_reference_targets\(/u);
@@ -55,4 +57,5 @@ test("staff Listing references and verification counts use isolated bounded auth
     );
   }
   assert.match(runner, /proveListingDomainStaffReferences/u);
+  assert.match(fullChainScenario, /updatedAt: now,[\s\S]*rejectionReason: null/u);
 });

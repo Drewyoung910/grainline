@@ -117,16 +117,22 @@ export async function proveListingDomainStaffReferences({ database, seller }) {
         id: listingIds[2],
         title: "Staff hidden target",
         sellerProfileId: seller.sellerProfileId,
+        updatedAt: now,
+        rejectionReason: null,
       },
       {
         id: listingIds[0],
         title: "Staff public target",
         sellerProfileId: seller.sellerProfileId,
+        updatedAt: now,
+        rejectionReason: null,
       },
       {
         id: listingIds[1],
         title: "Staff private target",
         sellerProfileId: seller.sellerProfileId,
+        updatedAt: now,
+        rejectionReason: null,
       },
     ]);
 
