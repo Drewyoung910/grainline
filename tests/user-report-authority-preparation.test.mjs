@@ -45,7 +45,8 @@ test("all UserReport callers use fixed authorities and the staff queue is comple
   assert.doesNotMatch(accountExport, /prisma\.userReport\./u);
   assert.doesNotMatch(accountDeletion, /userReport\.updateMany/u);
   assert.match(adminPage, /userReportStaffOpenCount/u);
-  assert.match(adminLayout, /userReportStaffOpenCount\(getOrderStaffReadClient\(\), user\.id\)/u);
+  assert.match(adminLayout, /const staffClient = getOrderStaffReadClient\(\)/u);
+  assert.match(adminLayout, /userReportStaffOpenCount\(staffClient, user\.id\)/u);
   assert.match(adminPage, /userReportStaffOpenPage/u);
   assert.match(adminPage, /Oldest unresolved reports are shown first/u);
   assert.match(adminPage, /afterCreatedAt/u);
