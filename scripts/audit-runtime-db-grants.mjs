@@ -69,6 +69,9 @@ import {
 import {
   privateTablePreparation,
 } from "./private-table-preparation-catalog.mjs";
+import {
+  SELLER_PROFILE_PUBLIC_PREPARATIONS,
+} from "./seller-profile-public-preparation-manifest.mjs";
 
 const { Client } = pg;
 
@@ -133,6 +136,8 @@ const FOLLOW_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("follow_v1");
 const BLOCK_PREPARATION_RELEASE = privateTablePreparation("block_v1");
 const EMAIL_SERVICE_PREPARATION_RELEASE =
   privateTablePreparation("email_service_v1");
+const LISTING_DOMAIN_PREPARATION_RELEASE =
+  privateTablePreparation("listing_domain_v1");
 const BLOCK_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("block_v1");
 const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
@@ -154,6 +159,21 @@ export const EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES = Object.freeze(
     .filter((entry) => !entry.predecessorSourceSha256)
     .map((entry) => entry.name),
 );
+export const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  LISTING_DOMAIN_PREPARATION_RELEASE.migration;
+export const LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256 =
+  LISTING_DOMAIN_PREPARATION_RELEASE.migrationSha256;
+export const LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES = Object.freeze(
+  LISTING_DOMAIN_PREPARATION_RELEASE.functions
+    .filter((entry) => !entry.predecessorSourceSha256)
+    .map((entry) => entry.name),
+);
+export const LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION =
+  SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).name;
+export const LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256 =
+  SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).checksum;
+const LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_FUNCTION =
+  "grainline_seller_staff_listing_review_transition";
 export const BLOCK_RLS_ACTIVATION_MIGRATION =
   BLOCK_RLS_ACTIVATION_RELEASE.migration;
 export const BLOCK_RLS_ACTIVATION_MIGRATION_SHA256 =
@@ -959,6 +979,43 @@ export function withAppliedEmailServicePreparation(
     functions: sortedUnique(functions),
     emailServicePreparationApplied: preparationApplied,
   };
+}
+
+const LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAME_SET = new Set(
+  LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES,
+);
+
+export function withAppliedListingDomainPreparation(
+  inventory,
+  { preparationApplied, staffReviewPredecessorApplied },
+) {
+  const functions = preparationApplied
+    ? [...(inventory?.functions ?? [])]
+    : (inventory?.functions ?? []).filter(
+      (name) => (
+        !LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAME_SET.has(name)
+        || (
+          name === LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_FUNCTION
+          && staffReviewPredecessorApplied
+        )
+      ),
+    );
+  return {
+    ...inventory,
+    functions: sortedUnique(functions),
+    listingDomainPreparationApplied: preparationApplied,
+    listingDomainStaffReviewPredecessorApplied:
+      staffReviewPredecessorApplied,
+  };
+}
+
+export function collectListingDomainMigrationOrderIssues({
+  preparationApplied,
+  staffReviewPredecessorApplied,
+}) {
+  return preparationApplied && !staffReviewPredecessorApplied
+    ? ["Listing domain preparation is applied without its exact staff-review prerequisite"]
+    : [];
 }
 
 export function withAppliedSellerProfileCallerAuthority(
@@ -1958,6 +2015,22 @@ export async function readBlockPreparationState(client) {
     migration: BLOCK_PREPARATION_MIGRATION,
     checksum: BLOCK_PREPARATION_MIGRATION_SHA256,
     label: "Block compatible preparation",
+  });
+}
+
+export async function readListingDomainPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_PREPARATION_MIGRATION,
+    checksum: LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256,
+    label: "Listing domain compatible preparation",
+  });
+}
+
+export async function readListingDomainStaffReviewPredecessorState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
+    checksum: LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
+    label: "Listing domain staff-review predecessor",
   });
 }
 
@@ -3778,6 +3851,17 @@ export async function auditLiveDatabase({
   const sellerFaqRlsActivation =
     await readSellerFaqRlsActivationState(client);
   issues.push(...sellerFaqRlsActivation.issues);
+  const listingDomainPreparation =
+    await readListingDomainPreparationState(client);
+  issues.push(...listingDomainPreparation.issues);
+  const listingDomainStaffReviewPredecessor =
+    await readListingDomainStaffReviewPredecessorState(client);
+  issues.push(...listingDomainStaffReviewPredecessor.issues);
+  issues.push(...collectListingDomainMigrationOrderIssues({
+    preparationApplied: listingDomainPreparation.applied,
+    staffReviewPredecessorApplied:
+      listingDomainStaffReviewPredecessor.applied,
+  }));
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -3888,9 +3972,16 @@ export async function auditLiveDatabase({
     },
   );
   const liveAuthorityInventory = {
-    ...withAppliedEmailServicePreparation(
-      liveEmailDeliveryAuthorityInventory,
-      emailServicePreparation.applied,
+    ...withAppliedListingDomainPreparation(
+      withAppliedEmailServicePreparation(
+        liveEmailDeliveryAuthorityInventory,
+        emailServicePreparation.applied,
+      ),
+      {
+        preparationApplied: listingDomainPreparation.applied,
+        staffReviewPredecessorApplied:
+          listingDomainStaffReviewPredecessor.applied,
+      },
     ),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,

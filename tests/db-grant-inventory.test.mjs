@@ -521,6 +521,12 @@ const {
   EMAIL_SERVICE_PREPARATION_MIGRATION,
   EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256,
   EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES,
+  LISTING_DOMAIN_PREPARATION_MIGRATION: LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION,
+  LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256:
+    LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION_SHA256,
+  LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES,
+  LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
+  LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
   EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
   EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
@@ -579,6 +585,7 @@ const {
   collectAccountDeletionWorkerBoundaryIssues,
   collectClerkWebhookEventMigrationOrderIssues,
   collectEmailDeliveryMigrationOrderIssues,
+  collectListingDomainMigrationOrderIssues,
   collectSellerProfilePrivateMigrationOrderIssues,
   collectSellerProfilePublicMigrationOrderIssues,
   clerkWebhookEventRlsActivationExpected,
@@ -635,6 +642,8 @@ const {
   readBlockRlsActivationState,
   readUserReportRlsActivationState,
   readSellerFaqRlsActivationState,
+  readListingDomainPreparationState,
+  readListingDomainStaffReviewPredecessorState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -655,6 +664,7 @@ const {
   withAppliedAccountDeletionAuthority,
   withAppliedEmailDeliveryAuthority,
   withAppliedEmailServicePreparation,
+  withAppliedListingDomainPreparation,
   withAppliedSellerProfileCallerAuthority,
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
@@ -2150,17 +2160,73 @@ describe("database grant inventory guardrails", () => {
     assert.equal(applied.emailServicePreparationApplied, true);
   });
 
+  it("derives Listing functions from the exact preparation ledger state", () => {
+    const predecessorFunction = "grainline_message_list";
+    const sourceInventory = {
+      functions: [
+        "grainline_existing_function",
+        predecessorFunction,
+        ...LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES,
+      ],
+    };
+    const pending = withAppliedListingDomainPreparation(sourceInventory, {
+      preparationApplied: false,
+      staffReviewPredecessorApplied: false,
+    });
+    assert.deepEqual(pending.functions, [
+      "grainline_existing_function",
+      predecessorFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+    assert.equal(pending.listingDomainPreparationApplied, false);
+
+    const predecessorApplied = withAppliedListingDomainPreparation(sourceInventory, {
+      preparationApplied: false,
+      staffReviewPredecessorApplied: true,
+    });
+    assert.deepEqual(predecessorApplied.functions, [
+      "grainline_existing_function",
+      predecessorFunction,
+      "grainline_seller_staff_listing_review_transition",
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const applied = withAppliedListingDomainPreparation(sourceInventory, {
+      preparationApplied: true,
+      staffReviewPredecessorApplied: true,
+    });
+    assert.deepEqual(applied.functions, [
+      ...new Set(sourceInventory.functions),
+    ].sort((left, right) => left.localeCompare(right)));
+    assert.equal(applied.listingDomainPreparationApplied, true);
+
+    assert.deepEqual(collectListingDomainMigrationOrderIssues({
+      preparationApplied: false,
+      staffReviewPredecessorApplied: false,
+    }), []);
+    assert.deepEqual(collectListingDomainMigrationOrderIssues({
+      preparationApplied: true,
+      staffReviewPredecessorApplied: false,
+    }), [
+      "Listing domain preparation is applied without its exact staff-review prerequisite",
+    ]);
+  });
+
   it("reads exact email migration ledger states including manual resolution rows", async (context) => {
     if (
       typeof readEmailDeliveryLedgerPreparationState !== "function"
       || typeof readEmailProviderDeletionFenceState !== "function"
       || typeof readEmailProviderEligibilityFenceState !== "function"
       || typeof readEmailServicePreparationState !== "function"
+      || typeof readListingDomainPreparationState !== "function"
+      || typeof readListingDomainStaffReviewPredecessorState !== "function"
     ) {
       context.skip("requires the staged email migration-ledger readers");
       return;
     }
-    const exactClient = (expectedMigration, expectedChecksum) => ({
+    const exactClient = (
+      expectedMigration,
+      expectedChecksum,
+      appliedStepsCount = "0",
+    ) => ({
       queryCount: 0,
       async query(sql, parameters) {
         this.queryCount += 1;
@@ -2175,7 +2241,7 @@ describe("database grant inventory guardrails", () => {
             checksum: expectedChecksum,
             finished_at: new Date("2026-10-26T00:00:00Z"),
             rolled_back_at: null,
-            applied_steps_count: "0",
+            applied_steps_count: appliedStepsCount,
           }],
         };
       },
@@ -2205,6 +2271,21 @@ describe("database grant inventory guardrails", () => {
       await readEmailServicePreparationState(exactClient(
         EMAIL_SERVICE_PREPARATION_MIGRATION,
         EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainPreparationState(exactClient(
+        LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION,
+        LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainStaffReviewPredecessorState(exactClient(
+        LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
+        LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
+        "1",
       )),
       { applied: true, issues: [] },
     );

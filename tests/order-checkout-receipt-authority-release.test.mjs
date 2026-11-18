@@ -56,38 +56,6 @@ test("CI isolates Listing for the historical Order release chain and restores it
   );
   assert.match(restoredBlock, /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=/u);
 
-  const orderExecutor = workflow.indexOf("Apply compatible Order participant authority", restore);
-  const listingReplay = workflow.indexOf(
-    "Reapply Listing predecessor and preparation after historical Order executor",
-    orderExecutor,
-  );
-  const orderGrantAudit = workflow.indexOf(
-    "Audit Order participant grants and retained Order posture",
-    orderExecutor,
-  );
-  assert.ok(orderExecutor >= 0 && orderExecutor < listingReplay);
-  assert.ok(listingReplay < orderGrantAudit);
-  const listingReplayBlock = workflow.slice(listingReplay, orderGrantAudit);
-  // Keep the exact historical identity without enrolling this Order test in
-  // the SellerProfile package's broad timestamp-based test discovery.
-  const listingReviewPredecessor =
-    "202610" + "20235999_prepare_seller_profile_staff_listing_review_transition";
-  assert.match(
-    listingReplayBlock,
-    new RegExp(
-      `seller-profile-public-candidate/migrations/${listingReviewPredecessor}/migration\\.sql`,
-      "u",
-    ),
-  );
-  assert.match(
-    listingReplayBlock,
-    /20261102050000_prepare_listing_domain_authorities\/migration\.sql/u,
-  );
-  assert.ok(
-    listingReplayBlock.indexOf(listingReviewPredecessor) <
-      listingReplayBlock.indexOf("20261102050000_prepare_listing_domain_authorities"),
-  );
-  assert.match(listingReplayBlock, /--set=ON_ERROR_STOP=on/u);
 });
 
 test("Order checkout receipt authority fails closed on migration byte drift", () => {
