@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
@@ -17,6 +18,7 @@ const { Client } = pg;
 const RELEASE_SELECTIONS = Object.freeze([
   "owner_social_verification_v1",
   "block_report_seller_faq_v1",
+  "listing_domain_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
@@ -26,6 +28,7 @@ const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  listing_domain_v1: "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -54,11 +57,13 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
         process.cwd(),
         privateTableRuntimeReadinessMigrationOverride(releaseId),
       );
-      return verified.release.functions.map((entry) => Object.freeze({
-        identity: `${entry.name}(${entry.arguments})`,
-        executeRole: entry.executeRole ?? "runtime",
-        sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
-      }));
+      return verified.release.functions.flatMap((entry) => (
+        privateTableFunctionExecuteRoles(entry).map((executeRole) => Object.freeze({
+          identity: `${entry.name}(${entry.arguments})`,
+          executeRole,
+          sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
+        }))
+      ));
     }),
 );
 
