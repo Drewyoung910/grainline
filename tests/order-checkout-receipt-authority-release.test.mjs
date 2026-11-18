@@ -68,16 +68,20 @@ test("CI isolates Listing for the historical Order release chain and restores it
   assert.ok(orderExecutor >= 0 && orderExecutor < listingReplay);
   assert.ok(listingReplay < orderGrantAudit);
   const listingReplayBlock = workflow.slice(listingReplay, orderGrantAudit);
+  // Keep the exact historical identity without enrolling this Order test in
+  // the SellerProfile package's broad timestamp-based test discovery.
+  const listingReviewPredecessor =
+    "202610" + "20235999_prepare_seller_profile_staff_listing_review_transition";
   assert.match(
     listingReplayBlock,
-    /20261020235999_prepare_seller_profile_staff_listing_review_transition\/migration\.sql/u,
+    new RegExp(`${listingReviewPredecessor}/migration\\.sql`, "u"),
   );
   assert.match(
     listingReplayBlock,
     /20261102050000_prepare_listing_domain_authorities\/migration\.sql/u,
   );
   assert.ok(
-    listingReplayBlock.indexOf("20261020235999_prepare_seller_profile_staff_listing_review_transition") <
+    listingReplayBlock.indexOf(listingReviewPredecessor) <
       listingReplayBlock.indexOf("20261102050000_prepare_listing_domain_authorities"),
   );
   assert.match(listingReplayBlock, /--set=ON_ERROR_STOP=on/u);
