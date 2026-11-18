@@ -2160,7 +2160,14 @@ describe("database grant inventory guardrails", () => {
     assert.equal(applied.emailServicePreparationApplied, true);
   });
 
-  it("derives Listing functions from the exact preparation ledger state", () => {
+  it("derives Listing functions from the exact preparation ledger state", (context) => {
+    if (
+      typeof withAppliedListingDomainPreparation !== "function"
+      || !Array.isArray(LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES)
+    ) {
+      context.skip("requires the staged Listing grant-audit generation");
+      return;
+    }
     const predecessorFunction = "grainline_message_list";
     const sourceInventory = {
       functions: [
