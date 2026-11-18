@@ -984,6 +984,7 @@ test(
         seller: fixture,
       });
       await proveListingDomainOwnerMutations({
+        connectionString: proofDatabaseUrl,
         database: adapter,
         seller: fixture,
       });

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
+import pg from "pg";
+
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
 }
@@ -19,6 +21,205 @@ async function runtimeQuery(database, actorId, sql, params = []) {
   } catch (error) {
     await database.query("ROLLBACK").catch(() => {});
     throw error;
+  }
+}
+
+async function beginRuntime(client, actorId) {
+  await client.query("BEGIN");
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  await client.query("SET LOCAL lock_timeout = '5s'");
+  await client.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+    [actorId ?? ""],
+  );
+}
+
+async function waitForBackendLock(database, backendPid, label) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const state = rowsOf(await database.query(
+      `SELECT wait_event_type AS "waitEventType"
+         FROM pg_catalog.pg_stat_activity
+        WHERE pid = $1`,
+      [backendPid],
+    ))[0];
+    if (state?.waitEventType === "Lock") return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail(`${label} did not reach its expected database lock wait`);
+}
+
+async function insertCheckoutDeleteRaceListing(database, {
+  listingId,
+  sellerProfileId,
+}) {
+  const [listing] = rowsOf(await database.query(
+    `INSERT INTO public."Listing" (
+       id, "sellerId", title, description, "priceCents", status,
+       "listingType", "stockQuantity", "isPrivate", "sellerPubliclyOrderable",
+       "createdAt", "updatedAt"
+     ) VALUES (
+       $1, $2, 'Checkout/delete race proof', 'Executed two-session proof', 5000,
+       'ACTIVE', 'MADE_TO_ORDER', NULL, false, true,
+       pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+     )
+     RETURNING "updatedAt" AS "updatedAt"`,
+    [listingId, sellerProfileId],
+  ));
+  assert.ok(listing?.updatedAt instanceof Date);
+  return listing.updatedAt;
+}
+
+async function checkoutSourceWitness(database, {
+  listingId,
+  sellerProfileId,
+}) {
+  const [source] = rowsOf(await database.query(
+    `SELECT pg_catalog.jsonb_build_object(
+       'seller', public.grainline_checkout_reservation_seller_witness($1),
+       'item', pg_catalog.jsonb_build_object(
+         'quantity', 1,
+         'selectedVariantOptionIds', '[]'::jsonb,
+         'listing', public.grainline_checkout_reservation_listing_snapshot_witness($2)
+       )
+     ) AS witness`,
+    [sellerProfileId, listingId],
+  ));
+  assert.ok(source?.witness && typeof source.witness === "object");
+  return source.witness;
+}
+
+const SINGLE_CHECKOUT_SNAPSHOT_SQL = `
+  SELECT reservation_id, reserved_items, expires_at
+    FROM public.grainline_checkout_reservation_create_single_snapshot(
+      $1::text, $2::text, 1, ARRAY[]::text[], $3::text, $4::jsonb
+    )
+`;
+
+const HARD_DELETE_SQL = `
+  SELECT *
+    FROM public.grainline_listing_owner_hard_delete(
+      $1::text, $2::timestamp without time zone
+    )
+`;
+
+async function proveCheckoutDeleteSerialization({
+  connectionString,
+  database,
+  seller,
+  buyerId,
+  suffix,
+}) {
+  const checkoutFirstListingId = `listing-checkout-first-${suffix}`;
+  const deleteFirstListingId = `listing-delete-first-${suffix}`;
+  const checkoutFirstUpdatedAt = await insertCheckoutDeleteRaceListing(database, {
+    listingId: checkoutFirstListingId,
+    sellerProfileId: seller.id,
+  });
+  const deleteFirstUpdatedAt = await insertCheckoutDeleteRaceListing(database, {
+    listingId: deleteFirstListingId,
+    sellerProfileId: seller.id,
+  });
+  const checkoutFirstWitness = await checkoutSourceWitness(database, {
+    listingId: checkoutFirstListingId,
+    sellerProfileId: seller.id,
+  });
+  const deleteFirstWitness = await checkoutSourceWitness(database, {
+    listingId: deleteFirstListingId,
+    sellerProfileId: seller.id,
+  });
+
+  const checkout = new pg.Client({ connectionString });
+  const deletion = new pg.Client({ connectionString });
+  await Promise.all([checkout.connect(), deletion.connect()]);
+  try {
+    await beginRuntime(checkout, buyerId);
+    const checkoutFirstRows = (await checkout.query(
+      SINGLE_CHECKOUT_SNAPSHOT_SQL,
+      [
+        buyerId,
+        checkoutFirstListingId,
+        "c".repeat(32),
+        JSON.stringify(checkoutFirstWitness),
+      ],
+    )).rows;
+    assert.equal(checkoutFirstRows.length, 1);
+
+    await beginRuntime(deletion, seller.userId);
+    const [{ pid: deletionPid }] = (await deletion.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows;
+    const blockedDeletion = deletion.query(
+      HARD_DELETE_SQL,
+      [checkoutFirstListingId, checkoutFirstUpdatedAt],
+    ).then((result) => ({ result }), (error) => ({ error }));
+    await waitForBackendLock(
+      database,
+      deletionPid,
+      "Listing deletion behind checkout",
+    );
+    await checkout.query("COMMIT");
+    const deletionOutcome = await blockedDeletion;
+    assert.equal(deletionOutcome.error, undefined);
+    assert.deepEqual(deletionOutcome.result.rows, [{
+      applied: false,
+      removedPhotos: 0,
+    }], "checkout-first serialization must retain the listing");
+    await deletion.query("COMMIT");
+
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM public."Listing"
+        WHERE id = $1`,
+      [checkoutFirstListingId],
+    )), [{ count: 1 }]);
+
+    await beginRuntime(deletion, seller.userId);
+    const deleteFirstRows = (await deletion.query(
+      HARD_DELETE_SQL,
+      [deleteFirstListingId, deleteFirstUpdatedAt],
+    )).rows;
+    assert.deepEqual(deleteFirstRows, [{ applied: true, removedPhotos: 0 }]);
+
+    await beginRuntime(checkout, buyerId);
+    const [{ pid: checkoutPid }] = (await checkout.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows;
+    const blockedCheckout = checkout.query(
+      SINGLE_CHECKOUT_SNAPSHOT_SQL,
+      [
+        buyerId,
+        deleteFirstListingId,
+        "d".repeat(32),
+        JSON.stringify(deleteFirstWitness),
+      ],
+    ).then((result) => ({ result }), (error) => ({ error }));
+    await waitForBackendLock(
+      database,
+      checkoutPid,
+      "Single checkout behind Listing deletion",
+    );
+    await deletion.query("COMMIT");
+    const checkoutOutcome = await blockedCheckout;
+    assert.equal(checkoutOutcome.result, undefined);
+    assert.ok(
+      ["23514", "40001"].includes(checkoutOutcome.error?.code),
+      `delete-first checkout must fail closed, got ${checkoutOutcome.error?.code ?? "no error"}`,
+    );
+    await checkout.query("ROLLBACK");
+
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM public."Listing"
+        WHERE id = $1`,
+      [deleteFirstListingId],
+    )), [{ count: 0 }]);
+  } finally {
+    await Promise.allSettled([
+      checkout.query("ROLLBACK"),
+      deletion.query("ROLLBACK"),
+    ]);
+    await Promise.allSettled([checkout.end(), deletion.end()]);
   }
 }
 
@@ -193,7 +394,11 @@ function updateArgs({ listingId, listing, title, photos, variantGroups }) {
   ];
 }
 
-export async function proveListingDomainOwnerMutations({ database, seller }) {
+export async function proveListingDomainOwnerMutations({
+  connectionString,
+  database,
+  seller,
+}) {
   const suffix = randomUUID();
   const listingId = `listing-owner-proof-${suffix}`;
   const buyerId = `listing-buyer-proof-${suffix}`;
@@ -1226,4 +1431,12 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
      ) AS denied`,
   ));
   assert.equal(privateCore[0]?.denied, true);
+
+  await proveCheckoutDeleteSerialization({
+    connectionString,
+    database,
+    seller,
+    buyerId,
+    suffix,
+  });
 }
