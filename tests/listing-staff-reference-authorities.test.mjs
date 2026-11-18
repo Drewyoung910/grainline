@@ -57,5 +57,5 @@ test("staff Listing references and verification counts use isolated bounded auth
     );
   }
   assert.match(runner, /proveListingDomainStaffReferences/u);
-  assert.match(fullChainScenario, /updatedAt: now,[\s\S]*rejectionReason: null/u);
+  assert.match(fullChainScenario, /updatedAt: nowDate,[\s\S]*rejectionReason: null/u);
 });

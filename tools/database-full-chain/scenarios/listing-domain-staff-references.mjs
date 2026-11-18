@@ -23,6 +23,7 @@ export async function proveListingDomainStaffReferences({ database, seller }) {
     `listing-staff-hidden-${suffix}`,
   ];
   const now = "2026-11-02 13:00:00";
+  const nowDate = new Date(now.replace(" ", "T"));
 
   assert.deepEqual(rowsOf(await database.query(`
     SELECT routine.proname AS name,
@@ -117,21 +118,21 @@ export async function proveListingDomainStaffReferences({ database, seller }) {
         id: listingIds[2],
         title: "Staff hidden target",
         sellerProfileId: seller.sellerProfileId,
-        updatedAt: now,
+        updatedAt: nowDate,
         rejectionReason: null,
       },
       {
         id: listingIds[0],
         title: "Staff public target",
         sellerProfileId: seller.sellerProfileId,
-        updatedAt: now,
+        updatedAt: nowDate,
         rejectionReason: null,
       },
       {
         id: listingIds[1],
         title: "Staff private target",
         sellerProfileId: seller.sellerProfileId,
-        updatedAt: now,
+        updatedAt: nowDate,
         rejectionReason: null,
       },
     ]);
