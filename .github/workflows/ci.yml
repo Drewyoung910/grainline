@@ -1824,26 +1824,26 @@ jobs:
           mv
           prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
           "$RUNNER_TEMP/order-receipt-notification-authority-release"
-      - name: Temporarily isolate Listing preparation from the historical checkout receipt guard
+      # The remaining release verifiers reconstruct checksum-pinned historical
+      # migration trees. Keep Listing source available through GITHUB_ENV while
+      # excluding the newer migration directories until the shared restoration.
+      - name: Temporarily isolate Listing domain from historical Order release guards
         shell: bash
         run: |
           set -euo pipefail
-          holding="$RUNNER_TEMP/order-checkout-receipt-listing-isolation"
-          mkdir -p "$holding"
-          mv \
-            prisma/migrations/20261102050000_prepare_listing_domain_authorities \
-            "$holding/20261102050000_prepare_listing_domain_authorities"
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          if [[ -d "prisma/migrations/$activation" ]]
+          then
+            mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+            echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+          fi
       - name: Verify compatible Order checkout receipt authority release
         run: npm run audit:order-checkout-receipt-authority-release
-      - name: Restore Listing preparation after the historical checkout receipt guard
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/order-checkout-receipt-listing-isolation"
-          mv \
-            "$holding/20261102050000_prepare_listing_domain_authorities" \
-            prisma/migrations/20261102050000_prepare_listing_domain_authorities
-          rmdir "$holding"
       - name: Isolate Order checkout receipt authority until snapshot correction passes
         run: >-
           mv
@@ -3123,6 +3123,21 @@ jobs:
         run: npm run audit:order-participant-list-projection-correction
       - name: Re-verify compatible Order account-deletion authority
         run: npm run audit:order-account-deletion-authority
+      - name: Restore Listing domain after historical Order release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          if [[ -d "$holding/migrations/$activation" ]]
+          then
+            mv "$holding/migrations/$activation" "prisma/migrations/$activation"
+          fi
+          rmdir "$holding/migrations" "$holding"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Apply compatible Order participant authority
         shell: bash
         run: |

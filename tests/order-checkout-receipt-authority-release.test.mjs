@@ -24,32 +24,37 @@ test("Order checkout receipt authority is one exact compatible successor pair", 
   assert.equal(result.productionTouched, false);
 });
 
-test("CI isolates and restores the newer Listing preparation around the historical release guard", () => {
+test("CI isolates Listing for the historical Order release chain and restores it", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const isolate = workflow.indexOf(
-    "Temporarily isolate Listing preparation from the historical checkout receipt guard",
+    "Temporarily isolate Listing domain from historical Order release guards",
   );
   const verify = workflow.indexOf(
     "Verify compatible Order checkout receipt authority release",
   );
+  const participantDetail = workflow.indexOf(
+    "Verify compatible Order participant detail projection release",
+  );
   const restore = workflow.indexOf(
-    "Restore Listing preparation after the historical checkout receipt guard",
+    "Restore Listing domain after historical Order release guards",
   );
   assert.ok(isolate >= 0 && isolate < verify);
-  assert.ok(verify < restore);
+  assert.ok(verify < participantDetail && participantDetail < restore);
   const isolatedBlock = workflow.slice(isolate, restore);
   assert.match(
     isolatedBlock,
-    /order-checkout-receipt-listing-isolation[\s\S]*mv[\s\S]*prisma\/migrations\/20261102050000_prepare_listing_domain_authorities/u,
+    /listing-domain[\s\S]*mv[\s\S]*prisma\/migrations\/\$preparation/u,
   );
-  const restoredBlock = workflow.slice(restore, workflow.indexOf(
-    "Isolate Order checkout receipt authority until snapshot correction passes",
+  assert.match(isolatedBlock, /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=/u);
+  const restoredBlock = workflow.slice(
     restore,
-  ));
+    workflow.indexOf("Apply compatible Order participant authority", restore),
+  );
   assert.match(
     restoredBlock,
-    /order-checkout-receipt-listing-isolation[\s\S]*mv[\s\S]*prisma\/migrations\/20261102050000_prepare_listing_domain_authorities/u,
+    /listing-domain[\s\S]*mv[\s\S]*prisma\/migrations\/\$preparation/u,
   );
+  assert.match(restoredBlock, /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=/u);
 });
 
 test("Order checkout receipt authority fails closed on migration byte drift", () => {
