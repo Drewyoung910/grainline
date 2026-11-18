@@ -5,16 +5,25 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("global Listing title suggestions use one bounded indexed authority", async () => {
-  const [migration, access, route, provision, inventory, scenario] = await Promise.all([
+  const [migration, access, route, provision, inventory, scenario, preparationCatalog] = await Promise.all([
     readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
     readFile(new URL("src/lib/listingPublicCatalogAccess.ts", root), "utf8"),
     readFile(new URL("src/app/api/search/suggestions/route.ts", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
     readFile(new URL("tests/db-grant-inventory.test.mjs", root), "utf8"),
     readFile(new URL("tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs", root), "utf8"),
+    readFile(new URL("scripts/private-table-preparation-catalog.mjs", root), "utf8"),
   ]);
 
   assert.match(migration, /CREATE FUNCTION public\.grainline_listing_public_title_suggestions\(\s*p_query text\s*\)/u);
+  assert.match(
+    migration,
+    /grainline_listing_public_title_suggestions\([\s\S]*?LANGUAGE plpgsql\s+VOLATILE\s+PARALLEL UNSAFE/u,
+  );
+  assert.match(
+    preparationCatalog,
+    /name: "grainline_listing_public_title_suggestions", arguments: "text", volatility: "v"/u,
+  );
   assert.match(migration, /OPERATOR\(public\.%\)/u);
   assert.match(migration, /public\.similarity/u);
   assert.match(migration, /pg_trgm\.similarity_threshold/u);

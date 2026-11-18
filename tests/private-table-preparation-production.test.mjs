@@ -503,6 +503,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "email_service_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
+      "listing_domain_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");

@@ -612,7 +612,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   listing_domain_v1: Object.freeze({
     migration: "20261102050000_prepare_listing_domain_authorities",
-    migrationSha256: "19fedde9b29b8194dbf3bcddb3a2b793fe6dbc957c2995f1f23d7ae9a8597e96",
+    migrationSha256: "4574ff9b494ec753e2d31468c7618bc84db908b0a52c7bf847cb85bb64612e8f",
     table: "Listing",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -671,7 +671,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({ name: "grainline_listing_actor_cart_transaction_sources", arguments: "text", volatility: "s" }),
       Object.freeze({ name: "grainline_listing_public_analytics_increment", arguments: "text, text" }),
       Object.freeze({ name: "grainline_listing_public_catalog_page", arguments: "jsonb, integer, integer", volatility: "s" }),
-      Object.freeze({ name: "grainline_listing_public_title_suggestions", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_public_title_suggestions", arguments: "text", volatility: "v" }),
       Object.freeze({ name: "grainline_listing_detail_source_core", arguments: "text", executeRoles: Object.freeze([]), volatility: "s" }),
       Object.freeze({ name: "grainline_listing_actor_detail_source", arguments: "text", volatility: "s" }),
       Object.freeze({ name: "grainline_listing_staff_detail_source", arguments: "text, text", executeRole: "staff", volatility: "s" }),

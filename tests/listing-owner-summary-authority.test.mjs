@@ -28,6 +28,10 @@ test("owner workshop listing summaries use one actor-bound paged authority", asy
     migration,
     /CREATE FUNCTION public\.grainline_listing_owner_summary_page\([\s\S]*p_status text,[\s\S]*p_listing_type text,[\s\S]*p_include_archived boolean,[\s\S]*p_offset integer,[\s\S]*p_before_updated_at timestamp without time zone,[\s\S]*p_before_listing_id text,[\s\S]*p_limit integer/u,
   );
+  assert.match(
+    migration,
+    /grainline_listing_owner_summary_page\([\s\S]*?RETURNS TABLE \(\s*id text,\s*title text,\s*"priceCents" integer,\s*currency text,\s*status text,\s*"isPrivate" boolean,\s*"listingType" text,\s*"stockQuantity" integer,\s*"viewCount" integer,\s*"clickCount" integer,\s*"favoriteCount" integer,\s*"aiReviewFlags" text\[\],\s*"reviewedByAdmin" boolean,\s*"createdAt" timestamp\(3\) without time zone,\s*"updatedAt" timestamp\(3\) without time zone,\s*"archivedAt" timestamp\(3\) without time zone,\s*photos jsonb\s*\)/u,
+  );
   assert.match(migration, /current_setting\('app\.user_id', true\)/u);
   assert.match(migration, /listing\."sellerId" = seller_id/u);
   assert.match(migration, /ORDER BY listing\."updatedAt" DESC, listing\.id DESC/u);

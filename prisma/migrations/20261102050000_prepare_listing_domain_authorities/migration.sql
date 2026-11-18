@@ -1801,8 +1801,6 @@ RETURNS TABLE (
   "priceCents" integer,
   currency text,
   status text,
-  "updatedAt" timestamp without time zone,
-  "rejectionReason" text,
   "isPrivate" boolean,
   "listingType" text,
   "stockQuantity" integer,

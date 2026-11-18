@@ -4,9 +4,10 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
-const REVIEWED_DEV_ONLY_ADVISORY_EXCEPTIONS = Object.freeze({
+const REVIEWED_ADVISORY_EXCEPTIONS_BY_SOURCE = Object.freeze({
   "1240992": Object.freeze({
     ghsa: "GHSA-vfj7-8cjw-p6xm",
+    scope: "dev-only",
     expiresAt: "2026-11-21T00:00:00.000Z",
     packages: Object.freeze([
       "@next/eslint-plugin-next",
@@ -14,6 +15,27 @@ const REVIEWED_DEV_ONLY_ADVISORY_EXCEPTIONS = Object.freeze({
       "eslint-config-next",
       "fast-glob",
       "micromatch",
+    ]),
+  }),
+});
+const REVIEWED_ADVISORY_EXCEPTIONS_BY_GHSA = Object.freeze({
+  "GHSA-FC5Q-39XC-VJPF": Object.freeze({
+    ghsa: "GHSA-fc5q-39xc-vjpf",
+    scope: "build/lint-time transitive",
+    expiresAt: "2026-11-24T00:00:00.000Z",
+    packages: Object.freeze([
+      "@next/eslint-plugin-next",
+      "@rollup/plugin-commonjs",
+      "@rollup/pluginutils",
+      "@sentry/nextjs",
+      "@typescript-eslint/typescript-estree",
+      "eslint-config-next",
+      "eslint-import-resolver-typescript",
+      "fdir",
+      "fast-glob",
+      "micromatch",
+      "picomatch",
+      "tinyglobby",
     ]),
   }),
 });
@@ -52,28 +74,57 @@ function blockingEntries(report) {
   );
 }
 
-function blockingAdvisorySources(report, packageName, visited = new Set()) {
-  if (visited.has(packageName)) return new Set();
+function blockingAdvisoryEvidence(report, packageName, visited = new Set()) {
+  if (visited.has(packageName)) return [];
   const vulnerability = report.vulnerabilities?.[packageName];
-  if (!vulnerability) return new Set();
+  if (!vulnerability) return [];
   const nextVisited = new Set(visited).add(packageName);
-  const sources = new Set();
+  const evidence = [];
   for (const entry of vulnerability.via ?? []) {
     if (typeof entry === "string") {
-      for (const source of blockingAdvisorySources(
+      evidence.push(...blockingAdvisoryEvidence(
         report,
         entry,
         nextVisited,
-      )) sources.add(source);
+      ));
     } else if (
       entry
       && BLOCKING_SEVERITIES.has(entry.severity)
-      && Number.isSafeInteger(entry.source)
     ) {
-      sources.add(String(entry.source));
+      const source = Number.isSafeInteger(entry.source)
+        ? String(entry.source)
+        : null;
+      const ghsa = typeof entry.url === "string"
+        ? entry.url.match(/\/advisories\/(GHSA-[0-9a-z-]+)(?:$|[/?#])/iu)?.[1]?.toUpperCase()
+        : undefined;
+      evidence.push(Object.freeze({ source, ghsa: ghsa ?? null }));
     }
   }
-  return sources;
+  return [...new Map(evidence.map((item) => [
+    `${item.source ?? ""}:${item.ghsa ?? ""}`,
+    item,
+  ])).values()];
+}
+
+function reviewedExceptionForAdvisory(advisory, packageName, now) {
+  const sourceException = advisory.source
+    ? REVIEWED_ADVISORY_EXCEPTIONS_BY_SOURCE[advisory.source]
+    : undefined;
+  const ghsaException = advisory.ghsa
+    ? REVIEWED_ADVISORY_EXCEPTIONS_BY_GHSA[advisory.ghsa]
+    : undefined;
+  if (sourceException && ghsaException && sourceException !== ghsaException) {
+    return null;
+  }
+  const exception = sourceException ?? ghsaException;
+  if (
+    !exception
+    || !exception.packages.includes(packageName)
+    || now >= new Date(exception.expiresAt)
+  ) {
+    return null;
+  }
+  return exception;
 }
 
 export function partitionFullBlockingEntries(
@@ -87,20 +138,20 @@ export function partitionFullBlockingEntries(
   const excepted = [];
   for (const entry of blockingEntries(report)) {
     const [packageName] = entry;
-    const sources = [...blockingAdvisorySources(report, packageName)].sort();
-    const exception = sources.length === 1
-      ? REVIEWED_DEV_ONLY_ADVISORY_EXCEPTIONS[sources[0]]
-      : undefined;
-    if (
-      exception
-      && exception.packages.includes(packageName)
-      && now < new Date(exception.expiresAt)
-    ) {
+    const evidence = blockingAdvisoryEvidence(report, packageName);
+    const exceptions = evidence.map((advisory) =>
+      reviewedExceptionForAdvisory(advisory, packageName, now));
+    if (evidence.length > 0 && exceptions.every(Boolean)) {
       excepted.push(Object.freeze({
-        advisorySource: sources[0],
-        ghsa: exception.ghsa,
         packageName,
-        expiresAt: exception.expiresAt,
+        exceptions: Object.freeze([...new Map(exceptions.map((exception) => [
+          exception.ghsa,
+          Object.freeze({
+            ghsa: exception.ghsa,
+            scope: exception.scope,
+            expiresAt: exception.expiresAt,
+          }),
+        ])).values()]),
       }));
     } else {
       blocking.push(entry);
@@ -114,10 +165,10 @@ export function partitionFullBlockingEntries(
 
 export function main() {
   const productionReport = runAudit(["--omit=dev"]);
-  const productionBlocking = blockingEntries(productionReport);
-  if (productionBlocking.length > 0) {
+  const production = partitionFullBlockingEntries(productionReport);
+  if (production.blocking.length > 0) {
     throw new Error(
-      `Production dependency audit failed: ${productionBlocking.map(([name]) => name).join(", ")}`,
+      `Production dependency audit failed: ${production.blocking.map(([name]) => name).join(", ")}`,
     );
   }
 
@@ -128,11 +179,28 @@ export function main() {
       `Full dependency audit failed: ${full.blocking.map(([name]) => name).join(", ")}`,
     );
   }
-  if (full.excepted.length > 0) {
-    const exception = full.excepted[0];
-    console.warn(
-      `Temporary dev-only exception ${exception.ghsa} is active through ${exception.expiresAt} for: ${full.excepted.map(({ packageName }) => packageName).join(", ")}`,
-    );
+  const exceptions = new Map();
+  for (const entry of [...production.excepted, ...full.excepted]) {
+    for (const exception of entry.exceptions) {
+      exceptions.set(`${exception.ghsa}:${entry.packageName}`, {
+        ...exception,
+        packageName: entry.packageName,
+      });
+    }
+  }
+  if (exceptions.size > 0) {
+    const groups = new Map();
+    for (const exception of exceptions.values()) {
+      const key = `${exception.ghsa}:${exception.scope}:${exception.expiresAt}`;
+      const group = groups.get(key) ?? { ...exception, packages: [] };
+      group.packages.push(exception.packageName);
+      groups.set(key, group);
+    }
+    for (const exception of groups.values()) {
+      console.warn(
+        `Temporary ${exception.scope} exception ${exception.ghsa} is active through ${exception.expiresAt} for: ${exception.packages.sort().join(", ")}`,
+      );
+    }
   }
 
   console.log("Production dependency audit: no high or critical vulnerabilities.");
