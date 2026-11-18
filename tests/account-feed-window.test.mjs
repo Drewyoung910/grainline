@@ -44,6 +44,7 @@ function fixture() {
     "@/lib/sellerProfileParticipantAccess": {
       sellerActorAccountFeedCards: async () => [{ id: "seller", displayName: "Shop", guildLevel: "NONE" }],
     },
+    "@/lib/listingVisibility": { publicListingWhere: (where) => where },
   };
   const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },

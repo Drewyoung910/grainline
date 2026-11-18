@@ -23,10 +23,9 @@ test("native proof executes the production tagged UPDATE with bound parameters",
     captured = { text: parts.join("?"), values }; return [{ stockQuantity: 10 }];
   } }, "listing", { sellerProfileId: "seller" }, true, 5, 10);
   assert.equal(rows[0].stockQuantity, 10);
-  assert.match(captured.text, /WITH previous_listing AS MATERIALIZED/);
-  assert.match(captured.text, /FOR UPDATE/);
+  assert.match(captured.text, /grainline_listing_owner_stock_apply/);
   assert.equal(captured.values[0], "listing"); assert.equal(captured.values[1], "seller");
-  assert.equal(captured.values.filter((value) => value === true).length, 3);
+  assert.deepEqual(captured.values.slice(2), [true, 5, 10]);
 });
 test("concurrency proof is wired only in disposable CI and verifies exact-schema teardown", () => {
   const proof = readFileSync("scripts/listing-stock-mutation-postgres-proof.mjs", "utf8");

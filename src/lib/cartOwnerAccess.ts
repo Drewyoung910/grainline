@@ -5,14 +5,38 @@ import {
   withDbUserContext,
 } from "@/lib/dbUserContext";
 import {
-  attachCartSellerStates,
-  withSellerActorCartTransaction,
+  readListingActorCartTransactionSources,
 } from "@/lib/sellerTransactionAccess";
 
 export type CartOwnerAccessClient = Pick<
   DbUserContextTransactionClient,
   "cart" | "cartItem" | "$executeRaw" | "$queryRaw"
 >;
+
+const ownerCartReadOptions = {
+  isolationLevel: "RepeatableRead" as const,
+};
+
+async function attachOwnerCartListingSources<
+  T extends { id: string; listingId: string },
+>(
+  db: Pick<DbUserContextTransactionClient, "$queryRaw">,
+  cartId: string,
+  items: ReadonlyArray<T>,
+) {
+  const sources = await readListingActorCartTransactionSources(db, cartId);
+  if (sources.length !== items.length) {
+    throw new Error("Listing cart transaction authority omitted a cart item");
+  }
+  const byCartItemId = new Map(sources.map((source) => [source.cartItemId, source.listing]));
+  return items.map((item) => {
+    const listing = byCartItemId.get(item.id);
+    if (!listing || listing.id !== item.listingId) {
+      throw new Error("Listing cart transaction authority returned a mismatched cart item");
+    }
+    return { ...item, listing };
+  });
+}
 
 export function withOwnerCartTransaction<T>(
   userId: string,
@@ -33,29 +57,28 @@ export function ownerCartItemWhere(
 }
 
 export async function ownerCartForDisplay(userId: string) {
-  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+  return withDbUserContext(userId, async (db) => {
     const cart = await db.cart.findUnique({
       where: { userId },
       include: {
         items: {
-          include: {
-            listing: {
-              include: {
-                photos: { take: 1, orderBy: { sortOrder: "asc" } },
-                variantGroups: { include: { options: true } },
-              },
-            },
-          },
           orderBy: { createdAt: "asc" },
         },
       },
     });
     if (!cart) return null;
+    const items = await attachOwnerCartListingSources(db, cart.id, cart.items);
     return {
       ...cart,
-      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+      items: items.map((item) => ({
+        ...item,
+        listing: {
+          ...item.listing,
+          photos: item.listing.photos.slice(0, 1),
+        },
+      })),
     };
-  });
+  }, ownerCartReadOptions);
 }
 
 export async function upsertOwnerCart(userId: string, db: CartOwnerAccessClient) {
@@ -130,7 +153,6 @@ export async function createOwnerCartItem(
   await lockOwnerCart(userId, cartId, db);
   return db.cartItem.create({
     data: { ...data, cartId },
-    include: { listing: true },
   });
 }
 
@@ -171,7 +193,7 @@ export async function incrementOwnerCartItemQuantity(
   });
 }
 
-export async function findOwnerCartItemByVariantWithListing(
+export async function findOwnerCartItemByVariantState(
   userId: string,
   cartId: string,
   listingId: string,
@@ -180,7 +202,6 @@ export async function findOwnerCartItemByVariantWithListing(
 ) {
   return db.cartItem.findFirst({
     where: ownerCartItemWhere(userId, { cartId, listingId, variantKey }),
-    include: { listing: true },
   });
 }
 
@@ -271,19 +292,11 @@ export function updateOwnerCartItemPrice(
 export async function ownerCartForCheckoutSeller(
   userId: string,
 ) {
-  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+  return withDbUserContext(userId, async (db) => {
     const cart = await db.cart.findUnique({
       where: { userId },
       include: {
         items: {
-          include: {
-            listing: {
-              include: {
-                photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
-                variantGroups: { include: { options: true } },
-              },
-            },
-          },
           orderBy: { createdAt: "asc" },
         },
       },
@@ -291,23 +304,21 @@ export async function ownerCartForCheckoutSeller(
     if (!cart) return null;
     return {
       ...cart,
-      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+      items: await attachOwnerCartListingSources(db, cart.id, cart.items),
     };
-  });
+  }, ownerCartReadOptions);
 }
 
 export async function ownerCartForCheckoutResume(
   userId: string,
 ) {
-  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+  return withDbUserContext(userId, async (db) => {
     const cart = await db.cart.findUnique({
       where: { userId },
       select: {
         id: true,
         items: {
-          select: {
-            listing: { select: { sellerId: true } },
-          },
+          select: { id: true, listingId: true },
           orderBy: { createdAt: "asc" },
         },
       },
@@ -315,9 +326,9 @@ export async function ownerCartForCheckoutResume(
     if (!cart) return null;
     return {
       ...cart,
-      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+      items: await attachOwnerCartListingSources(db, cart.id, cart.items),
     };
-  });
+  }, ownerCartReadOptions);
 }
 
 export async function ownerCartForShippingQuoteById(
@@ -325,49 +336,45 @@ export async function ownerCartForShippingQuoteById(
   cartId: string,
   sellerId: string | null | undefined,
 ) {
-  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+  return withDbUserContext(userId, async (db) => {
     const cart = await db.cart.findFirst({
       where: ownerCartWhere(userId, { id: cartId }),
       include: {
-        items: {
-          include: { listing: true },
-          where: sellerId ? { listing: { sellerId } } : undefined,
-        },
+        items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
     });
     if (!cart) return null;
+    const items = await attachOwnerCartListingSources(db, cart.id, cart.items);
     return {
       ...cart,
-      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+      items: sellerId ? items.filter((item) => item.listing.sellerId === sellerId) : items,
     };
-  });
+  }, ownerCartReadOptions);
 }
 
 export async function ownerCartForShippingQuote(
   userId: string,
   sellerId: string | null | undefined,
 ) {
-  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+  return withDbUserContext(userId, async (db) => {
     const cart = await db.cart.findUnique({
       where: { userId },
       include: {
-        items: {
-          include: { listing: true },
-          where: sellerId ? { listing: { sellerId } } : undefined,
-        },
+        items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
     });
     if (!cart) return null;
+    const items = await attachOwnerCartListingSources(db, cart.id, cart.items);
     return {
       ...cart,
-      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+      items: sellerId ? items.filter((item) => item.listing.sellerId === sellerId) : items,
     };
-  });
+  }, ownerCartReadOptions);
 }
 
 export function ownerCartExportRows(userId: string) {
-  return withDbUserContext(userId, (db) =>
-    db.cart.findUnique({
+  return withDbUserContext(userId, async (db) => {
+    const cart = await db.cart.findUnique({
       where: { userId },
       select: {
         id: true,
@@ -375,16 +382,28 @@ export function ownerCartExportRows(userId: string) {
         updatedAt: true,
         items: {
           select: {
+            id: true,
             listingId: true,
             quantity: true,
             priceCents: true,
             selectedVariantOptionIds: true,
             variantKey: true,
             createdAt: true,
-            listing: { select: { title: true } },
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
       },
-    }),
-  );
+    });
+    if (!cart) return null;
+    const items = await attachOwnerCartListingSources(db, cart.id, cart.items);
+    return {
+      id: cart.id,
+      createdAt: cart.createdAt,
+      updatedAt: cart.updatedAt,
+      items: items.map(({ id: _id, listing, ...item }) => ({
+        ...item,
+        listing: { title: listing.title },
+      })),
+    };
+  }, ownerCartReadOptions);
 }

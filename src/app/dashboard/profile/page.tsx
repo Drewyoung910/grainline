@@ -3,7 +3,6 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import ProfileBannerUploader from "@/components/ProfileBannerUploader";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
@@ -11,6 +10,8 @@ import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
 import GalleryUploader from "@/components/GalleryUploader";
 import ActionForm from "@/components/ActionForm";
 import type { Metadata } from "next";
+import { ListingStatus } from "@prisma/client";
+import { prisma } from "@/lib/db";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
@@ -40,6 +41,7 @@ import {
   toggleSellerOwnerFeaturedListing,
   updateSellerOwnerProfile,
 } from "@/lib/sellerOwnerPrivateAccess";
+import { listingOwnerSummaryRows } from "@/lib/listingOwnerAccess";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
@@ -335,10 +337,9 @@ export default async function ProfilePage({
 
   const [fullSeller, activeListings] = await Promise.all([
     sellerOwnerProfileEditorState(seller.id, seller.userId),
-    prisma.listing.findMany({
-      where: { sellerId: seller.id, status: "ACTIVE" },
-      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
-      orderBy: { updatedAt: "desc" },
+    listingOwnerSummaryRows(me.id, {
+      status: ListingStatus.ACTIVE,
+      includeArchived: true,
     }),
   ]);
 

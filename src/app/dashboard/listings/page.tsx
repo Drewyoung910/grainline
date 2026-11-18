@@ -56,7 +56,7 @@ export default async function WorkshopListingsPage({ searchParams }: ListingsPag
 
   const { me, seller } = await ensureSeller();
 
-  const { statusCounts, inStock } = await readWorkshopListingFilterCounts(seller.id);
+  const { statusCounts, inStock } = await readWorkshopListingFilterCounts(me.id);
   const filterCounts = workshopListingFilterCounts(statusCounts, inStock);
   const total = filterCounts[filter];
   const totalPages = Math.max(1, Math.ceil(total / WORKSHOP_LISTINGS_PAGE_SIZE));
@@ -67,7 +67,7 @@ export default async function WorkshopListingsPage({ searchParams }: ListingsPag
   );
   const page = Math.min(requestedPage, totalPages);
 
-  const listingRows = await readWorkshopListingsPage(seller.id, filter, page);
+  const listingRows = await readWorkshopListingsPage(me.id, filter, page);
   const stockNotificationCounts = await sellerStockNotificationCounts(
     me.id,
     listingRows.map((listing) => listing.id),

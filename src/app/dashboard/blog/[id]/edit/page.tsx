@@ -17,6 +17,7 @@ import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseUpdateBlogStatus } from "@/lib/blogStatusInput";
 import { fanOutBlogPostToFollowers } from "@/lib/followerBlogNotifications";
 import { sellerOwnerBlogEditor } from "@/lib/sellerProfileOwnerAccess";
+import { verifiedBlogFeaturedListingIds } from "@/lib/blogFeaturedListingAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -119,20 +120,11 @@ export default async function EditBlogPostPage({
     if (!allowedTypes.includes(type)) return { ok: false, error: "That blog post type is not available for this account." };
 
     const readingTimeMinutes = calculateReadingTime(body);
-    const uniqueFeaturedListingIds = [...new Set(featuredListingIds)].slice(0, 6);
-    const verifiedFeaturedListings = uniqueFeaturedListingIds.length
-      ? await prisma.listing.findMany({
-          where: {
-            id: { in: uniqueFeaturedListingIds },
-            status: "ACTIVE",
-            ...(isStaffUser ? {} : { sellerId: existing.sellerProfileId ?? "__none" }),
-          },
-          select: { id: true },
-        })
-      : [];
-    const verifiedFeaturedListingIds = uniqueFeaturedListingIds.filter((featuredId) =>
-      verifiedFeaturedListings.some((listing) => listing.id === featuredId)
-    );
+    const verifiedFeaturedListingIds = await verifiedBlogFeaturedListingIds({
+      actorUserId: author.id,
+      isStaff: isStaffUser,
+      listingIds: featuredListingIds,
+    });
 
     // `publishedAt` is the first-publication timestamp. Keep it when a post is
     // archived/drafted so re-publishing cannot look like a brand-new post.

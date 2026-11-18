@@ -1,4 +1,4 @@
-import { ListingStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   DirectUploadClaimError,
   syncListingDirectUploadReferences,
@@ -16,6 +16,11 @@ import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { deleteCartItemsForSellerListing } from "@/lib/cartServiceAccess";
 import { deleteStockNotificationsForSellerListing } from "@/lib/stockNotificationAccess";
 import { deleteFavoritesForSellerListing } from "@/lib/favoriteAccess";
+import {
+  archiveListingOwnerDeleteState,
+  hardDeleteListingOwnerDeleteState,
+  lockListingOwnerDeleteState,
+} from "@/lib/listingOwnerAccess";
 
 export const LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 
@@ -32,15 +37,6 @@ export function listingDeletePublicError(error: unknown) {
   return error instanceof ListingDeleteError ? error.message : null;
 }
 
-type LockedListingRow = {
-  id: string;
-  sellerId: string;
-  status: ListingStatus;
-  isPrivate: boolean;
-  archivedAt: Date | null;
-  customOrderConversationId: string | null;
-};
-
 export async function deleteListingWithCleanup(
   listingId: string,
   actorUserId: string,
@@ -50,8 +46,7 @@ export async function deleteListingWithCleanup(
   if (normalizedListingId.length < 1 || normalizedListingId.length > 191) {
     throw new ListingDeleteError("Listing not found.");
   }
-  const owner = await sellerOwnerCore(normalizedActorUserId);
-  if (!owner) {
+  if (!(await sellerOwnerCore(normalizedActorUserId))) {
     throw new ListingDeleteError("Listing not found.");
   }
   return withSerializableDbUserContext(
@@ -60,20 +55,10 @@ export async function deleteListingWithCleanup(
       // The row lock keeps the reference decision and delete/archive mutation
       // atomic. New foreign-key references need a conflicting key-share lock,
       // so they cannot appear between this check and the final mutation.
-      const rows = await tx.$queryRaw<LockedListingRow[]>(Prisma.sql`
-        SELECT
-          listing.id,
-          listing."sellerId",
-          listing.status,
-          listing."isPrivate",
-          listing."archivedAt",
-          listing."customOrderConversationId"
-        FROM public."Listing" AS listing
-        WHERE listing.id = ${normalizedListingId}
-          AND listing."sellerId" = ${owner.sellerProfileId}
-        FOR UPDATE OF listing
-      `);
-      const listing = rows[0];
+      const listing = await lockListingOwnerDeleteState(
+        tx,
+        normalizedListingId,
+      );
       if (!listing) {
         throw new ListingDeleteError("Listing not found.");
       }
@@ -124,19 +109,12 @@ export async function deleteListingWithCleanup(
           );
         }
 
-        const archived = await tx.listing.updateMany({
-          where: {
-            id: normalizedListingId,
-            sellerId: listing.sellerId,
-            archivedAt: null,
-          },
-          data: {
-            status: ListingStatus.HIDDEN,
-            isPrivate: true,
-            archivedAt: new Date(),
-          },
-        });
-        if (archived.count !== 1) {
+        const archived = await archiveListingOwnerDeleteState(
+          tx,
+          normalizedListingId,
+          listing.updatedAt,
+        );
+        if (!archived.applied) {
           throw new ListingDeleteError("Listing state changed; refresh and try again.");
         }
 
@@ -164,18 +142,12 @@ export async function deleteListingWithCleanup(
         throw error;
       }
 
-      // Photo has an intentional RESTRICT foreign key. Delete the rows only
-      // after media tracking has been proven; all changes roll back together
-      // if the final Listing delete or its cleanup trigger fails.
-      await tx.photo.deleteMany({ where: { listingId: normalizedListingId } });
-      const deleted = await tx.listing.deleteMany({
-        where: {
-          id: normalizedListingId,
-          sellerId: listing.sellerId,
-          archivedAt: null,
-        },
-      });
-      if (deleted.count !== 1) {
+      const deleted = await hardDeleteListingOwnerDeleteState(
+        tx,
+        normalizedListingId,
+        listing.updatedAt,
+      );
+      if (!deleted.applied) {
         throw new ListingDeleteError("Listing state changed; refresh and try again.");
       }
       return "deleted";

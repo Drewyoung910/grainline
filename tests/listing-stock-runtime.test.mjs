@@ -16,7 +16,49 @@ before(async () => {
       "listingType" text DEFAULT 'IN_STOCK', "archivedAt" timestamp,
       "rejectionReason" text, "updatedAt" timestamp DEFAULT now());
     CREATE TABLE "SystemAuditLog" (id text PRIMARY KEY, "actorType" text, "actorId" text,
-      action text, "targetType" text, "targetId" text, metadata jsonb);`);
+      action text, "targetType" text, "targetId" text, metadata jsonb);
+    CREATE FUNCTION grainline_listing_owner_stock_lock(p_listing_id text, p_seller_id text)
+    RETURNS TABLE (id text, title text, "stockQuantity" integer, "listingType" text,
+      status text, "isPrivate" boolean, "archivedAt" timestamp, "rejectionReason" text)
+    LANGUAGE sql AS $$
+      SELECT listing.id, listing.title, listing."stockQuantity", listing."listingType",
+        listing.status::text, listing."isPrivate", listing."archivedAt", listing."rejectionReason"
+      FROM "Listing" AS listing
+      WHERE listing.id = p_listing_id AND listing."sellerId" = p_seller_id
+      FOR UPDATE OF listing
+    $$;
+    CREATE FUNCTION grainline_listing_owner_stock_apply(
+      p_listing_id text, p_seller_id text, p_apply_delta boolean,
+      p_stock_delta integer, p_quantity integer
+    ) RETURNS TABLE (id text, title text, "stockQuantity" integer, status text,
+      "previousStockQuantity" integer, "previousStatus" text)
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      RETURN QUERY
+      WITH previous_listing AS MATERIALIZED (
+        SELECT listing.id, listing."stockQuantity", listing.status
+        FROM "Listing" AS listing
+        WHERE listing.id = p_listing_id AND listing."sellerId" = p_seller_id
+        FOR UPDATE OF listing
+      )
+      UPDATE "Listing" AS target
+      SET "stockQuantity" = CASE WHEN p_apply_delta
+            THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + p_stock_delta)
+            ELSE p_quantity END,
+          status = CASE
+            WHEN target.status = 'ACTIVE' AND
+              (CASE WHEN p_apply_delta THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + p_stock_delta) ELSE p_quantity END) <= 0
+              THEN 'SOLD_OUT'::"ListingStatus"
+            WHEN target.status = 'SOLD_OUT' AND NOT target."isPrivate" AND
+              (CASE WHEN p_apply_delta THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + p_stock_delta) ELSE p_quantity END) > 0
+              THEN 'ACTIVE'::"ListingStatus"
+            ELSE target.status END,
+          "updatedAt" = now()
+      FROM previous_listing AS previous
+      WHERE target.id = previous.id
+      RETURNING target.id, target.title, target."stockQuantity", target.status::text,
+        previous."stockQuantity", previous.status::text;
+    END $$;`);
 });
 after(async () => { await db?.close(); });
 function port(connection) {
@@ -77,6 +119,12 @@ function route({ failGuild = false, authenticated = true, owned = true, sellerPr
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/concurrency": {}, "@/lib/stockMutationState": stock,
     "@/lib/listingStockMutation": receipts,
+    "@/lib/dbUserContext": { withDbUserContext: async (_userId, operation) => prisma.$transaction(operation) },
+    "@/lib/listingOwnerAccess": { listingOwnerActionState: async (_userId, listingId) => {
+      if (!owned || sellerProfileId !== "seller") return null;
+      const row = (await db.query('SELECT * FROM "Listing" WHERE id=$1 AND "sellerId"=$2', [listingId, sellerProfileId])).rows[0];
+      return row ? { ...row, sellerId: row.sellerId } : null;
+    } },
     "@/lib/searchCache": { revalidateFeaturedMakerCaches() {}, revalidateListingSearchCaches() {} },
     "@/lib/guildListingThreshold": { syncGuildMemberListingThreshold: async () => { if (failGuild) throw Error("post-commit guild failure"); } },
     "@/lib/requestBody": { readBoundedJson: (req) => req.json(), isInvalidJsonBodyError: () => false, isRequestBodyTooLargeError: () => false },
@@ -123,24 +171,11 @@ test("legitimate delta preserves stock already consumed by checkout", async () =
 
 test("the actual edit writer preserves newer inventory on an unrelated content save", async () => {
   await reset(8);
-  const source = ts.createSourceFile("edit.tsx", readFileSync("src/app/dashboard/listings/[id]/edit/page.tsx", "utf8"),
-    ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  let data;
-  function visit(node) {
-    if (ts.isCallExpression(node) && node.expression.getText(source) === "tx.listing.update") {
-      data = node.arguments[0].properties.find((property) => property.name?.getText(source) === "data").initializer;
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(source); assert.ok(data);
-  // Evaluate the production Prisma data object, not a duplicated stock algorithm.
-  const scope = new Proxy({ title: "Edited", stockQuantity: 10, listingType: "IN_STOCK",
-    stockContext: { listingType: "IN_STOCK" }, needsPublicContentReview: false },
-  { has: () => true, get: (target, key) => target[key] });
-  const write = new Function("scope", `with (scope) { return (${data.getText(source)}); }`)(scope);
-  if (Object.hasOwn(write, "stockQuantity") && write.stockQuantity !== undefined) {
-    await db.query('UPDATE "Listing" SET "stockQuantity"=$1, title=$2', [write.stockQuantity, write.title]);
-  } else await db.query('UPDATE "Listing" SET title=$1', [write.title]);
+  const editSource = readFileSync("src/app/dashboard/listings/[id]/edit/page.tsx", "utf8");
+  assert.match(editSource, /updateListingOwnerContent\(tx,/);
+  assert.match(editSource, /listingType !== stockContext\.listingType[\s\S]*prepareListingStockMutation/);
+  assert.doesNotMatch(editSource, /tx\.listing\.update\(/);
+  await db.query('UPDATE "Listing" SET title=$1', ["Edited"]);
   assert.equal(await quantity(), 8);
   assert.equal((await db.query('SELECT title FROM "Listing"')).rows[0].title, "Edited");
 });

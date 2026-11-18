@@ -82,6 +82,7 @@ import {
 } from "@/lib/sellerAccountDeletionPrivateAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import { redactListingsForAccountDeletion } from "@/lib/listingAccountDeletionAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess";
@@ -1165,34 +1166,16 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
+      const listingDeletion = await redactListingsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        expectedSellerProfileId: user.sellerProfile.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+        archivedAt: now,
+      });
+      auditTargetIds.push(...listingDeletion.listingIds);
       await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id);
-      await tx.review.updateMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-        data: { sellerReply: null, sellerReplyAt: null },
-      });
-      await tx.photo.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listingVariantGroup.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listing.updateMany({
-        where: { sellerId: user.sellerProfile.id },
-        data: {
-          title: "Deleted listing",
-          status: "HIDDEN",
-          isPrivate: true,
-          archivedAt: now,
-          description: "[Listing removed]",
-          videoUrl: null,
-          tags: [],
-          metaDescription: null,
-          materials: [],
-          aiReviewFlags: [],
-          aiReviewScore: null,
-          rejectionReason: "Seller account deleted",
-        },
-      });
       await redactOwnerMakerVerificationForDeletion(tx, now);
       await cleanupFollowsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,

@@ -10,7 +10,7 @@ type VariantOption = {
 type VariantGroup = {
   id: string;
   name: string;
-  options: VariantOption[];
+  options: readonly VariantOption[];
 };
 
 export const MIN_VARIANT_PRICE_ADJUST_CENTS = -10_000_000;
@@ -35,8 +35,8 @@ export type VariantResolution =
   | { ok: false; error: string };
 
 export function resolveListingVariantSelection(
-  variantGroups: VariantGroup[],
-  selectedOptionIds: string[],
+  variantGroups: readonly VariantGroup[],
+  selectedOptionIds: readonly string[],
 ): VariantResolution {
   if (variantGroups.length === 0) {
     if (selectedOptionIds.length > 0) {

@@ -1,7 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
-  legacyStockRestoreClaimFromRows,
   stripeWebhookHealthSummaryFromRows,
   stripeWebhookPruneCountFromRows,
 } from "@/lib/stripeWebhookMaintenanceState";
@@ -31,14 +30,4 @@ export async function stripeWebhookHealthSummary(
       FROM public.grainline_stripe_webhook_health_summary()
   `;
   return stripeWebhookHealthSummaryFromRows(rows);
-}
-
-export async function claimLegacyStockRestore(
-  sessionId: string,
-  client: StripeWebhookMaintenanceClient = prisma,
-) {
-  const rows = await client.$queryRaw<Array<{ claimed: unknown }>>`
-    SELECT public.grainline_legacy_stock_restore_claim(${sessionId}) AS claimed
-  `;
-  return legacyStockRestoreClaimFromRows(rows);
 }

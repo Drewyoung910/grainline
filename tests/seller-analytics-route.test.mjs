@@ -40,6 +40,14 @@ async function getAnalytics(range, { topListings = [], archivedIds = [], viewGro
       readSellerOrderAnalyticsBuckets: async () => [],
       readSellerOrderTopListings: async () => topListings,
     },
+    "@/lib/listingOwnerAccess": {
+      listingOwnerCounts: async () => ({ activeCount: 0 }),
+      listingOwnerRatingBuckets: async () => [],
+      listingOwnerActionState: async (_actorId, listingId) => ({
+        id: listingId,
+        archivedAt: archivedIds.includes(listingId) ? new Date("2026-01-01T00:00:00Z") : null,
+      }),
+    },
     "@/lib/metrics": {
       getFreshSellerMetrics: async () => ({ averageRating: 0, reviewCount: 0, onTimeShippingRate: 0, responseRate: 0, accountAgeDays: 0, totalSalesCents: 0, activeCaseCount: 0 }),
       meetsGuildMasterRequirements: () => ({ allMet: false }),

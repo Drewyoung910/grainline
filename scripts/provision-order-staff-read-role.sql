@@ -368,6 +368,25 @@ SELECT pg_catalog.format(
   FROM optional_user_report_staff
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
+
+-- Listing-domain preparation is additive and may be absent from historical
+-- replay stages. Converge the isolated staff surface whenever it is installed.
+WITH optional_listing_domain_staff(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_remove_transition"(text, text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_queue"(text, integer)'),
+    ('public."grainline_listing_staff_detail_source"(text, text)'),
+    ('public."grainline_listing_staff_reference_targets"(text, text[])'),
+    ('public."grainline_listing_staff_seller_active_public_count"(text, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'staff_role'
+)
+  FROM optional_listing_domain_staff
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
 GRANT EXECUTE ON FUNCTION
   public.grainline_seller_staff_feature_transition(text, text, text)
   TO :"staff_role";

@@ -16,6 +16,7 @@ import {
   userReportStaffTopReporters,
   type UserReportStaffCursor,
 } from "@/lib/userReportAccess";
+import { listingStaffReferenceTargets } from "@/lib/listingStaffAccess";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
 const REPORT_PAGE_SIZE = 25;
@@ -60,9 +61,9 @@ export default async function AdminReportsPage({
 }) {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
+  const staffClient = getOrderStaffReadClient();
 
   const cursor = parseReportCursor(await searchParams);
-  const staffClient = getOrderStaffReadClient();
   const [openCount, reports, topReporters] = await Promise.all([
     userReportStaffOpenCount(staffClient, staff.id),
     userReportStaffOpenPage(staffClient, {
@@ -97,29 +98,41 @@ export default async function AdminReportsPage({
     .map((r) => r.targetId!);
 
   const reviewListingMap = new Map<string, { id: string; title: string }>();
+  const reviewListingIdMap = new Map<string, string>();
   const blogCommentSlugMap = new Map<string, string>();
   const listingPathMap = new Map<string, string>();
   const removableListingIds = new Set<string>();
+  const listingReviewedAtMap = new Map<string, string>();
   const sellerPathMap = new Map<string, string>();
 
   if (reviewTargetIds.length > 0) {
     const reviews = await prisma.review.findMany({
       where: { id: { in: reviewTargetIds } },
-      select: { id: true, listing: { select: { id: true, title: true } } },
+      select: { id: true, listingId: true },
     });
     for (const rv of reviews) {
-      reviewListingMap.set(rv.id, rv.listing);
+      reviewListingIdMap.set(rv.id, rv.listingId);
     }
   }
 
-  if (listingTargetIds.length > 0) {
-    const listings = await prisma.listing.findMany({
-      where: { id: { in: listingTargetIds } },
-      select: { id: true, title: true, rejectionReason: true },
+  const referencedListingIds = [
+    ...listingTargetIds,
+    ...reviewListingIdMap.values(),
+  ];
+  if (referencedListingIds.length > 0) {
+    const listings = await listingStaffReferenceTargets(staffClient, {
+      actorId: staff.id,
+      listingIds: referencedListingIds,
     });
+    const listingById = new Map(listings.map((listing) => [listing.id, listing]));
     for (const listing of listings) {
       listingPathMap.set(listing.id, publicListingPath(listing.id, listing.title));
+      listingReviewedAtMap.set(listing.id, listing.updatedAt.toISOString());
       if (!listing.rejectionReason?.startsWith(STAFF_REMOVAL_REJECTION_REASON)) removableListingIds.add(listing.id);
+    }
+    for (const [reviewId, listingId] of reviewListingIdMap) {
+      const listing = listingById.get(listingId);
+      if (listing) reviewListingMap.set(reviewId, listing);
     }
   }
 
@@ -210,7 +223,12 @@ export default async function AdminReportsPage({
                       )
                     )}
                     {r.targetType === "LISTING" && staff.role === "ADMIN" && removableListingIds.has(r.targetId) && (
-                      <div><DeleteListingButton listingId={r.targetId} /></div>
+                      <div>
+                        <DeleteListingButton
+                          listingId={r.targetId}
+                          reviewedAt={listingReviewedAtMap.get(r.targetId)!}
+                        />
+                      </div>
                     )}
                     {isSellerProfileReportTarget(r.targetType) && (
                       reportUserById.get(r.reportedId)?.deletedAt ? (

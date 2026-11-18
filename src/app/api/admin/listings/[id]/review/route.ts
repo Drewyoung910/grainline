@@ -32,8 +32,30 @@ import { z } from 'zod'
 const ReviewActionSchema = z.object({
   action: z.enum(['approve', 'reject']),
   reason: z.string().max(500).nullish(),
+  reviewedAt: z.iso.datetime({ offset: true }),
 })
 const ADMIN_LISTING_REVIEW_BODY_MAX_BYTES = 16 * 1024
+const customOrderReadyWarning = 'Listing was approved, but the buyer was not notified. Contact support; delivery is safe to retry.'
+
+async function deliverCustomOrderReadyLink(listing: {
+  id: string
+  seller: { userId: string }
+}) {
+  try {
+    const result = await sendCustomOrderReadyLink({
+      listingId: listing.id,
+      sellerUserId: listing.seller.userId,
+    })
+    return result.messageDelivered ? null : customOrderReadyWarning
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: 'warning',
+      tags: { source: 'admin_listing_review_custom_order_ready_delivery' },
+      extra: { listingId: listing.id, sellerUserId: listing.seller.userId },
+    })
+    return customOrderReadyWarning
+  }
+}
 
 function sellerUnavailableReason(seller: {
   chargesEnabled: boolean
@@ -139,7 +161,7 @@ export async function PATCH(
     }
     throw e
   }
-  const { action, reason } = body
+  const { action, reason, reviewedAt } = body
   const sanitizedReason = truncateText(sanitizeText(reason ?? ''), 500).trim()
 
   const transition = await sellerProfileStaffListingReviewTransition(
@@ -149,12 +171,19 @@ export async function PATCH(
       listingId: id,
       operation: action === 'approve' ? 'APPROVE' : 'REJECT',
       reason: sanitizedReason,
+      reviewedAt: new Date(reviewedAt),
     },
   )
   if (!transition) return privateJson({ error: 'Not found' }, { status: HTTP_STATUS.NOT_FOUND })
   const listing = transition.listing
   if (transition.blockReason === 'REASON_REQUIRED') {
     return privateJson({ error: 'Reason required for rejection' }, { status: HTTP_STATUS.BAD_REQUEST })
+  }
+  if (transition.blockReason === 'LISTING_VERSION_CHANGED') {
+    return privateJson(
+      { error: 'Listing changed after this review card loaded. Refresh and review the current version.' },
+      { status: HTTP_STATUS.CONFLICT },
+    )
   }
   if (action === 'approve' && transition.blockReason) {
     const unavailableReason = sellerUnavailableReason(listing.seller)
@@ -171,9 +200,12 @@ export async function PATCH(
       listing.customOrderConversationId &&
       listing.reservedForUserId
     ) {
-      await sendCustomOrderReadyLink({
-        listingId: listing.id,
-        sellerUserId: listing.seller.userId,
+      const warning = await deliverCustomOrderReadyLink(listing)
+      return privateJson({
+        ok: true,
+        skipped: true,
+        reason: 'Listing is no longer pending review.',
+        ...(warning ? { warning } : {}),
       })
     }
     return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
@@ -183,6 +215,7 @@ export async function PATCH(
   }
 
   if (action === 'approve') {
+    let warning: string | null = null
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_approve_guild_threshold')
@@ -207,10 +240,7 @@ export async function PATCH(
         })
       }
       if (listing.customOrderConversationId && listing.reservedForUserId) {
-        await sendCustomOrderReadyLink({
-          listingId: listing.id,
-          sellerUserId: listing.seller.userId,
-        })
+        warning = await deliverCustomOrderReadyLink(listing)
       }
     }
     const notificationBody = listing.status === 'SOLD_OUT'
@@ -232,6 +262,7 @@ export async function PATCH(
       })
     })
     await emailListingDecision(listing, true, null)
+    return privateJson({ ok: true, ...(warning ? { warning } : {}) })
   } else if (action === 'reject') {
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()

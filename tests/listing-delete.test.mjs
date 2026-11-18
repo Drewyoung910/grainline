@@ -36,18 +36,17 @@ describe("listing delete lifecycle", () => {
       "utf8",
     );
 
-    assert.match(source, /FOR UPDATE OF listing/);
     assert.match(source, /withSerializableDbUserContext/);
     assert.match(source, /sellerOwnerCore\(normalizedActorUserId\)/);
-    assert.match(source, /listing\."sellerId" = \$\{owner\.sellerProfileId\}/);
-    assert.doesNotMatch(source, /JOIN public\."SellerProfile"/);
+    assert.match(source, /lockListingOwnerDeleteState\(/);
+    assert.match(source, /archiveListingOwnerDeleteState\(/);
+    assert.match(source, /hardDeleteListingOwnerDeleteState\(/);
     assert.match(source, /grainline_listing_delete_reference_state/);
     assert.match(source, /while a buyer checkout is in progress/);
     assert.doesNotMatch(source, /FROM public\."OrderItem"/);
     assert.match(source, /syncListingDirectUploadReferences/);
     assert.match(source, /requireAllTracked: true/);
-    assert.match(source, /tx\.photo\.deleteMany/);
-    assert.match(source, /tx\.listing\.deleteMany/);
+    assert.doesNotMatch(source, /tx\.photo\.deleteMany|tx\.listing\.deleteMany/);
     assert.match(source, /deleteCartItemsForSellerListing/);
     assert.doesNotMatch(source, /tx\.cartItem\.deleteMany/);
     assert.match(uploadMigration, /grainline_direct_upload_release_listing_delete/);
@@ -95,20 +94,27 @@ describe("listing delete lifecycle", () => {
     assert.match(migration, /ADD COLUMN "archivedAt" TIMESTAMP\(3\)/);
     assert.match(migration, /status = 'HIDDEN'[\s\S]*"isPrivate" = true/);
     assert.match(migration, /audit\.action = 'HOLD_LISTING'[\s\S]*NOT audit\.undone/);
-    assert.match(dashboard, /where: \{ sellerId: sellerProfileId, archivedAt: null \}/);
-    assert.match(dashboard, /const where: Prisma\.ListingWhereInput = \{ sellerId: sellerProfileId, archivedAt: null \}/);
-    assert.match(shop, /\{ sellerId, archivedAt: null,/);
+    assert.match(dashboard, /listingOwnerSummaryRows\(/);
+    assert.match(dashboard, /includeArchived: false/);
+    assert.match(shop, /listingOwnerCatalogPage\(/);
+    assert.match(shop, /listingPublicCatalogPage\(/);
   });
 
   it("enforces archivedAt in stale edit locks and every listing-detail visibility path", () => {
     const stockMutation = readFileSync("src/lib/listingStockMutation.ts", "utf8");
+    const listingPreparation = readFileSync(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      "utf8",
+    );
     const visibility = readFileSync("src/lib/listingVisibility.ts", "utf8");
     const listingPage = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
 
-    assert.match(stockMutation, /SELECT[\s\S]*"archivedAt"[\s\S]*FOR UPDATE/);
+    assert.match(stockMutation, /grainline_listing_owner_stock_lock/);
+    assert.match(listingPreparation, /CREATE FUNCTION public\.grainline_listing_owner_stock_lock[\s\S]*"archivedAt"[\s\S]*FOR UPDATE OF listing/);
     assert.match(visibility, /if \(listing\.archivedAt\) return false/);
     assert.match(visibility, /archivedAt: null/);
-    assert.match(listingPage, /archivedAt: true/);
+    assert.match(listingPage, /listingActorDetailSource\(/);
+    assert.match(listingPage, /canViewListingDetail\(listing/);
   });
 
   it("isolates the additive migration from historical release guards and restores it for PostgreSQL proof", () => {

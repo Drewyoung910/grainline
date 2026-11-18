@@ -7,17 +7,14 @@ import ts from "typescript";
 const path = "src/lib/firstListingEmail.ts";
 
 function fixture({ publishedCount = 1, recipient = { email: "m@example.com" }, enqueueFails = false } = {}) {
-  const state = { enqueued: [], sentry: [], counted: null };
+  const state = { enqueued: [], sentry: [], countedActor: null };
   const dependencies = {
     "@sentry/nextjs": { captureException: (error) => state.sentry.push(error) },
-    "@/lib/db": {
-      prisma: {
-        listing: {
-          count: async ({ where }) => {
-            state.counted = where;
-            return publishedCount;
-          },
-        },
+    "@/lib/db": { prisma: {} },
+    "@/lib/listingOwnerAccess": {
+      listingOwnerCounts: async (actorId) => {
+        state.countedActor = actorId;
+        return { publishedPublicCount: publishedCount };
       },
     },
     "@/lib/email": { renderFirstListingCongratsEmail: () => ({ to: "m@example.com", subject: "s", html: "h" }) },
@@ -47,8 +44,7 @@ test("the first live listing gets the email with a per-seller key", async () => 
   const subject = fixture();
   await subject.send();
   assert.equal(subject.state.enqueued[0].dedupKey, "first-listing-congrats:seller");
-  assert.equal(subject.state.counted.isPrivate, false);
-  assert.deepEqual(Array.from(subject.state.counted.status.in), ["ACTIVE", "SOLD", "SOLD_OUT", "HIDDEN"]);
+  assert.equal(subject.state.countedActor, "user");
 });
 
 test("a later listing does not send the first-listing email", async () => {

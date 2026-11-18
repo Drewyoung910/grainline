@@ -36,27 +36,31 @@ describe("listing analytics guardrails", () => {
   });
 
   it("skips signed-in seller self-traffic before listing analytics counters are written", () => {
+    const migration = source("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql");
     for (const [path, counter] of [
       ["src/app/api/listings/[id]/view/route.ts", "viewCount"],
       ["src/app/api/listings/[id]/click/route.ts", "clickCount"],
     ]) {
       const route = source(path);
       const capIndex = route.indexOf("claimListingAnalyticsDailyCap(");
-      const transactionIndex = route.indexOf("prisma.$transaction");
+      const authorityIndex = route.indexOf("incrementPublicListingAnalytics(");
 
       assert.match(route, /import \{ auth \} from "@clerk\/nextjs\/server"/);
       assert.match(route, /import \{ userIdByClerkId \} from "@\/lib\/userIdentityAccess"/);
       assert.match(route, /const \{ userId \} = await auth\(\)/);
       assert.match(route, /claimListingAnalyticsDailyCap\("(view|click)", id\)/);
-      assert.ok(capIndex >= 0 && capIndex < transactionIndex, `${path} must check daily cap before DB writes`);
+      assert.ok(capIndex >= 0 && capIndex < authorityIndex, `${path} must check daily cap before DB writes`);
       assert.match(route, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(route, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
       assert.match(route, /const viewerUserId = viewer\?\.id \?\? null/);
-      assert.match(route, /sellerOwnerCore\(viewerUserId\)/);
-      assert.match(route, /viewerSellerProfileId \? \{ sellerId: \{ not: viewerSellerProfileId \} \} : \{\}/);
       assert.doesNotMatch(route, /seller: \{ user: \{ clerkId:/);
-      assert.match(route, new RegExp(`data: \\{ ${counter}: \\{ increment: 1 \\} \\}`));
-      assert.match(route, /publicListingWhere\(\{/);
+      assert.match(route, /incrementPublicListingAnalytics\(\{/);
+      assert.match(route, new RegExp(`eventKind: "${counter === "viewCount" ? "view" : "click"}"`));
+      assert.doesNotMatch(route, /prisma\.\$transaction|prisma\.listing\.update|listingViewDaily\.upsert/);
     }
+    assert.match(migration, /CREATE FUNCTION public\.grainline_listing_public_analytics_increment/);
+    assert.match(migration, /request_user_id[\s\S]*actor_seller_id/);
+    assert.match(migration, /actor_seller_id IS NULL[\s\S]*listing\."sellerId" <> actor_seller_id/);
+    assert.match(migration, /FOR UPDATE[\s\S]*UPDATE public\."Listing"[\s\S]*INSERT INTO public\."ListingViewDaily"/);
   });
 });

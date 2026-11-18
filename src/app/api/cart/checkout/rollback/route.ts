@@ -11,7 +11,6 @@ import {
 import { stripe } from "@/lib/stripe";
 import {
   restoreBuyerExpiredCheckoutStockOnce,
-  type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
 import {
   isInvalidJsonBodyError,
@@ -145,17 +144,10 @@ export async function POST(req: Request) {
       }
 
       try {
-        const lineItems =
-          (
-            session as {
-              line_items?: { data?: CheckoutStockRestoreLineItem[] };
-            }
-          ).line_items?.data ?? [];
         await restoreBuyerExpiredCheckoutStockOnce({
           buyerId: me.id,
           sessionId,
           metadata,
-          lineItems,
         });
         results.push({ sessionId, status: "restored" });
       } catch (error) {

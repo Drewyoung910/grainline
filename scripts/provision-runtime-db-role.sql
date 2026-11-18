@@ -3334,6 +3334,112 @@ SELECT format(
    AND to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Listing preparation converts every direct Listing read/write into a bounded
+-- fixed authority while RLS is still off. Re-provisioning must converge the
+-- complete candidate surface without exposing staff or implementation helpers
+-- to the ordinary runtime role.
+WITH listing_domain_candidate(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_remove_transition"(text,text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_undo_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_listing_review_queue"(text,integer)', false),
+    ('public."grainline_listing_staff_reference_targets"(text, text[])', false),
+    ('public."grainline_listing_staff_seller_active_public_count"(text, text)', false),
+    ('public."grainline_listing_actor_review_contexts"(text[])', true),
+    ('public."grainline_listing_public_customer_photo_page"(text,integer,integer)', true),
+    ('public."grainline_listing_owner_editor"(text)', true),
+    ('public."grainline_listing_owner_export_page"(timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_catalog_page"(text,jsonb,integer,integer)', true),
+    ('public."grainline_listing_owner_summary_page"(text,text,boolean,integer,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_workshop_summary"()', true),
+    ('public."grainline_listing_owner_counts"()', true),
+    ('public."grainline_listing_owner_rating_buckets"(bigint,bigint,boolean)', true),
+    ('public."grainline_listing_seller_rating_summary_refresh"(text)', true),
+    ('public."grainline_listing_reviewer_rating_seller_ids"(text)', true),
+    ('public."grainline_listing_service_quality_score_apply"(jsonb)', true),
+    ('public."grainline_listing_owner_stock_lock"(text,text)', true),
+    ('public."grainline_listing_owner_stock_apply"(text,text,boolean,integer,integer)', true),
+    ('public."grainline_listing_owner_action_state"(text)', true),
+    ('public."grainline_listing_actor_transaction_source_core"(text,boolean)', false),
+    ('public."grainline_listing_actor_transaction_source"(text)', true),
+    ('public."grainline_listing_actor_cart_transaction_sources"(text)', true),
+    ('public."grainline_listing_public_analytics_increment"(text,text)', true),
+    ('public."grainline_listing_public_catalog_page"(jsonb, integer, integer)', true),
+    ('public."grainline_listing_public_title_suggestions"(text)', true),
+    ('public."grainline_listing_detail_source_core"(text)', false),
+    ('public."grainline_listing_actor_detail_source"(text)', true),
+    ('public."grainline_listing_staff_detail_source"(text, text)', false),
+    ('public."grainline_listing_owner_ai_review_context"(text)', true),
+    ('public."grainline_listing_owner_assign_metros"(text,timestamp without time zone,text,text)', true),
+    ('public."grainline_listing_children_replace_core"(text,integer,jsonb,jsonb)', false),
+    ('public."grainline_listing_owner_create"(text,text,boolean,text,text,text,text,integer,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_content_update"(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_alt_text_backfill"(text,text[],text[])', true),
+    ('public."grainline_listing_account_deletion_redact"(text,text,bigint,uuid,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_delete_lock"(text)', true),
+    ('public."grainline_listing_owner_archive"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_hard_delete"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_transition"(text,text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_review_transition"(text,timestamp without time zone,text,text,text[],double precision)', true),
+    ('public."grainline_listing_message_context_titles"(text)', true),
+    ('public."grainline_listing_materials_guard"()', false)
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM listing_domain_candidate
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH listing_domain_candidate(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_listing_actor_review_contexts"(text[])', true),
+    ('public."grainline_listing_public_customer_photo_page"(text,integer,integer)', true),
+    ('public."grainline_listing_owner_editor"(text)', true),
+    ('public."grainline_listing_owner_export_page"(timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_catalog_page"(text,jsonb,integer,integer)', true),
+    ('public."grainline_listing_owner_summary_page"(text,text,boolean,integer,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_workshop_summary"()', true),
+    ('public."grainline_listing_owner_counts"()', true),
+    ('public."grainline_listing_owner_rating_buckets"(bigint,bigint,boolean)', true),
+    ('public."grainline_listing_seller_rating_summary_refresh"(text)', true),
+    ('public."grainline_listing_reviewer_rating_seller_ids"(text)', true),
+    ('public."grainline_listing_service_quality_score_apply"(jsonb)', true),
+    ('public."grainline_listing_owner_stock_lock"(text,text)', true),
+    ('public."grainline_listing_owner_stock_apply"(text,text,boolean,integer,integer)', true),
+    ('public."grainline_listing_owner_action_state"(text)', true),
+    ('public."grainline_listing_actor_transaction_source"(text)', true),
+    ('public."grainline_listing_actor_cart_transaction_sources"(text)', true),
+    ('public."grainline_listing_public_analytics_increment"(text,text)', true),
+    ('public."grainline_listing_public_catalog_page"(jsonb, integer, integer)', true),
+    ('public."grainline_listing_public_title_suggestions"(text)', true),
+    ('public."grainline_listing_actor_detail_source"(text)', true),
+    ('public."grainline_listing_owner_ai_review_context"(text)', true),
+    ('public."grainline_listing_owner_assign_metros"(text,timestamp without time zone,text,text)', true),
+    ('public."grainline_listing_owner_create"(text,text,boolean,text,text,text,text,integer,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_content_update"(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_alt_text_backfill"(text,text[],text[])', true),
+    ('public."grainline_listing_account_deletion_redact"(text,text,bigint,uuid,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_delete_lock"(text)', true),
+    ('public."grainline_listing_owner_archive"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_hard_delete"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_transition"(text,text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_review_transition"(text,timestamp without time zone,text,text,text[],double precision)', true),
+    ('public."grainline_listing_message_context_titles"(text)', true)
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM listing_domain_candidate
+ WHERE runtime_execute
+   AND to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- CheckoutStockReservation compatible preparation keeps predecessor table
 -- grants while adding only the fixed lifecycle surface. The functions may be
 -- absent before that migration, so every convergence statement is catalog-

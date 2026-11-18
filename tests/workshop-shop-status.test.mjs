@@ -30,19 +30,23 @@ test("a failed read does not change the pill", () => {
 
 test("the pill counts only public active listings, so drafts alone do not open the shop", async () => {
   const { loadWithStubs } = await import("./helpers/load-with-stubs.mjs");
-  const counted = [];
   const data = loadWithStubs("src/lib/workshopData.ts", {
-    "@/lib/db": {
-      prisma: {
-        listing: {
-          count: async ({ where }) => {
-            counted.push(where);
-            return where.status === "ACTIVE" && where.isPrivate === false ? 0 : 4;
-          },
-          findFirst: async () => null,
-          findMany: async () => [],
-        },
-      },
+    react: { cache: (fn) => fn },
+    "@prisma/client": {
+      ListingStatus: { ACTIVE: "ACTIVE" },
+      ListingType: { IN_STOCK: "IN_STOCK" },
+    },
+    "@/lib/listingOwnerAccess": {
+      listingOwnerWorkshopSummary: async () => ({
+        listingCount: 4,
+        liveListingCount: 0,
+        unpublishedCount: 4,
+        statusCounts: { DRAFT: 4 },
+        inStock: 0,
+        underReviewTitle: null,
+        lowStock: [],
+      }),
+      listingOwnerSummaryRows: async () => [],
     },
   });
   const attention = await data.readWorkshopListingAttention("seller-1");
