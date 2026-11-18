@@ -114,19 +114,19 @@ async function proveCheckoutDeleteSerialization({
   const deleteFirstListingId = `listing-delete-first-${suffix}`;
   const checkoutFirstUpdatedAt = await insertCheckoutDeleteRaceListing(database, {
     listingId: checkoutFirstListingId,
-    sellerProfileId: seller.id,
+    sellerProfileId: seller.sellerProfileId,
   });
   const deleteFirstUpdatedAt = await insertCheckoutDeleteRaceListing(database, {
     listingId: deleteFirstListingId,
-    sellerProfileId: seller.id,
+    sellerProfileId: seller.sellerProfileId,
   });
   const checkoutFirstWitness = await checkoutSourceWitness(database, {
     listingId: checkoutFirstListingId,
-    sellerProfileId: seller.id,
+    sellerProfileId: seller.sellerProfileId,
   });
   const deleteFirstWitness = await checkoutSourceWitness(database, {
     listingId: deleteFirstListingId,
-    sellerProfileId: seller.id,
+    sellerProfileId: seller.sellerProfileId,
   });
 
   const checkout = new pg.Client({ connectionString });
