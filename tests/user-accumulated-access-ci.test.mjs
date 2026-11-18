@@ -917,7 +917,7 @@ test("SellerFaq preparation and activation are proved, isolated, and restored ar
 
 test("Listing domain candidates are isolated and restored around historical guards", () => {
   const isolateName = "Isolate Listing domain source packages until historical release guards pass";
-  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const predecessorReplay = "Prepare SellerProfile public predecessor schema for historical audit replay";
   const restoreName = "Restore Listing domain source packages after historical release guards";
   const isolate = step(isolateName);
   const restore = step(restoreName);
@@ -925,8 +925,8 @@ test("Listing domain candidates are isolated and restored around historical guar
     assert.match(isolate, new RegExp(migration));
     assert.match(restore, new RegExp(migration));
   }
-  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
-  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(predecessorReplay));
+  assert.ok(workflow.indexOf(predecessorReplay) < workflow.indexOf(restoreName));
 });
 
 test("service and reference least privilege is proved, isolated, and restored around historical guards", () => {
