@@ -585,3 +585,27 @@ race, inventory and validate the public reservation guard, prove the exact
 safe-column/policy/performance activation bytes, and bind those bytes to the
 protected release and rollback. No production activation is authorized by this
 update.
+
+## Current-main rebuild closure (2026-11-18)
+
+The current-main preparation and stacked activation rebuild close the remaining
+implementation evidence named above:
+
+- the full-chain PostgreSQL proof now runs the actual single-checkout authority
+  and the owner hard-delete authority in two independent sessions, in both
+  winner orders. Checkout-first makes deletion wait and then refuse the delete
+  because the durable reservation exists; delete-first makes checkout wait and
+  then fail closed after the Listing is removed;
+- activation inventories the public reservation-routing invariant and validates
+  its prepared constraint before enabling the public policies;
+- the migration, global grant audit, activation inspector, and full-chain
+  scenarios pin the exact public column grants, policy expressions, relation
+  posture, rollback shape, and representative public-catalog plans; and
+- the preparation and activation use the shared protected release catalogs and
+  workflows. Preparation, compatible-app deployment and predecessor drain stay
+  separate from the later atomic activation.
+
+This closes the local implementation gates. Production activation remains a
+separate NO-GO until the exact preparation bytes pass CI, preparation is applied
+alone, the compatible application is deployed, predecessor traffic drains, and
+the activation branch is rebased and passes exact-head activation CI.
