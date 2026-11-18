@@ -500,6 +500,19 @@ WITH table_authority AS (
       ('public."grainline_user_report_staff_resolve"(text, text, text, text)')
   ) AS user_report_candidate(function_signature)
   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
+  UNION ALL
+  SELECT function_signature
+  FROM (
+    VALUES
+      ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
+      ('public."grainline_seller_staff_listing_remove_transition"(text, text, text, timestamp without time zone)'),
+      ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
+      ('public."grainline_seller_staff_listing_review_queue"(text, integer)'),
+      ('public."grainline_listing_staff_detail_source"(text, text)'),
+      ('public."grainline_listing_staff_reference_targets"(text, text[])'),
+      ('public."grainline_listing_staff_seller_active_public_count"(text, text)')
+  ) AS listing_domain_candidate(function_signature)
+  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
 ), expected_authority AS (
   SELECT function_signature,
          pg_catalog.has_function_privilege(

@@ -40,5 +40,19 @@ test("staff Listing references and verification counts use isolated bounded auth
   assert.match(provision, /public\."grainline_listing_staff_seller_active_public_count"\(text, text\)/u);
   assert.match(staffProvision, /public\."grainline_listing_staff_reference_targets"\(text, text\[\]\)/u);
   assert.match(staffProvision, /public\."grainline_listing_staff_seller_active_public_count"\(text, text\)/u);
+  for (const signature of [
+    'public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)',
+    'public."grainline_seller_staff_listing_remove_transition"(text, text, text, timestamp without time zone)',
+    'public."grainline_seller_staff_listing_undo_transition"(text, text, text)',
+    'public."grainline_seller_staff_listing_review_queue"(text, integer)',
+    'public."grainline_listing_staff_detail_source"(text, text)',
+    'public."grainline_listing_staff_reference_targets"(text, text[])',
+    'public."grainline_listing_staff_seller_active_public_count"(text, text)',
+  ]) {
+    assert.ok(
+      staffProvision.split(signature).length >= 3,
+      `${signature} must be present in both the optional grant and exact allowlist`,
+    );
+  }
   assert.match(runner, /proveListingDomainStaffReferences/u);
 });
