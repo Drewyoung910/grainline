@@ -547,6 +547,21 @@ jobs:
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
           echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate Listing domain source packages until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          if [[ -d "prisma/migrations/$activation" ]]
+          then
+            mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+            echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+          fi
       - name: Isolate service and reference least-privilege migration until historical release guards pass
         shell: bash
         run: |
@@ -7135,6 +7150,21 @@ jobs:
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Listing domain source packages after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          if [[ -d "$holding/migrations/$activation" ]]
+          then
+            mv "$holding/migrations/$activation" "prisma/migrations/$activation"
+          fi
+          rmdir "$holding/migrations" "$holding"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore service and reference least-privilege migration after historical release guards
         shell: bash
         run: |
