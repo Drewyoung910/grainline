@@ -89,6 +89,10 @@ describe("Round 8 public profile privacy guardrails", () => {
     );
     const seller = source("src/app/seller/[id]/page.tsx");
     const customerPhotos = source("src/app/seller/[id]/customer-photos/page.tsx");
+    const customerPhotoAccess = source("src/lib/listingReviewHistoryAccess.ts");
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
 
     assert.match(listing, /reviewerAccountActive: true/);
@@ -105,15 +109,14 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(listingDetailAuthority, /seller\."allowLocalPickup"/);
     assert.match(listing, /const showPickupMap = listing\.seller\.allowLocalPickup && pickupMapPoint != null/);
     assert.match(listing, /\{showPickupMap && pickupMapPoint && \(/);
-    assert.match(seller, /reviewerAccountActive: true/);
-    assert.doesNotMatch(seller, /reviewer: \{ banned: false, deletedAt: null \}/);
-    assert.match(seller, /select: \{ listingId: true, reviewerId: true/);
-    assert.match(seller, /new Set\(customerPhotos\.map\(\(p\) => p\.review\.reviewerId\)\)\.size/);
-    assert.doesNotMatch(seller, /reviewerId:\s*p\.review\.reviewerId/);
-    assert.match(customerPhotos, /reviewerAccountActive: true/);
-    assert.doesNotMatch(customerPhotos, /reviewer: \{ banned: false, deletedAt: null \}/);
-    assert.match(customerPhotos, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
-    assert.doesNotMatch(customerPhotos, /select: \{ listingId: true, reviewerId: true/);
+    assert.match(seller, /listingPublicCustomerPhotoPage\(/);
+    assert.match(seller, /new Set\(customerPhotos\.map\(\(p\) => p\.reviewerId\)\)\.size/);
+    assert.doesNotMatch(seller, /prisma\.reviewPhoto\./);
+    assert.match(customerPhotos, /listingPublicCustomerPhotoPage\(/);
+    assert.doesNotMatch(customerPhotos, /prisma\.(?:review|reviewPhoto|listing)\./);
+    assert.match(customerPhotoAccess, /grainline_listing_public_customer_photo_page/);
+    assert.match(listingAuthority, /review\."reviewerAccountActive" = true/);
+    assert.match(listingAuthority, /FROM public\."Block" AS relationship/);
     assert.match(seller, /function safeSellerSocialUrl/);
     assert.match(seller, /normalizePublicHttpsUrl\(value, 2048\)/);
     assert.match(seller, /const sameAs = socialLinks\.map\(\(link\) => link\.url\)/);

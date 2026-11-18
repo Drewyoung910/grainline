@@ -47,15 +47,17 @@ describe("seller display-name lookup normalization guardrails", () => {
     const suggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const browse = source("src/app/browse/page.tsx");
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
 
     for (const text of [suggestions, blogSuggestions]) {
       assert.match(text, /normalizeDisplayNameForLookup\(q\)/);
       assert.match(text, /sellerPublicNameSuggestions\([^)]*normalizedDisplayNameQuery/s);
     }
     assert.match(browse, /normalizeDisplayNameForLookup\(q\)/);
-    assert.match(
-      browse,
-      /sellerDisplayNameNormalized:\s*\{\s*contains:\s*normalizedDisplayNameQuery,\s*mode:\s*"insensitive"/s,
-    );
+    assert.match(browse, /normalizedSellerQuery: normalizedDisplayNameQuery/);
+    assert.match(browse, /listingPublicCatalogPage\(/);
+    assert.match(listingAuthority, /listing\."sellerDisplayNameNormalized"[\s\S]*ILIKE normalized_seller_pattern ESCAPE E'\\\\'/);
   });
 });

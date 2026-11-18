@@ -323,7 +323,10 @@ describe("post-launch UI follow-ups", () => {
     // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
     assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
     assert.match(dashboard, /\?preview=1`/);
-    assert.match(source("src/lib/workshopData.ts"), /where: \{ sellerId: sellerProfileId, archivedAt: null \}/);
+    const workshopData = source("src/lib/workshopData.ts");
+    assert.match(workshopData, /listingOwnerSummaryRows\(actorUserId, \{/);
+    assert.match(workshopData, /includeArchived: false/);
+    assert.doesNotMatch(workshopData, /prisma\.listing\./);
   });
 
   it("AI alt-text backfill helper exists and is wired into every reviewListingWithAI path", () => {
@@ -333,28 +336,35 @@ describe("post-launch UI follow-ups", () => {
     const newPage = source("src/app/dashboard/listings/new/page.tsx");
     const customPage = source("src/app/dashboard/listings/custom/page.tsx");
     const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
 
     assert.match(helper, /export async function backfillEmptyAltTexts/);
-    assert.match(helper, /planPhotoAltTextBackfill\(photos, altTexts\)/);
-    assert.match(helper, /data: \{ altText: update\.altText \}/);
-    assert.match(helper, /\.findMany\(/);
+    assert.match(helper, /withDbUserContext\(actorUserId/);
+    assert.match(helper, /grainline_listing_owner_alt_text_backfill/);
+    assert.match(helper, /reviewedImageUrls\.length > 10/);
+    assert.doesNotMatch(helper, /(?:prisma|client)\.photo\.(?:findMany|updateMany)/);
+    assert.match(listingAuthority, /source_photo_urls IS DISTINCT FROM p_reviewed_image_urls/);
+    assert.match(listingAuthority, /photo\."altText" IS NULL OR photo\."altText" = ''/);
     assert.match(helper, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(helper, /source: "photo_alt_text_backfill"/);
     assert.doesNotMatch(helper, /Sentry\.captureException/);
     assert.doesNotMatch(helper, /console\.error\(/);
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
-    assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
+    assert.match(publishActions, /backfillEmptyAltTexts\(listing\.seller\.userId, listing\.id, aiResult\.altTexts, reviewedImageUrls\)/);
     // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
     // The old immediate photo API is disabled so uploads/re-crops/reorders
     // cannot kick a seller into review before they press Save.
     assert.match(editPage, /backfillEmptyAltTexts/);
-    const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
-    assert.equal(backfillCalls.length, 1, "expected the Save/review path to backfill alt text once");
+    const backfillCalls = editPage.match(/backfillEmptyAltTexts\(actor\.id, listingId, aiResult\.altTexts, reviewedImageUrls\)/g) ?? [];
+    assert.equal(backfillCalls.length, 2, "expected both Save/review paths to use the actor-bound backfill authority");
     assert.match(editPage, /photoManifestJson/);
-    assert.match(editPage, /tx\.photo\.create/);
-    assert.match(editPage, /tx\.photo\.updateMany/);
+    assert.match(editPage, /updateListingOwnerContent\(tx, \{/);
+    assert.match(editPage, /photos: photoManifest\.photos\.map/);
+    assert.doesNotMatch(editPage, /tx\.photo\.(?:create|updateMany)/);
     assert.match(customPage, /import \{ backfillEmptyAltTexts \}/);
-    assert.match(customPage, /backfillEmptyAltTexts\(created\.id, aiResult\.altTexts\)/);
+    assert.match(customPage, /backfillEmptyAltTexts\(seller\.userId, created\.id, aiResult\.altTexts, reviewedImageUrls\)/);
     assert.doesNotMatch(customPage, /prisma\.photo\.findMany\(\{\s*where: \{ listingId: created\.id \}/s);
     assert.doesNotMatch(addPhotosRoute, /reviewListingWithAI/);
     assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);
@@ -687,12 +697,15 @@ describe("post-launch UI follow-ups", () => {
 
   it("keeps listing similar makers public-scoped and visually bounded", () => {
     const listingPage = source("src/app/listing/[id]/page.tsx");
+    const listingDetailAccess = source("src/lib/listingDetailAccess.ts");
     const similarMakers = source("src/components/SimilarMakers.tsx");
     const docs = source("CLAUDE.md");
 
     assert.match(listingPage, /import SimilarMakers from "@\/components\/SimilarMakers"/);
-    assert.match(listingPage, /metroId: true/);
-    assert.match(listingPage, /cityMetroId: true/);
+    assert.match(listingDetailAccess, /metroId: string \| null/);
+    assert.match(listingDetailAccess, /cityMetroId: string \| null/);
+    assert.match(listingDetailAccess, /row\.metroId === null/);
+    assert.match(listingDetailAccess, /row\.cityMetroId === null/);
     assert.match(listingPage, /<SimilarMakers[\s\S]*listingId=\{listing\.id\}[\s\S]*viewerUserId=\{meId\}/);
 
     assert.match(similarMakers, /sellerPublicSimilarMakers\(/);
@@ -769,15 +782,20 @@ describe("post-launch UI follow-ups", () => {
   it("keeps customer-photo galleries scoped to publicly viewable listing detail pages", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    const customerPhotoAccess = source("src/lib/listingReviewHistoryAccess.ts");
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
     const sitemap = source("src/app/sitemap.ts");
 
-    assert.match(sellerPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.match(sellerPage, /listingPublicCustomerPhotoPage\(/);
     assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
-    assert.match(customerPhotosPage, /sellerId: seller\.id/);
-    assert.match(customerPhotosPage, /reviewerAccountActive: true/);
-    assert.doesNotMatch(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
-    assert.match(customerPhotosPage, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
-    assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
+    assert.match(customerPhotosPage, /listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id/s);
+    assert.match(customerPhotoAccess, /grainline_listing_public_customer_photo_page/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.(?:review|reviewPhoto|listing)\./);
+    assert.match(listingAuthority, /listing\."sellerPubliclyOrderable" = true/);
+    assert.match(listingAuthority, /review\."reviewerAccountActive" = true/);
+    assert.match(listingAuthority, /FROM public\."Block" AS relationship/);
     assert.match(sitemap, /sellerPublicSitemapPage\(\s*"CUSTOMER_PHOTOS"/s);
     assert.match(sitemap, /chunk\.kind === "customerPhotos"/);
     assert.match(sitemap, /publicSellerPath\(s\.id, s\.displayName\)}\/customer-photos/);

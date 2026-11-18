@@ -294,8 +294,27 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(similarListingAuthority, /seller\."stripeAccountSupported" = true/);
     assert.doesNotMatch(similarListingAuthority, /stripeAccountVersion/);
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
-    assert.match(globalSuggestions, /grainline_seller_public_follower_listing_target/);
+    assert.match(globalSuggestions, /listingPublicTitleSuggestions\(meDbId, q\)/);
+    assert.doesNotMatch(globalSuggestions, /grainline_seller_public_follower_listing_target/);
     assert.doesNotMatch(globalSuggestions, /JOIN "SellerProfile"|stripeAccountVersion/);
+    const listingPublicCatalog = source("src/lib/listingPublicCatalogAccess.ts");
+    assert.match(
+      listingPublicCatalog,
+      /grainline_listing_public_title_suggestions\(\$\{query\}::text\)/,
+    );
+    const listingPreparation = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    const titleSuggestionAuthority = listingPreparation.slice(
+      listingPreparation.indexOf(
+        "CREATE FUNCTION public.grainline_listing_public_title_suggestions(",
+      ),
+      listingPreparation.indexOf(
+        "REVOKE ALL ON FUNCTION public.grainline_listing_public_title_suggestions(text)",
+      ),
+    );
+    assert.match(titleSuggestionAuthority, /listing\."sellerPubliclyOrderable" = true/);
+    assert.match(titleSuggestionAuthority, /FROM public\."Block" AS blocked_pair/);
     for (const path of [
       "src/app/blog/page.tsx",
       "src/app/api/blog/search/route.ts",

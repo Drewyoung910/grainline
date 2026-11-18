@@ -51,7 +51,10 @@ test("remaining seller preflight callers reuse durable owner identity and activi
 
   assert.match(edit, /import \{ userClerkGate \} from "@\/lib\/userIdentityAccess"/);
   assert.match(edit, /sellerOwnerCore\(actor\.id\)/);
-  assert.equal((edit.match(/sellerId:\s*sellerCore\.sellerProfileId/g) ?? []).length, 3);
+  assert.equal((edit.match(/sellerId:\s*sellerCore\.sellerProfileId/g) ?? []).length, 1);
+  assert.match(edit, /listingOwnerEditor\(actor\.id, listingId\)/);
+  assert.match(edit, /listingOwnerActionState\(actor\.id, listingId\)/);
+  assert.match(edit, /updateListingOwnerContent\(tx, \{/);
   assert.doesNotMatch(edit, /seller:\s*\{ userId: actor\.id \}/);
   assert.doesNotMatch(edit, /seller:\s*\{ user:\s*\{ clerkId: userId \} \}/);
   assert.ok(
