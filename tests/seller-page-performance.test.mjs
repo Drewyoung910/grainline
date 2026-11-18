@@ -22,7 +22,7 @@ describe("seller public page query guardrails", () => {
   it("keeps independent seller-page queries grouped in one parallel batch", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
 
-    assert.match(sellerPage, /const \[\s*followState,[\s\S]*customerPhotoRows,\s*\] = await Promise\.all\(\[/);
+    assert.match(sellerPage, /const \[\s*followState,[\s\S]*customerPhotoPage,\s*\] = await Promise\.all\(\[/);
     assert.match(sellerPage, /sellerPublicFollowState\(seller\.id, meId \?\? undefined\)/);
     assert.match(sellerPage, /prisma\.sellerBroadcast\.findFirst/);
     assert.match(sellerPage, /prisma\.blogPost\.findMany/);
@@ -34,6 +34,11 @@ describe("seller public page query guardrails", () => {
     );
     assert.match(sellerPage, /getSellerRatingMap\(\[seller\.id\]\)/);
     assert.match(sellerPage, /getCachedPublicSellerStats\(seller\.id\)/);
+    assert.match(sellerPage, /listingPublicCatalogCount\(meId, \{ sellerId: seller\.id \}\)/);
+    assert.match(
+      sellerPage,
+      /listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,\s*0,\s*CUSTOMER_PHOTO_PREVIEW_SIZE \+ 1,\s*\)/,
+    );
   });
 
   it("keeps customer-photo preview bounded without exact-counting the whole set", () => {
@@ -41,11 +46,21 @@ describe("seller public page query guardrails", () => {
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
 
     assert.match(sellerPage, /const CUSTOMER_PHOTO_PREVIEW_SIZE = 12/);
-    assert.match(sellerPage, /take: CUSTOMER_PHOTO_PREVIEW_SIZE \+ 1/);
-    assert.match(sellerPage, /const hasMoreCustomerPhotos = customerPhotoRows\.length > CUSTOMER_PHOTO_PREVIEW_SIZE/);
-    assert.match(sellerPage, /const customerPhotos = customerPhotoRows\.slice\(0, CUSTOMER_PHOTO_PREVIEW_SIZE\)/);
+    assert.match(
+      sellerPage,
+      /listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,\s*0,\s*CUSTOMER_PHOTO_PREVIEW_SIZE \+ 1,\s*\)/,
+    );
+    assert.match(sellerPage, /const hasMoreCustomerPhotos = customerPhotoPage\.total > CUSTOMER_PHOTO_PREVIEW_SIZE/);
+    assert.match(sellerPage, /const customerPhotos = customerPhotoPage\.photos\.slice\(0, CUSTOMER_PHOTO_PREVIEW_SIZE\)/);
     assert.doesNotMatch(sellerPage, /prisma\.reviewPhoto\.count\(/);
-    assert.match(customerPhotosPage, /const totalCount = await prisma\.reviewPhoto\.count\(\{ where: photoWhere \}\)/);
+    assert.match(customerPhotosPage, /const PAGE_SIZE = 24/);
+    assert.match(
+      customerPhotosPage,
+      /const requestedPhotoPage = await listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,\s*\(requestedPage - 1\) \* PAGE_SIZE,\s*PAGE_SIZE,\s*\)/,
+    );
+    assert.match(customerPhotosPage, /const totalCount = requestedPhotoPage\.total/);
+    assert.match(customerPhotosPage, /\? requestedPhotoPage\.photos/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.reviewPhoto\.(?:count|findMany)\(/);
     assert.match(sellerPage, /href=\{\`\$\{publicSellerPath\(seller\.id, seller\.displayName\)\}\/customer-photos`\}/);
     assert.doesNotMatch(sellerPage, /href=\{`\/seller\/\$\{seller\.id\}\/customer-photos`\}/);
     assert.match(customerPhotosPage, /canonical: `https:\/\/thegrainline\.com\$\{publicSellerPath\(seller\.id, name\)\}\/customer-photos`/);
@@ -60,7 +75,8 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerPage, /export async function generateMetadata[\s\S]*getSellerProfileListingPreview\(sellerId\)/);
     assert.match(sellerPage, /export default async function SellerPublicPage[\s\S]*getSellerProfileListingPreview\(seller\.id\)/);
     assert.match(sellerPage, /take: SELLER_PROFILE_LISTING_PREVIEW_SIZE/);
-    assert.match(sellerPage, /prisma\.listing\.count\(\{ where: publicListingWhere\(\{ sellerId: seller\.id \}\) \}\)/);
+    assert.match(sellerPage, /listingPublicCatalogCount\(meId, \{ sellerId: seller\.id \}\)/);
+    assert.doesNotMatch(sellerPage, /prisma\.listing\.count\(/);
     assert.doesNotMatch(sellerPage, /prisma\.listing\.findFirst\(\{\s*where: publicListingWhere\(\{ sellerId \}\)/);
     assert.doesNotMatch(sellerPage, /const featuredRows = await prisma\.listing\.findMany\(\{/);
     assert.match(sellerPage, /where: publicListingWhere\(\{ sellerId: seller\.id, id: \{ in: \[\.\.\.seller\.featuredListingIds\] \} \}\)/);
@@ -155,22 +171,27 @@ describe("seller public page query guardrails", () => {
 
     assert.match(sellerShopPage, /const \{ userId \} = await auth\(\)/);
     assert.match(sellerShopPage, /const seller = await getSellerProfileForShopPage\(meId, sellerId\)/);
+    assert.match(sellerShopPage, /const followStatePromise = sellerPublicFollowState\(sellerId, meId \?\? undefined\)/);
+    assert.match(sellerShopPage, /const ownerOverview = await listingOwnerCatalogPage\(/);
     assert.match(
       sellerShopPage,
-      /const \[\s*followState,\s*categoryGroups,\s*total,\s*\] = await Promise\.all\(\[/,
+      /\[availableCategoryRows, total\] = await Promise\.all\(\[\s*listingPublicCatalogPage\(/,
     );
-    assert.match(sellerShopPage, /sellerPublicFollowState\(sellerId, meId \?\? undefined\)/);
+    assert.match(sellerShopPage, /listingPublicCatalogCount\(meId, \{/);
+    assert.match(sellerShopPage, /const followState = await followStatePromise/);
     assert.ok(
-      sellerShopPage.indexOf("prisma.listing.groupBy({") < sellerShopPage.indexOf("const totalPages ="),
-      "seller shop category groups should be fetched in the shared pre-pagination batch",
-    );
-    assert.ok(
-      sellerShopPage.indexOf("prisma.listing.count({ where })") < sellerShopPage.indexOf("const totalPages ="),
-      "seller shop total count should be fetched in the shared pre-pagination batch",
+      sellerShopPage.indexOf("[availableCategoryRows, total] = await Promise.all([") < sellerShopPage.indexOf("const totalPages ="),
+      "seller shop public category counts and total should be fetched before pagination",
     );
     assert.ok(
-      sellerShopPage.indexOf("const totalPages =") < sellerShopPage.indexOf("const listings = await prisma.listing.findMany"),
-      "seller shop listing fetch should still wait for page clamping",
+      sellerShopPage.indexOf("const ownerOverview = await listingOwnerCatalogPage(") < sellerShopPage.indexOf("const totalPages ="),
+      "seller shop owner total and category counts should be fetched before pagination",
     );
+    assert.ok(
+      sellerShopPage.indexOf("const totalPages =") < sellerShopPage.indexOf("const listings = isOwner"),
+      "seller shop listing fetch should wait for page clamping",
+    );
+    assert.match(sellerShopPage, /\? \(await listingOwnerCatalogPage\(/);
+    assert.match(sellerShopPage, /: await prisma\.listing\.findMany\(\{/);
   });
 });
