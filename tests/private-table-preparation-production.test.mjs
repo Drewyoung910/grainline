@@ -265,10 +265,15 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
     "src/app/api/admin/listings/[id]/route.ts",
     "utf8",
   );
-  assert.ok(
-    adminRemoval.indexOf("await tx.listing.update")
-      < adminRemoval.indexOf("await deleteFavoritesForAdminListing"),
-    "admin removal must hide and lock the Listing before Favorite cleanup",
+  const listingPreparation = readFileSync(
+    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    "utf8",
+  );
+  assert.match(adminRemoval, /sellerProfileStaffListingRemovalTransition\(/u);
+  assert.match(
+    listingPreparation,
+    /grainline_seller_staff_listing_remove_transition[\s\S]*FOR UPDATE;[\s\S]*UPDATE public\."Listing"[\s\S]*grainline_favorite_admin_listing_cleanup/u,
+    "admin removal must hide and lock the Listing before Favorite cleanup in one transition",
   );
   assert.ok(
     sql.indexOf('LOCK TABLE public."Listing" IN SHARE ROW EXCLUSIVE MODE')
