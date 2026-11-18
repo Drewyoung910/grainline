@@ -58,7 +58,7 @@ test("CI isolates Listing for the historical Order release chain and restores it
 
   const orderExecutor = workflow.indexOf("Apply compatible Order participant authority", restore);
   const listingReplay = workflow.indexOf(
-    "Reapply Listing preparation after historical Order executor",
+    "Reapply Listing predecessor and preparation after historical Order executor",
     orderExecutor,
   );
   const orderGrantAudit = workflow.indexOf(
@@ -70,7 +70,15 @@ test("CI isolates Listing for the historical Order release chain and restores it
   const listingReplayBlock = workflow.slice(listingReplay, orderGrantAudit);
   assert.match(
     listingReplayBlock,
+    /20261020235999_prepare_seller_profile_staff_listing_review_transition\/migration\.sql/u,
+  );
+  assert.match(
+    listingReplayBlock,
     /20261102050000_prepare_listing_domain_authorities\/migration\.sql/u,
+  );
+  assert.ok(
+    listingReplayBlock.indexOf("20261020235999_prepare_seller_profile_staff_listing_review_transition") <
+      listingReplayBlock.indexOf("20261102050000_prepare_listing_domain_authorities"),
   );
   assert.match(listingReplayBlock, /--set=ON_ERROR_STOP=on/u);
 });
