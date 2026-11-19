@@ -193,6 +193,23 @@ test("native proof accepts only the disposable loopback owner and does not wire 
     assert.doesNotMatch(readFileSync(path, "utf8"), /order-zero-direct-release-scope/u);
 });
 
+test("native proof exposes bounded phases without logging database diagnostics", () => {
+  const source = readFileSync(
+    "scripts/order-zero-direct-release-scope-postgres-proof.mjs",
+    "utf8",
+  );
+  for (const phase of [
+    "build-reviewed-release-scope",
+    "read-audited-release-snapshot",
+    "verify-single-ledger-read",
+    "verify-audited-release-snapshot",
+    "verify-zero-remaining-release-plan",
+  ]) {
+    assert.match(source, new RegExp(`phase\\(\\"${phase}\\"\\)`));
+  }
+  assert.doesNotMatch(source, /error\?\.message|error\?\.stack|JSON\.stringify\(error/u);
+});
+
 test("real offline catalog decoding covers every state; schemas and identity are explicitly modeled", async () => {
   const db = new PGlite();
   try {

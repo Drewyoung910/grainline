@@ -848,7 +848,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       zeroDirectProof,
-      /proveZeroDirectReleaseScope\(client, zeroDirectScopeCiAuditOptions\(env\)\)/,
+      /proveZeroDirectReleaseScope\([\s\S]*client,[\s\S]*zeroDirectScopeCiAuditOptions\(env\),[\s\S]*phase/,
     );
     assert.match(
       zeroDirectStructureProof,
