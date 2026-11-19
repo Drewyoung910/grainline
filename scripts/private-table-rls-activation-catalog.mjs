@@ -301,7 +301,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
   }),
   listing_domain_v1: Object.freeze({
     preparationReleaseId: "listing_domain_v1",
-    minimumCompatibleAppCommit: "e21ea7a0d49251be3b15fdf07bb8db8e6352de28",
+    minimumCompatibleAppCommit: "5a10c0df3282ec400ca6785922aceab11d4e7ed9",
     migration: "20261102060000_activate_listing_domain_rls",
     migrationSha256: "49b7c1700d4db1cc6434a6bcaa2e6577df6c31fb762737553cfee62034c5b168",
     rollbackPath: "docs/rls-drafts/listing-domain-activation-rollback.sql",
