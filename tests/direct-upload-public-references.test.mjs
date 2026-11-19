@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 const migrationPath =
   "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql";
@@ -167,7 +168,7 @@ describe("DirectUpload fixed public reference families", () => {
       ["src/app/api/reviews/[id]/route.ts", "syncReviewDirectUploadReferences"],
       ["src/app/dashboard/blog/new/page.tsx", "syncBlogPostDirectUploadReferences"],
       ["src/app/dashboard/blog/[id]/edit/page.tsx", "syncBlogPostDirectUploadReferences"],
-      ["src/app/api/commission/route.ts", "syncCommissionRequestDirectUploadReferences"],
+      ["src/app/api/commission/route.ts", "createOwnerCommissionRequest"],
       ["src/app/api/seller/broadcast/route.ts", "syncSellerBroadcastDirectUploadReferences"],
       ["src/app/messages/[id]/page.tsx", "syncLegacyMessageDirectUploadReference"],
     ];
@@ -188,5 +189,9 @@ describe("DirectUpload fixed public reference families", () => {
     const listingOwnerAccess = source("src/lib/listingOwnerAccess.ts");
     assert.match(listingOwnerAccess, /syncListingDirectUploadReferences\(\{/);
     assert.match(listingOwnerAccess, /requireAllTracked: true/);
+    assert.match(
+      source(commissionDomainPreparationMigrationPath),
+      /CREATE FUNCTION public\.grainline_commission_request_owner_create\([\s\S]*grainline_direct_upload_sync_commission_request\(actor_id, p_id\)/,
+    );
   });
 });

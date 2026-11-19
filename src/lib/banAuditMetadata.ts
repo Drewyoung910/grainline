@@ -1,7 +1,6 @@
-import { CommissionStatus } from "@prisma/client";
 import { reviewNoteSnapshot } from "./banOrderReviewState.ts";
 
-const COMMISSION_STATUSES = new Set<string>(Object.values(CommissionStatus));
+const RESTORABLE_COMMISSION_STATUSES = new Set<string>(["OPEN", "IN_PROGRESS"]);
 
 export type BanSellerProfileSnapshot = {
   id: string;
@@ -11,7 +10,7 @@ export type BanSellerProfileSnapshot = {
 
 export type BanCommissionRequestSnapshot = {
   id: string;
-  status: CommissionStatus;
+  status: "OPEN" | "IN_PROGRESS";
 };
 
 export type BanOpenOrderSnapshot = {
@@ -61,8 +60,8 @@ function readCommissionRequestSnapshots(value: unknown): BanCommissionRequestSna
   return value.flatMap((item) => {
     if (!isRecord(item)) return [];
     if (typeof item.id !== "string") return [];
-    if (typeof item.status !== "string" || !COMMISSION_STATUSES.has(item.status)) return [];
-    return [{ id: item.id, status: item.status as CommissionStatus }];
+    if (typeof item.status !== "string" || !RESTORABLE_COMMISSION_STATUSES.has(item.status)) return [];
+    return [{ id: item.id, status: item.status as "OPEN" | "IN_PROGRESS" }];
   });
 }
 
@@ -105,7 +104,7 @@ export function buildBanAuditMetadata({
   externalSyncVersion = 1,
 }: {
   sellerProfile: BanSellerProfileSnapshot | null;
-  commissionRequests: BanCommissionRequestSnapshot[];
+  commissionRequests: readonly BanCommissionRequestSnapshot[];
   openOrders?: BanOpenOrderInput[];
   openOrderSnapshots?: BanOpenOrderSnapshot[];
   appliedBannedAt?: Date;
