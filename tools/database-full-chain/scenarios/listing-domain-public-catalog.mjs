@@ -26,6 +26,26 @@ async function runtimeQuery(database, actorId, sql, params = []) {
   }
 }
 
+async function runRuntimeProvisioning(database, repositoryRoot) {
+  const source = readFileSync(
+    join(repositoryRoot, "scripts/provision-runtime-db-role.sql"),
+    "utf8",
+  );
+  return runPsqlScript(database, source, {
+    runtime_role: "grainline_app_runtime",
+    migration_role: "ci",
+  });
+}
+
+async function expectProvisioningRefusal(database, repositoryRoot, message) {
+  await assert.rejects(
+    runRuntimeProvisioning(database, repositoryRoot),
+    (error) => error?.code === "P0001"
+      && /runtime-role provisioning refused/u.test(error.message),
+    message,
+  );
+}
+
 function pageOf(result) {
   const rows = rowsOf(result);
   assert.equal(rows.length, 1);
@@ -225,9 +245,27 @@ async function proveListingDomainRollback({ database, repositoryRoot, seller }) 
     policy_count: 0,
     reservation_guard_validated: reservationGuardValidated,
   })));
+  await runRuntimeProvisioning(database, repositoryRoot);
+  assert.deepEqual(await readActivationPosture(database), [
+    ["Listing", false],
+    ["ListingVariantGroup", null],
+    ["ListingVariantOption", null],
+    ["Photo", null],
+  ].map(([tableName, reservationGuardValidated]) => ({
+    table_name: tableName,
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+    policy_count: 0,
+    reservation_guard_validated: reservationGuardValidated,
+  })), "provisioning preserves a database-first rollback despite the applied ledger");
   await provePredecessorRuntimeCrud({ database, seller });
 
   await runPsqlScript(database, activation);
+  await runRuntimeProvisioning(database, repositoryRoot);
   assert.deepEqual(await readActivationPosture(database), [
     ["Listing", true],
     ["ListingVariantGroup", null],
@@ -243,7 +281,56 @@ async function proveListingDomainRollback({ database, repositoryRoot, seller }) 
     runtime_delete: false,
     policy_count: 1,
     reservation_guard_validated: reservationGuardValidated,
-  })));
+  })), "provisioning converges the exact active Listing-domain posture");
+
+  await database.query("BEGIN");
+  await database.query(
+    `ALTER POLICY listing_public_select ON public."Listing" USING (true)`,
+  );
+  await expectProvisioningRefusal(
+    database,
+    repositoryRoot,
+    "provisioning must reject Listing policy-expression drift",
+  );
+
+  await database.query("BEGIN");
+  await database.query(
+    `GRANT UPDATE (title) ON TABLE public."Listing" TO grainline_app_runtime`,
+  );
+  await expectProvisioningRefusal(
+    database,
+    repositoryRoot,
+    "provisioning must reject unexpected Listing column authority",
+  );
+
+  await database.query("BEGIN");
+  await database.query(
+    `ALTER TABLE public."Photo" NO FORCE ROW LEVEL SECURITY`,
+  );
+  await expectProvisioningRefusal(
+    database,
+    repositoryRoot,
+    "provisioning must reject a mixed Listing-domain RLS posture",
+  );
+
+  const duplicateLedgerId = `listing-activation-duplicate-${randomUUID()}`;
+  await database.query("BEGIN");
+  await database.query(
+    `INSERT INTO public._prisma_migrations
+       (id, checksum, finished_at, migration_name, logs, rolled_back_at,
+        started_at, applied_steps_count)
+     SELECT $1, checksum, finished_at, migration_name, logs, rolled_back_at,
+            started_at, applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = '20261102060000_activate_listing_domain_rls'
+      LIMIT 1`,
+    [duplicateLedgerId],
+  );
+  await expectProvisioningRefusal(
+    database,
+    repositoryRoot,
+    "provisioning must reject duplicate exact activation ledgers",
+  );
 }
 
 export async function proveListingDomainPublicCatalog({
