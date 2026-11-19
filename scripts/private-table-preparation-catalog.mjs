@@ -698,6 +698,69 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({ name: "grainline_listing_materials_guard", arguments: "", executeRoles: Object.freeze([]) }),
     ]),
   }),
+  commission_domain_v1: Object.freeze({
+    migration: "20261113010000_prepare_commission_domain_authorities",
+    migrationSha256: "726c50fac1b9d9bd3568ea5534b9c3e8eab5f698611e15cb98efca9d0a9738bc",
+    table: "CommissionRequest",
+    additionalTables: Object.freeze(["CommissionInterest"]),
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/commission-domain-consumer-contracts.test.mjs",
+      "tests/commission-request-access-behavior.test.mjs",
+      "tests/verified-audit-followups.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_commission_request_public_count",
+        arguments: "text, text, text, double precision, double precision, integer",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_public_page",
+        arguments: "text, text, text, double precision, double precision, integer, integer, integer",
+        volatility: "s",
+      }),
+      Object.freeze({ name: "grainline_commission_request_public_detail", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_request_public_sitemap_page", arguments: "integer, integer", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_request_public_metro_ids", arguments: "", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_interest_actor_request_ids", arguments: "text[]", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_interest_actor_create", arguments: "text, text, text, text" }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_create",
+        arguments: "text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer",
+      }),
+      Object.freeze({ name: "grainline_commission_request_owner_assign_metros", arguments: "text, text, text" }),
+      Object.freeze({ name: "grainline_commission_request_owner_page", arguments: "integer", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_request_owner_export", arguments: "", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_request_owner_active_count", arguments: "", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_request_owner_reference_image_urls", arguments: "", volatility: "s" }),
+      Object.freeze({ name: "grainline_commission_interest_owner_export", arguments: "", volatility: "s" }),
+      Object.freeze({
+        name: "grainline_seller_owner_commission_interest_summaries",
+        arguments: "text[], integer",
+        volatility: "s",
+        predecessorSourceSha256: "80cb199f7162cf26d7ca76217db9a007d218bde3b8a8c1389806c3800c4330c1",
+      }),
+      Object.freeze({ name: "grainline_commission_request_owner_transition", arguments: "text, text" }),
+      Object.freeze({ name: "grainline_commission_account_deletion_prepare", arguments: "text, bigint, uuid" }),
+      Object.freeze({ name: "grainline_commission_account_deletion_redact", arguments: "text, bigint, uuid" }),
+      Object.freeze({ name: "grainline_commission_request_staff_ban_close", arguments: "text, text" }),
+      Object.freeze({ name: "grainline_commission_request_staff_ban_restore", arguments: "text, text, text[], text[]" }),
+      Object.freeze({ name: "grainline_commission_request_service_expire_batch", arguments: "integer" }),
+      Object.freeze({ name: "grainline_commission_request_service_expired_count", arguments: "", volatility: "s" }),
+    ]),
+  }),
 });
 
 export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
@@ -752,6 +815,17 @@ export function privateTablePreparationReleaseIds(selectionId) {
 
 export function privateTablePreparationMigrationPath(release) {
   return `prisma/migrations/${release.migration}/migration.sql`;
+}
+
+export function privateTablePreparationTables(release) {
+  const tables = [release.table, ...(release.additionalTables ?? [])];
+  if (
+    tables.some((table) => typeof table !== "string" || table.length === 0)
+    || new Set(tables).size !== tables.length
+  ) {
+    throw stopped("preparation table catalog is invalid");
+  }
+  return Object.freeze(tables);
 }
 
 export function privateTableFunctionExecuteRoles(entry) {

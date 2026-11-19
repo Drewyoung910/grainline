@@ -86,6 +86,7 @@ import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
+import { privateTablePreparation } from "../scripts/private-table-preparation-catalog.mjs";
 
 const LISTING_DOMAIN_PREPARATION_MIGRATION =
   "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
@@ -135,6 +136,7 @@ const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_listing_message_context_titles",
   "grainline_listing_materials_guard",
 ]);
+const COMMISSION_DOMAIN_PREPARATION = privateTablePreparation("commission_domain_v1");
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -4257,6 +4259,13 @@ describe("database grant inventory guardrails", () => {
       source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const commissionDomainAuthorityPrepared = existsSync(
+      `prisma/migrations/${COMMISSION_DOMAIN_PREPARATION.migration}/migration.sql`,
+    ) && COMMISSION_DOMAIN_PREPARATION.functions.every((entry) =>
+      source(
+        `prisma/migrations/${COMMISSION_DOMAIN_PREPARATION.migration}/migration.sql`,
+      ).includes(`FUNCTION public.${entry.name}(`),
+    );
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -4498,6 +4507,9 @@ describe("database grant inventory guardrails", () => {
       ...(listingDomainAuthorityPrepared
         ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION.functions.map((entry) => entry.name)
+        : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
         : []),
@@ -4614,6 +4626,11 @@ describe("database grant inventory guardrails", () => {
         + (makerVerificationActivationPresent ? 1 : 0)
         + (listingDomainAuthorityPrepared
           ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (commissionDomainAuthorityPrepared
+          // The seller interest summary already revoked PUBLIC in its
+          // predecessor migration; the other authorities are new here.
+          ? COMMISSION_DOMAIN_PREPARATION.functions.length - 1
           : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
@@ -4752,6 +4769,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(listingDomainAuthorityPrepared
         ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION.functions.map((entry) => entry.name)
         : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES

@@ -12,7 +12,12 @@ import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { deleteAllOwnerSavedBlogPosts } from "@/lib/savedBlogPostOwnerAccess";
 import { accountDeletionMediaKeysForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
-import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
+import {
+  ownerActiveCommissionRequestCount,
+  ownerCommissionReferenceImageUrls,
+  prepareCommissionAccountDeletion,
+  redactCommissionAccountDeletion,
+} from "@/lib/commissionRequestAccess";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
   accountEmailFallbackEmailsForUser,
@@ -98,7 +103,6 @@ import {
 } from "@/lib/emailServiceAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
-const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH = 3;
 const ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50;
@@ -137,10 +141,7 @@ type AuditLogRedactionCandidate = {
 };
 
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
-type AccountDeletionMediaDb = Pick<
-  Prisma.TransactionClient,
-  "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
->;
+type AccountDeletionMediaDb = DbUserContextTransactionClient;
 
 function accountDeletionLockKey(userId: string) {
   return `account-delete:${userId}`;
@@ -419,12 +420,7 @@ async function getAccountDeletionBlockersInTransaction(
     tx,
   );
   const openCases = await getCaseAccountDeletionBlockerCount(userId, tx);
-  const activeCommissions = await tx.commissionRequest.count({
-    where: {
-      buyerId: userId,
-      status: { in: [...ACTIVE_COMMISSION_STATUSES] },
-    },
-  });
+  const activeCommissions = await ownerActiveCommissionRequestCount(tx);
   const accountEmails = await accountEmailFallbackEmailsForUser(tx);
   const emailDeliveryPending = await emailOutboxAccountDeletionPendingCount(
     {
@@ -534,10 +530,7 @@ async function collectAccountDeletionMediaKeys(
     where: { review: { reviewerId: userId } },
     select: { url: true },
   });
-  const commissionRequests = await db.commissionRequest.findMany({
-    where: { buyerId: userId },
-    select: { referenceImageUrls: true },
-  });
+  const commissionReferenceImageUrls = await ownerCommissionReferenceImageUrls(db);
   const messages = await listActorSentMessageBodiesForDeletion(userId, db);
   const blogPosts = await db.blogPost.findMany({
     where: accountDeletionBlogPostMediaOwnerWhere(userId, sellerProfileId),
@@ -551,7 +544,7 @@ async function collectAccountDeletionMediaKeys(
   sellerMediaUrls.forEach((url) => urls.add(url));
 
   reviewPhotos.forEach((photo) => urls.add(photo.url));
-  commissionRequests.forEach((request) => request.referenceImageUrls.forEach((url) => urls.add(url)));
+  commissionReferenceImageUrls.forEach((url) => urls.add(url));
   messages.forEach((message) => {
     const url = messageAttachmentUrl(message.body);
     if (url) urls.add(url);
@@ -1142,9 +1135,10 @@ export async function anonymizeUserAccount(
       claimGeneration: localClaimGeneration,
       claimToken: localClaimToken,
     });
-    await tx.commissionRequest.updateMany({
-      where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
-      data: { status: "CLOSED" },
+    await prepareCommissionAccountDeletion(tx, {
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
 
     if (user.sellerProfile) {
@@ -1156,7 +1150,6 @@ export async function anonymizeUserAccount(
           claimToken: localClaimToken,
         });
       }
-      await removeSellerCommissionInterests(tx, user.sellerProfile.id);
       await tx.sellerProfileViewDaily.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
@@ -1213,18 +1206,10 @@ export async function anonymizeUserAccount(
     }
 
     await archiveBlogPostsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
-    await tx.commissionRequest.updateMany({
-      where: { buyerId: user.id },
-      data: {
-        title: "Deleted commission request",
-        description: "[Request deleted]",
-        timeline: null,
-        referenceImageUrls: [],
-        lat: null,
-        lng: null,
-        radiusMeters: null,
-        isNational: true,
-      },
+    await redactCommissionAccountDeletion(tx, {
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
 
     await deleteCurrentUserEmailAddressHistory(tx);

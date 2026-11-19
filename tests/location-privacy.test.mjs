@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
 
 import {
   COMMISSION_LOCATION_MIN_PRIVACY_RADIUS_METERS,
@@ -149,6 +150,9 @@ describe("public location source boundaries", () => {
   it("coarsens new and historical commission locations before public discovery", () => {
     const route = source("src/app/api/commission/route.ts");
     const page = source("src/app/commission/page.tsx");
+    const authority = source(
+      commissionDomainPreparationMigrationPath,
+    );
 
     assert.match(route, /userClerkCommissionContext\(prisma, userId\)/);
     assert.match(route, /me\.sellerProfile\?\.radiusMeters/);
@@ -159,10 +163,10 @@ describe("public location source boundaries", () => {
     assert.doesNotMatch(route, /reqLat = Number\(sellerLat\)/);
     assert.doesNotMatch(route, /reqLng = Number\(sellerLng\)/);
 
-    assert.ok((page.match(/floor\(cr\.lat::float8 \* 20\.0\)/g) ?? []).length >= 3);
-    assert.ok((page.match(/floor\(cr\.lng::float8 \* 20\.0\)/g) ?? []).length >= 3);
-    assert.ok((page.match(/LEAST\(89\.975, GREATEST\(-89\.975,/g) ?? []).length >= 3);
-    assert.ok((page.match(/LEAST\(179\.975, GREATEST\(-179\.975,/g) ?? []).length >= 3);
+    assert.ok((authority.match(/floor\(request\.lat::double precision \* 20\.0\)/g) ?? []).length >= 2);
+    assert.ok((authority.match(/floor\(request\.lng::double precision \* 20\.0\)/g) ?? []).length >= 2);
+    assert.ok((authority.match(/LEAST\(89\.975::double precision, GREATEST\(-89\.975::double precision,/g) ?? []).length >= 2);
+    assert.ok((authority.match(/LEAST\(179\.975::double precision, GREATEST\(-179\.975::double precision,/g) ?? []).length >= 2);
     assert.match(page, /commissionDistanceBucket\(r\.distanceMeters\)/);
     assert.doesNotMatch(page, /Math\.round\(r\.distanceMeters \/ 1609\)/);
     assert.doesNotMatch(page, /cr\.lat, cr\.lng, cr\."isNational"/);

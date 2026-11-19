@@ -9,6 +9,7 @@ import pg from "pg";
 import {
   privateTableFunctionExecuteRoles,
   privateTablePreparation,
+  privateTablePreparationTables,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
@@ -81,6 +82,49 @@ function assertExpectedPosture(actual, expected) {
   for (const [key, value] of Object.entries(expected)) {
     assert.equal(actual[key], value, `${key} drifted`);
   }
+}
+
+async function readTablePostures(client, release) {
+  const tables = privateTablePreparationTables(release);
+  const rows = (await client.query(`
+    SELECT target.relname AS table_name,
+           pg_catalog.current_database() AS database_name,
+           current_user AS current_user_name,
+           session_user AS session_user_name,
+           owner.rolname AS table_owner_name,
+           owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
+           target.relrowsecurity AS rls_enabled,
+           target.relforcerowsecurity AS rls_forced,
+           target.relacl::text AS table_acl,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = target.oid) AS policy_count,
+           pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'SELECT') AS runtime_select,
+           pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'INSERT') AS runtime_insert,
+           pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'UPDATE') AS runtime_update,
+           pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'DELETE') AS runtime_delete,
+           pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'SELECT') AS staff_select,
+           pg_catalog.has_table_privilege(0, target.oid, 'SELECT') AS public_select
+      FROM pg_catalog.pg_class AS target
+      JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = target.relnamespace
+      JOIN pg_catalog.pg_roles AS owner ON owner.oid = target.relowner
+     WHERE namespace.nspname = 'public'
+       AND target.relname = ANY($1::text[])
+       AND target.relkind = 'r'
+     ORDER BY target.relname
+  `, [tables])).rows;
+  assert.equal(rows.length, tables.length, "reviewed preparation table is absent");
+  const byTable = {};
+  for (const row of rows) {
+    assert.equal(row.current_user_name, row.session_user_name);
+    assert.equal(row.current_user_name, row.table_owner_name);
+    assert.equal(row.owner_bypasses_rls, true);
+    const posture = evidencePosture(row);
+    assertExpectedPosture(posture, release.expectedPredecessorPosture);
+    byTable[row.table_name] = posture;
+  }
+  assert.deepEqual(Object.keys(byTable).sort(), [...tables].sort());
+  return Object.freeze({ rows, byTable: Object.freeze(byTable) });
 }
 
 function functionEvidence(row) {
@@ -292,45 +336,11 @@ export async function inspectPrivateTablePreparationProduction(
   try {
     await client.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const postureRow = (await client.query(`
-      SELECT pg_catalog.current_database() AS database_name,
-             current_user AS current_user_name,
-             session_user AS session_user_name,
-             owner.rolname AS table_owner_name,
-             owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
-             target.relrowsecurity AS rls_enabled,
-             target.relforcerowsecurity AS rls_forced,
-             target.relacl::text AS table_acl,
-             (SELECT pg_catalog.count(*)::integer
-                FROM pg_catalog.pg_policy AS policy
-               WHERE policy.polrelid = target.oid) AS policy_count,
-             pg_catalog.has_table_privilege(
-               'grainline_app_runtime', target.oid, 'SELECT'
-             ) AS runtime_select,
-             pg_catalog.has_table_privilege(
-               'grainline_app_runtime', target.oid, 'INSERT'
-             ) AS runtime_insert,
-             pg_catalog.has_table_privilege(
-               'grainline_app_runtime', target.oid, 'UPDATE'
-             ) AS runtime_update,
-             pg_catalog.has_table_privilege(
-               'grainline_app_runtime', target.oid, 'DELETE'
-             ) AS runtime_delete,
-             pg_catalog.has_table_privilege(
-               'grainline_staff_read_runtime', target.oid, 'SELECT'
-             ) AS staff_select,
-             pg_catalog.has_table_privilege(0, target.oid, 'SELECT') AS public_select
-        FROM pg_catalog.pg_class AS target
-        JOIN pg_catalog.pg_roles AS owner ON owner.oid = target.relowner
-       WHERE target.oid = $1::pg_catalog.regclass
-         AND target.relkind = 'r'
-    `, [`public."${release.table}"`])).rows[0];
-    assert.ok(postureRow, "reviewed table is absent");
-    assert.equal(postureRow.current_user_name, postureRow.session_user_name);
-    assert.equal(postureRow.current_user_name, postureRow.table_owner_name);
-    assert.equal(postureRow.owner_bypasses_rls, true);
-    const posture = evidencePosture(postureRow);
-    assertExpectedPosture(posture, release.expectedPredecessorPosture);
+    const tablePostures = await readTablePostures(client, release);
+    const postureRow = tablePostures.rows.find(
+      (row) => row.table_name === release.table,
+    );
+    const posture = tablePostures.byTable[release.table];
 
     const ledger = (await client.query(`
       SELECT migration_name, checksum, finished_at, rolled_back_at,
@@ -381,7 +391,9 @@ export async function inspectPrivateTablePreparationProduction(
       databaseName: postureRow.database_name,
       migrationRole: postureRow.current_user_name,
       table: release.table,
+      tables: privateTablePreparationTables(release),
       posture,
+      tablePostures: tablePostures.byTable,
       catalog,
       productionChanged: false,
       containsRowData: false,
@@ -394,6 +406,13 @@ export async function inspectPrivateTablePreparationProduction(
       assert.equal(previous.releaseCommit, evidence.releaseCommit, "commit evidence drifted");
       assert.equal(previous.migration, evidence.migration, "migration evidence drifted");
       assert.deepEqual(previous.posture, evidence.posture, "table posture changed during preparation");
+      if (previous.tablePostures !== undefined) {
+        assert.deepEqual(
+          previous.tablePostures,
+          evidence.tablePostures,
+          "preparation table postures changed",
+        );
+      }
     }
     writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, {
       mode: 0o600,
