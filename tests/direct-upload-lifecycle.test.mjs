@@ -143,8 +143,6 @@ describe("direct upload lifecycle", () => {
 
   it("synchronizes every persisted public-media family through its fixed wrapper", () => {
     const checked = [
-      ["src/app/dashboard/listings/new/page.tsx", /syncListingDirectUploadReferences/],
-      ["src/app/dashboard/listings/custom/page.tsx", /syncListingDirectUploadReferences/],
       ["src/app/dashboard/listings/[id]/edit/page.tsx", /syncListingDirectUploadReferences/],
       ["src/app/api/reviews/route.ts", /syncReviewDirectUploadReferences/],
       ["src/app/api/reviews/[id]/route.ts", /syncReviewDirectUploadReferences/],
@@ -166,6 +164,18 @@ describe("direct upload lifecycle", () => {
       }
       assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
+
+    for (const path of [
+      "src/app/dashboard/listings/new/page.tsx",
+      "src/app/dashboard/listings/custom/page.tsx",
+    ]) {
+      assert.match(source(path), /createListingOwner\(/, path);
+    }
+    const listingOwnerAccess = source("src/lib/listingOwnerAccess.ts");
+    assert.match(listingOwnerAccess, /syncListingDirectUploadReferences\(\{/);
+    assert.match(listingOwnerAccess, /userId,/);
+    assert.match(listingOwnerAccess, /listingId,/);
+    assert.match(listingOwnerAccess, /requireAllTracked: true/);
   });
 
   it("references tracked message uploads from the durable message in the same transaction", () => {
