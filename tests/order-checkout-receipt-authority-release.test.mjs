@@ -35,11 +35,38 @@ test("CI isolates Listing for the historical Order release chain and restores it
   const participantDetail = workflow.indexOf(
     "Verify compatible Order participant detail projection release",
   );
+  const zeroDirect = workflow.indexOf(
+    "Prove exact zero-direct release catalog with the native PostgreSQL driver",
+  );
+  const zeroDirectStructure = workflow.indexOf(
+    "Prove zero-direct schema and role drift rejection with exact rollback",
+  );
+  const correctionPackage = workflow.indexOf(
+    "Prove correction release ledger and body restart states",
+  );
+  const participantAuthority = workflow.indexOf(
+    "Prove compatible Order participant authority",
+  );
+  const historicalGrantBoundary = workflow.indexOf(
+    "Admit re-applied User helper during historical grant audits",
+  );
   const restore = workflow.indexOf(
     "Restore Listing domain after historical Order release guards",
   );
+  const currentTreeTypecheck = workflow.indexOf(
+    "      - run: npx tsc --noEmit",
+  );
   assert.ok(isolate >= 0 && isolate < verify);
   assert.ok(verify < participantDetail && participantDetail < restore);
+  assert.ok(
+    participantDetail < zeroDirect
+      && zeroDirect < zeroDirectStructure
+      && zeroDirectStructure < correctionPackage
+      && correctionPackage < participantAuthority
+      && participantAuthority < historicalGrantBoundary
+      && historicalGrantBoundary < restore,
+  );
+  assert.ok(restore < currentTreeTypecheck);
   const isolatedBlock = workflow.slice(isolate, restore);
   assert.match(
     isolatedBlock,
@@ -48,7 +75,7 @@ test("CI isolates Listing for the historical Order release chain and restores it
   assert.match(isolatedBlock, /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=/u);
   const restoredBlock = workflow.slice(
     restore,
-    workflow.indexOf("Apply compatible Order participant authority", restore),
+    currentTreeTypecheck,
   );
   assert.match(
     restoredBlock,

@@ -3123,21 +3123,6 @@ jobs:
         run: npm run audit:order-participant-list-projection-correction
       - name: Re-verify compatible Order account-deletion authority
         run: npm run audit:order-account-deletion-authority
-      - name: Restore Listing domain after historical Order release guards
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/listing-domain"
-          preparation=20261102050000_prepare_listing_domain_authorities
-          activation=20261102060000_activate_listing_domain_rls
-          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
-          if [[ -d "$holding/migrations/$activation" ]]
-          then
-            mv "$holding/migrations/$activation" "prisma/migrations/$activation"
-          fi
-          rmdir "$holding/migrations" "$holding"
-          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Apply compatible Order participant authority
         shell: bash
         run: |
@@ -3326,6 +3311,21 @@ jobs:
           migration="$RUNNER_TEMP/user-accumulated-access/20261006030000_prepare_user_relationship_authorities/migration.sql"
           test "$(sha256sum "$migration" | cut -d ' ' -f 1)" = "eef3833d5bccd93668cc32c5fcbbdda7ece7f6ee786407ea245e760c0c30bdae"
           echo "USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR=$RUNNER_TEMP/user-accumulated-access" >> "$GITHUB_ENV"
+      - name: Restore Listing domain after historical Order release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          if [[ -d "$holding/migrations/$activation" ]]
+          then
+            mv "$holding/migrations/$activation" "prisma/migrations/$activation"
+          fi
+          rmdir "$holding/migrations" "$holding"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
