@@ -6817,7 +6817,7 @@ describe("database grant inventory guardrails", () => {
       );
       assert.match(
         provision,
-        /listing_domain_table_acl_state[\s\S]*acl\.privilege_type NOT IN \('SELECT', 'INSERT', 'UPDATE', 'DELETE'\)[\s\S]*NOT COALESCE\(table_acl\.drifted, false\)/,
+        /listing_domain_table_acl_state[\s\S]*acl\.privilege_type NOT IN \('SELECT', 'INSERT', 'UPDATE', 'DELETE'\)[\s\S]*NOT COALESCE\([\s\S]*table_acl\.drifted[\s\S]*false/,
       );
       assert.match(
         provision,

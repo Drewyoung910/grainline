@@ -518,19 +518,28 @@ WITH listing_domain_activation_ledger AS (
         relrowsecurity AND relforcerowsecurity
         AND policy_count = 1 AND exact_policy_count = 1
       )
-      AND column_acl.acl_count = 51
-      AND column_acl.exact_acl_count = 51
-      AND NOT COALESCE(table_acl.drifted, false) AS active,
+      AND (SELECT column_acl.acl_count = 51
+           FROM listing_domain_column_acl_state AS column_acl)
+      AND (SELECT column_acl.exact_acl_count = 51
+           FROM listing_domain_column_acl_state AS column_acl)
+      AND NOT COALESCE(
+        (SELECT table_acl.drifted
+         FROM listing_domain_table_acl_state AS table_acl),
+        false
+      ) AS active,
     pg_catalog.count(*) = 4
       AND pg_catalog.bool_and(
         NOT relrowsecurity AND NOT relforcerowsecurity
         AND policy_count = 0
       )
-      AND column_acl.acl_count = 0
-      AND NOT COALESCE(table_acl.drifted, false) AS clean_predecessor
+      AND (SELECT column_acl.acl_count = 0
+           FROM listing_domain_column_acl_state AS column_acl)
+      AND NOT COALESCE(
+        (SELECT table_acl.drifted
+         FROM listing_domain_table_acl_state AS table_acl),
+        false
+      ) AS clean_predecessor
   FROM listing_domain_table_state
-  CROSS JOIN listing_domain_column_acl_state AS column_acl
-  CROSS JOIN listing_domain_table_acl_state AS table_acl
 ), failure AS (
   SELECT
     'Listing-domain activation ledger or table posture drifted; refusing runtime-role provisioning'
