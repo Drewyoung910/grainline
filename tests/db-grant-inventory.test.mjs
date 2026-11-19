@@ -87,6 +87,55 @@ import {
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
+const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_staff_listing_review_transition",
+  "grainline_seller_staff_listing_remove_transition",
+  "grainline_seller_staff_listing_undo_transition",
+  "grainline_seller_staff_listing_review_queue",
+  "grainline_listing_staff_reference_targets",
+  "grainline_listing_staff_seller_active_public_count",
+  "grainline_listing_actor_review_contexts",
+  "grainline_listing_public_customer_photo_page",
+  "grainline_listing_owner_editor",
+  "grainline_listing_owner_export_page",
+  "grainline_listing_owner_catalog_page",
+  "grainline_listing_owner_summary_page",
+  "grainline_listing_owner_workshop_summary",
+  "grainline_listing_owner_counts",
+  "grainline_listing_owner_rating_buckets",
+  "grainline_listing_seller_rating_summary_refresh",
+  "grainline_listing_reviewer_rating_seller_ids",
+  "grainline_listing_service_quality_score_apply",
+  "grainline_listing_owner_stock_lock",
+  "grainline_listing_owner_stock_apply",
+  "grainline_listing_owner_action_state",
+  "grainline_listing_actor_transaction_source_core",
+  "grainline_listing_actor_transaction_source",
+  "grainline_listing_actor_cart_transaction_sources",
+  "grainline_listing_public_analytics_increment",
+  "grainline_listing_public_catalog_page",
+  "grainline_listing_public_title_suggestions",
+  "grainline_listing_detail_source_core",
+  "grainline_listing_actor_detail_source",
+  "grainline_listing_staff_detail_source",
+  "grainline_listing_owner_ai_review_context",
+  "grainline_listing_owner_assign_metros",
+  "grainline_listing_children_replace_core",
+  "grainline_listing_owner_create",
+  "grainline_listing_owner_content_update",
+  "grainline_listing_owner_alt_text_backfill",
+  "grainline_listing_account_deletion_redact",
+  "grainline_listing_owner_delete_lock",
+  "grainline_listing_owner_archive",
+  "grainline_listing_owner_hard_delete",
+  "grainline_listing_owner_transition",
+  "grainline_listing_owner_review_transition",
+  "grainline_listing_message_context_titles",
+  "grainline_listing_materials_guard",
+]);
+
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
   "grainline_seller_payout_export_page",
@@ -472,6 +521,17 @@ const {
   EMAIL_SERVICE_PREPARATION_MIGRATION,
   EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256,
   EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES,
+  LISTING_DOMAIN_PREPARATION_MIGRATION: LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION,
+  LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256:
+    LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION_SHA256,
+  LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES:
+    LISTING_DOMAIN_LEDGER_FUNCTION_NAMES,
+  LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
+  LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
+  LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION,
+  LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION_SHA256,
+  LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION,
+  LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION_SHA256,
   EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
   EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
@@ -530,6 +590,7 @@ const {
   collectAccountDeletionWorkerBoundaryIssues,
   collectClerkWebhookEventMigrationOrderIssues,
   collectEmailDeliveryMigrationOrderIssues,
+  collectListingDomainMigrationOrderIssues,
   collectSellerProfilePrivateMigrationOrderIssues,
   collectSellerProfilePublicMigrationOrderIssues,
   clerkWebhookEventRlsActivationExpected,
@@ -586,6 +647,10 @@ const {
   readBlockRlsActivationState,
   readUserReportRlsActivationState,
   readSellerFaqRlsActivationState,
+  readListingDomainPreparationState,
+  readListingDomainStaffReviewPredecessorState,
+  readListingDomainFeaturedTogglePredecessorState,
+  readListingDomainMessageListPredecessorState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -606,6 +671,7 @@ const {
   withAppliedAccountDeletionAuthority,
   withAppliedEmailDeliveryAuthority,
   withAppliedEmailServicePreparation,
+  withAppliedListingDomainPreparation,
   withAppliedSellerProfileCallerAuthority,
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
@@ -2101,17 +2167,151 @@ describe("database grant inventory guardrails", () => {
     assert.equal(applied.emailServicePreparationApplied, true);
   });
 
+  it("derives Listing functions from the exact preparation ledger state", (context) => {
+    if (
+      typeof withAppliedListingDomainPreparation !== "function"
+      || !Array.isArray(LISTING_DOMAIN_LEDGER_FUNCTION_NAMES)
+    ) {
+      context.skip("requires the staged Listing grant-audit generation");
+      return;
+    }
+    const staffReviewFunction =
+      "grainline_seller_staff_listing_review_transition";
+    const featuredToggleFunction =
+      "grainline_seller_owner_featured_listing_toggle";
+    const messageListFunction = "grainline_message_list";
+    const sourceInventory = {
+      functions: [
+        "grainline_existing_function",
+        ...LISTING_DOMAIN_LEDGER_FUNCTION_NAMES,
+      ],
+    };
+    const pending = withAppliedListingDomainPreparation(sourceInventory, {
+      preparationApplied: false,
+      staffReviewPredecessorApplied: false,
+      featuredTogglePredecessorApplied: false,
+      messageListPredecessorApplied: false,
+    });
+    assert.deepEqual(pending.functions, ["grainline_existing_function"]);
+    assert.equal(pending.listingDomainPreparationApplied, false);
+
+    const staffReviewPredecessorApplied = withAppliedListingDomainPreparation(
+      sourceInventory,
+      {
+        preparationApplied: false,
+        staffReviewPredecessorApplied: true,
+        featuredTogglePredecessorApplied: false,
+        messageListPredecessorApplied: false,
+      },
+    );
+    assert.deepEqual(staffReviewPredecessorApplied.functions, [
+      "grainline_existing_function",
+      staffReviewFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const featuredTogglePredecessorApplied = withAppliedListingDomainPreparation(
+      sourceInventory,
+      {
+        preparationApplied: false,
+        staffReviewPredecessorApplied: false,
+        featuredTogglePredecessorApplied: true,
+        messageListPredecessorApplied: false,
+      },
+    );
+    assert.deepEqual(featuredTogglePredecessorApplied.functions, [
+      "grainline_existing_function",
+      featuredToggleFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const messageListPredecessorApplied = withAppliedListingDomainPreparation(
+      sourceInventory,
+      {
+        preparationApplied: false,
+        staffReviewPredecessorApplied: false,
+        featuredTogglePredecessorApplied: false,
+        messageListPredecessorApplied: true,
+      },
+    );
+    assert.deepEqual(messageListPredecessorApplied.functions, [
+      "grainline_existing_function",
+      messageListFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const allPredecessorsApplied = withAppliedListingDomainPreparation(sourceInventory, {
+      preparationApplied: false,
+      staffReviewPredecessorApplied: true,
+      featuredTogglePredecessorApplied: true,
+      messageListPredecessorApplied: true,
+    });
+    assert.deepEqual(allPredecessorsApplied.functions, [
+      "grainline_existing_function",
+      staffReviewFunction,
+      featuredToggleFunction,
+      messageListFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const applied = withAppliedListingDomainPreparation(sourceInventory, {
+      preparationApplied: true,
+      staffReviewPredecessorApplied: true,
+      featuredTogglePredecessorApplied: true,
+      messageListPredecessorApplied: true,
+    });
+    assert.deepEqual(applied.functions, [
+      ...new Set(sourceInventory.functions),
+    ].sort((left, right) => left.localeCompare(right)));
+    assert.equal(applied.listingDomainPreparationApplied, true);
+
+    assert.deepEqual(collectListingDomainMigrationOrderIssues({
+      preparationApplied: false,
+      staffReviewPredecessorApplied: false,
+      messageListPredecessorApplied: false,
+    }), []);
+    assert.deepEqual(collectListingDomainMigrationOrderIssues({
+      preparationApplied: true,
+      staffReviewPredecessorApplied: false,
+      messageListPredecessorApplied: false,
+    }), [
+      "Listing domain preparation is applied without its exact staff-review prerequisite",
+      "Listing domain preparation is applied without its exact message-list prerequisite",
+    ]);
+
+    const pendingStaffIdentities = staffReadFunctionIdentitiesForInventory(
+      staffReviewPredecessorApplied,
+    );
+    assert.equal(pendingStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text)",
+    ), true);
+    assert.equal(pendingStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
+    ), false);
+    const appliedStaffIdentities = staffReadFunctionIdentitiesForInventory(applied);
+    assert.equal(appliedStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text)",
+    ), false);
+    assert.equal(appliedStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
+    ), true);
+  });
+
   it("reads exact email migration ledger states including manual resolution rows", async (context) => {
     if (
       typeof readEmailDeliveryLedgerPreparationState !== "function"
       || typeof readEmailProviderDeletionFenceState !== "function"
       || typeof readEmailProviderEligibilityFenceState !== "function"
       || typeof readEmailServicePreparationState !== "function"
+      || typeof readListingDomainPreparationState !== "function"
+      || typeof readListingDomainStaffReviewPredecessorState !== "function"
+      || typeof readListingDomainFeaturedTogglePredecessorState !== "function"
+      || typeof readListingDomainMessageListPredecessorState !== "function"
     ) {
       context.skip("requires the staged email migration-ledger readers");
       return;
     }
-    const exactClient = (expectedMigration, expectedChecksum) => ({
+    const exactClient = (
+      expectedMigration,
+      expectedChecksum,
+      appliedStepsCount = "0",
+    ) => ({
       queryCount: 0,
       async query(sql, parameters) {
         this.queryCount += 1;
@@ -2126,7 +2326,7 @@ describe("database grant inventory guardrails", () => {
             checksum: expectedChecksum,
             finished_at: new Date("2026-10-26T00:00:00Z"),
             rolled_back_at: null,
-            applied_steps_count: "0",
+            applied_steps_count: appliedStepsCount,
           }],
         };
       },
@@ -2156,6 +2356,37 @@ describe("database grant inventory guardrails", () => {
       await readEmailServicePreparationState(exactClient(
         EMAIL_SERVICE_PREPARATION_MIGRATION,
         EMAIL_SERVICE_PREPARATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainPreparationState(exactClient(
+        LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION,
+        LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainStaffReviewPredecessorState(exactClient(
+        LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
+        LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
+        "1",
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainFeaturedTogglePredecessorState(exactClient(
+        LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION,
+        LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION_SHA256,
+        "1",
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainMessageListPredecessorState(exactClient(
+        LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION,
+        LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION_SHA256,
+        "1",
       )),
       { applied: true, issues: [] },
     );
@@ -3983,6 +4214,12 @@ describe("database grant inventory guardrails", () => {
     ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
+    const listingDomainAuthorityPrepared = existsSync(
+      LISTING_DOMAIN_PREPARATION_MIGRATION,
+    ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -4218,6 +4455,9 @@ describe("database grant inventory guardrails", () => {
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
         : []),
@@ -4331,6 +4571,9 @@ describe("database grant inventory guardrails", () => {
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
         + (makerVerificationActivationPresent ? 1 : 0)
+        + (listingDomainAuthorityPrepared
+          ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.length
+          : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         + (typeof blockRlsActivationExpected === "function"
@@ -4465,6 +4708,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
         : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
@@ -6528,6 +6774,9 @@ describe("database grant inventory guardrails", () => {
     const serviceReferenceLeastPrivilegeProvisioningPresent = provision.includes(
       "grainline_service_reference_least_privilege_applied",
     );
+    const listingDomainActivationProvisioningPresent = provision.includes(
+      "grainline_listing_domain_activation_applied",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6539,8 +6788,47 @@ describe("database grant inventory guardrails", () => {
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
         + Number(reviewVoteProvisioningPresent)
-        + Number(serviceReferenceLeastPrivilegeProvisioningPresent),
+        + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
+        + Number(listingDomainActivationProvisioningPresent),
     );
+    if (listingDomainActivationProvisioningPresent) {
+      const listingDomainProvisioningBlock = provision.match(
+        /\\if :grainline_listing_domain_activation_applied[\s\S]*?\\endif/,
+      )?.[0] ?? "";
+      assert.match(
+        provision,
+        /49b7c1700d4db1cc6434a6bcaa2e6577df6c31fb762737553cfee62034c5b168[\s\S]*20261102060000_activate_listing_domain_rls/,
+      );
+      assert.match(
+        provision,
+        /Listing-domain activation ledger or table posture drifted; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /listing_domain_expected_policy[\s\S]*listing_public_select[\s\S]*47cfaee29e837cf1223a23f44ef17cee[\s\S]*photo_public_select[\s\S]*11b4cd755c0824418f1918d11b1e9482[\s\S]*listing_variant_group_public_select[\s\S]*7608345f967a6cbfe9bfd685b357acd3[\s\S]*listing_variant_option_public_select[\s\S]*0447f238bd35b7f549f4c9a7d6484699/,
+      );
+      assert.match(
+        provision,
+        /policy\.polcmd = 'r'[\s\S]*policy\.polpermissive[\s\S]*policy\.polroles = ARRAY[\s\S]*policy\.polwithcheck IS NULL[\s\S]*pg_catalog\.pg_get_expr/,
+      );
+      assert.match(
+        provision,
+        /listing_domain_expected_column[\s\S]*listing_domain_column_acl_state[\s\S]*acl\.privilege_type = 'SELECT'[\s\S]*NOT acl\.is_grantable[\s\S]*column_acl\.acl_count = 51[\s\S]*column_acl\.exact_acl_count = 51/,
+      );
+      assert.match(
+        provision,
+        /listing_domain_table_acl_state[\s\S]*acl\.privilege_type NOT IN \('SELECT', 'INSERT', 'UPDATE', 'DELETE'\)[\s\S]*NOT COALESCE\([\s\S]*table_acl\.drifted[\s\S]*false/,
+      );
+      assert.match(
+        provision,
+        /row_count <> 0 AND \(row_count <> 1 OR exact_count <> 1\)[\s\S]*active AND exact_count <> 1[\s\S]*NOT active AND NOT clean_predecessor/,
+      );
+      assert.match(
+        listingDomainProvisioningBlock,
+        /\\if :grainline_listing_domain_activation_applied[\s\S]*REVOKE ALL ON TABLE[\s\S]*public\."Listing"[\s\S]*public\."Photo"[\s\S]*public\."ListingVariantGroup"[\s\S]*public\."ListingVariantOption"[\s\S]*GRANT SELECT \([\s\S]*"sellerAverageRating"[\s\S]*ON TABLE public\."Listing" TO :"runtime_role"/,
+      );
+      assert.doesNotMatch(listingDomainProvisioningBlock, /"originalUrl"/);
+    }
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
       assert.match(

@@ -25,7 +25,6 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
-
 type DashboardPageProps = {
   searchParams?: Promise<{ setup?: string }>;
 };
@@ -47,7 +46,6 @@ async function readOptional<T>(part: string, read: () => Promise<T>): Promise<T 
     return null;
   }
 }
-
 export default function DashboardPage(props: DashboardPageProps) {
   return (
     <Suspense fallback={<WorkshopSkeleton />}>
@@ -71,7 +69,7 @@ async function DashboardPageContent({
 
   const [dashboardSeller, listingAttention, orderQueue, unreadMessages, shopEditorState, openCases] = await Promise.all([
     sellerOwnerDashboardState(me.id),
-    readOptional("listing_attention", () => readWorkshopListingAttention(seller.id)),
+    readOptional("listing_attention", () => readWorkshopListingAttention(me.id)),
     readOptional("order_queue", () => readWorkshopOrderQueue(me.id)),
     readOptional("unread_messages", () => countActorUnreadMessages(me.id)),
     readOptional("shop_editor_state", () => sellerOwnerProfileEditorState(seller.id, seller.userId)),

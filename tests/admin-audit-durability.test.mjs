@@ -33,7 +33,6 @@ describe("admin audit durability", () => {
     for (const path of [
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
-      "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/reviews/[id]/route.ts",
     ]) {
       const text = source(path);
@@ -44,6 +43,18 @@ describe("admin audit durability", () => {
         `${path} must audit inside the mutation transaction`,
       );
     }
+
+    const listingRemoval = source("src/app/api/admin/listings/[id]/route.ts");
+    const listingRemovalTransition = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    assert.match(listingRemoval, /sellerProfileStaffListingRemovalTransition\(/);
+    assert.match(listingRemoval, /if \(!transition\.applied \|\| !transition\.auditId\)/);
+    assert.match(
+      listingRemovalTransition,
+      /CREATE FUNCTION public\.grainline_seller_staff_listing_remove_transition[\s\S]*UPDATE public\."Listing"[\s\S]*INSERT INTO public\."AdminAuditLog"/,
+      "listing removal must co-commit its status and audit witness in one database transition",
+    );
 
     const reportResolve = source("src/app/api/admin/reports/[id]/resolve/route.ts");
     const reportTransition = source(

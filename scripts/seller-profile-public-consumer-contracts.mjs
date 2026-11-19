@@ -150,12 +150,14 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      // The UI/search baseline has 118 reviewed non-target factory calls.
+      // Listing preparation moves the public, owner, staff, and transaction
+      // Listing reads behind fixed SQL authorities. The remaining non-target
+      // calls are the reviewed Blog, Commission, Cart, and service factories.
       // UserReport preparation moves three target-validation calls behind its
       // actor-bound SQL authority without adding SellerProfile access.
       // Email-service least privilege moves four additional reviewed factory
       // calls behind fixed SQL authorities without adding SellerProfile access.
-      || reviewedNonTargetFactoryCalls.length !== 111
+      || reviewedNonTargetFactoryCalls.length !== 85
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
@@ -169,12 +171,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // deliberately removes three duplicate non-target residual shapes.
       // StockNotification subscription now validates listing availability in
       // its fixed SQL authority, removing one publicListingDetailWhere call.
-      // The Workshop listing pager contributes one owner-scoped Listing
-      // helper (sellerId + archivedAt + a bounded filter). Keeping the helper
-      // avoids duplicating and drifting the ownership predicate.
-      // The same boundary removes four app-side residual query shapes whose
-      // behavior is pinned by the executed email-service authority proofs.
-      || reviewedNonTargetResiduals.length !== 22) {
+      // Listing preparation also removes the residual Listing writes and
+      // projections. Their behavior is pinned by the executed Listing
+      // authority proofs instead of app-side Prisma shapes.
+      || reviewedNonTargetResiduals.length !== 11) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

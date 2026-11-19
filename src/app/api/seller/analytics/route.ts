@@ -1,6 +1,5 @@
 // src/app/api/seller/analytics/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -24,6 +23,11 @@ import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { countSellerOrders } from "@/lib/orderParticipantReadAuthority";
 import { sellerStockNotificationRangeCount } from "@/lib/stockNotificationAccess";
 import { sellerFavoriteRangeCount } from "@/lib/favoriteAccess";
+import {
+  listingOwnerActionState,
+  listingOwnerCounts,
+  listingOwnerRatingBuckets,
+} from "@/lib/listingOwnerAccess";
 
 export const runtime = "nodejs";
 
@@ -201,7 +205,6 @@ export async function GET(req: Request) {
     const endExclusive = range === "yesterday";
     const dateEndFilter = endExclusive ? { lt: endDate } : { lte: endDate };
     const analyticsDateRange = { gte: startDate, ...dateEndFilter };
-    const rangeEndSql = endExclusive ? Prisma.sql`< ${endDate}` : Prisma.sql`<= ${endDate}`;
 
     // ── Start independent reads before awaiting broad analytics work ───────────
 
@@ -211,9 +214,8 @@ export async function GET(req: Request) {
       endDate,
       endExclusive,
     });
-    const activeListingCountPromise = prisma.listing.count({
-      where: { sellerId, status: "ACTIVE" },
-    });
+    const activeListingCountPromise = listingOwnerCounts(me.id)
+      .then((counts) => counts.activeCount);
     const rangeViewAggPromise = prisma.listingViewDaily.aggregate({
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
       _sum: { views: true, clicks: true },
@@ -256,20 +258,11 @@ export async function GET(req: Request) {
       allTime: range === "alltime",
     });
 
-    type RatingRow = { bucket: Date; avg_rating: number; review_count: bigint };
-    const ratingRowsPromise = prisma.$queryRaw<RatingRow[]>`
-      SELECT
-        DATE_TRUNC('month', r."createdAt" AT TIME ZONE 'UTC') AS bucket,
-        AVG(r."ratingX2") / 2.0 AS avg_rating,
-        COUNT(*) AS review_count
-      FROM "Review" r
-      JOIN "Listing" l ON l.id = r."listingId"
-      WHERE l."sellerId" = ${sellerId}
-        AND r."createdAt" >= ${startDate}
-        AND r."createdAt" ${rangeEndSql}
-      GROUP BY bucket
-      ORDER BY bucket ASC
-    `;
+    const ratingRowsPromise = listingOwnerRatingBuckets(me.id, {
+      startDate,
+      endDate,
+      endExclusive,
+    });
     const existingMetricsPromise = prisma.sellerMetrics.findUnique({
       where: { sellerProfileId: sellerId },
       select: SELLER_METRICS_SELECT,
@@ -434,13 +427,14 @@ export async function GET(req: Request) {
     }
 
     // Archived listing pages 404 even for their owner, so the UI must not link them.
-    const archivedTopListings = topListingRows.length > 0
-      ? await prisma.listing.findMany({
-          where: { id: { in: topListingRows.map((r) => r.id) }, sellerId, archivedAt: { not: null } },
-          select: { id: true },
-        })
-      : [];
-    const archivedTopListingIds = new Set(archivedTopListings.map((l) => l.id));
+    const topListingStates = await Promise.all(
+      topListingRows.map((row) => listingOwnerActionState(me.id, row.id)),
+    );
+    const archivedTopListingIds = new Set(
+      topListingStates
+        .filter((state) => state?.archivedAt)
+        .map((state) => state!.id),
+    );
     const topListings = topListingRows.map((r) => {
       const activeStartMs = Math.max(startDate.getTime(), r.createdAt.getTime());
       const activeDaysInRange = Math.max(
@@ -464,9 +458,9 @@ export async function GET(req: Request) {
     });
 
     const ratingOverTime = ratingRows.map((r) => ({
-      label: new Date(r.bucket).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
-      avgRating: Number(r.avg_rating),
-      reviewCount: Number(r.review_count),
+      label: r.date.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      avgRating: r.averageRating,
+      reviewCount: r.reviewCount,
     }));
 
     // ── Guild metrics ───────────────────────────────────────────────────────────

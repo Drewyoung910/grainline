@@ -26,7 +26,12 @@ export function zeroDirectScopeCiAuditOptions(env = process.env) {
   });
 }
 
-export async function proveZeroDirectReleaseScope(client, auditOptions = {}) {
+export async function proveZeroDirectReleaseScope(
+  client,
+  auditOptions = {},
+  phase = () => {},
+) {
+  phase("build-reviewed-release-scope");
   const scope = createOrderZeroDirectReleaseScope();
   const correction = createCorrectionReleasePackage();
   let reads = 0;
@@ -36,14 +41,18 @@ export async function proveZeroDirectReleaseScope(client, auditOptions = {}) {
     reads += 1;
     return { ...result, rows: correctionProofHistoricalLedger(result.rows, correction.manifest) };
   } };
+  phase("read-audited-release-snapshot");
   const snapshot = await scope.readAuditedSnapshot(
     owner,
     "after",
     "disposable",
     auditOptions,
   );
+  phase("verify-single-ledger-read");
   assert.equal(reads, 1);
+  phase("verify-audited-release-snapshot");
   scope.assertAuditedSnapshot(snapshot, "after", "disposable");
+  phase("verify-zero-remaining-release-plan");
   const plan = scope.plan(snapshot, "disposable");
   assert.equal(plan.remainingMigrations.length, 0);
   assert.equal(plan.steps.includes("apply-only-remaining-prefix"), false);
@@ -67,7 +76,11 @@ export async function runZeroDirectReleaseScopeProof(env = process.env, phase = 
     await verifyInputRuntimeIdentity(client, "grainline_ci", "ci", env.GITHUB_ACTIONS === "true");
     await verifyRepairProofRole(client, true);
     phase("complete-prefix-catalog");
-    return await proveZeroDirectReleaseScope(client, zeroDirectScopeCiAuditOptions(env));
+    return await proveZeroDirectReleaseScope(
+      client,
+      zeroDirectScopeCiAuditOptions(env),
+      phase,
+    );
   } finally { await client.end(); }
 }
 

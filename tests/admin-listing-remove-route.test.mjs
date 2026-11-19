@@ -56,29 +56,37 @@ function realEmail(sent, { providerFails = false } = {}) {
 }
 
 function fixture({ role = "ADMIN", providerFails = false, recipient = { email: "maker@example.test" } } = {}) {
-  const state = { updates: [], audits: [], sent: [], captured: [] };
+  const state = { transitions: [], sent: [], captured: [] };
   const email = realEmail(state.sent, { providerFails });
   const exports = load("src/app/api/admin/listings/[id]/route.ts", {
     zod: require("zod"),
     "@sentry/nextjs": { captureException: (error) => state.captured.push(error) },
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk" }) },
-    "@/lib/db": {
-      prisma: {
-        listing: {
-          findUnique: async () => ({
-            id: "listing", title: "Walnut bench", sellerId: "seller", status: "ACTIVE", isPrivate: false, rejectionReason: null,
-          }),
-        },
+    "@/lib/db": { prisma: {} },
+    "@/lib/orderStaffReadDb": { getOrderStaffReadClient: () => ({}) },
+    "@/lib/sellerProfileStaffAccess": {
+      sellerProfileStaffListingRemovalTransition: async (_client, input) => {
+        state.transitions.push(input);
+        return {
+          applied: true,
+          auditId: "audit",
+          blockReason: null,
+          listing: {
+            id: "listing",
+            title: "Walnut bench",
+            sellerId: "seller",
+            previousStatus: "ACTIVE",
+            previousIsPrivate: false,
+            previousRejectionReason: null,
+          },
+          removedFavorites: 0,
+          removedStockNotifications: 0,
+          removedCartItems: 0,
+        };
       },
     },
     "@/lib/userIdentityAccess": { userClerkGate: async () => ({ id: "admin", role, banned: false, deletedAt: null }) },
-    "@/lib/audit": { logAdminActionOrThrow: async (entry) => { state.audits.push(entry); return "audit"; } },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }), adminActionRatelimit: {} },
-    "@/lib/dbUserContext": {
-      withDbUserContext: (_id, callback) => callback({
-        listing: { update: async (args) => state.updates.push(args) },
-      }),
-    },
     "@/lib/guildListingThreshold": { syncGuildMemberListingThreshold: async () => {} },
     "@/lib/privateResponse": {
       privateJson: (body, init) => Response.json(body, init),
@@ -92,9 +100,13 @@ function fixture({ role = "ADMIN", providerFails = false, recipient = { email: "
     },
     "@/lib/sanitize": sanitize,
     "@/lib/email": email,
-    "@/lib/listingActionState": { STAFF_REMOVAL_REJECTION_REASON: "Removed by Grainline staff." },
     "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipient: async () => recipient },
     "@/lib/sellerProfileListingDetailAccess": { sellerStaffListingDetailProfile: async () => ({ userId: "maker" }) },
+    "next/server": { after: () => {} },
+    "next/cache": { revalidatePath: () => {} },
+    "@/lib/searchCache": { revalidateListingSearchCaches: () => {}, revalidateFeaturedMakerCaches: () => {} },
+    "@/lib/checkoutSessionExpiry": { expireOpenCheckoutSessionsForListing: async () => {} },
+    "@/lib/adminPinApi": { requireStaffAdminPinForApi: async () => null },
   }, { SyntaxError });
   return {
     state,
@@ -109,25 +121,25 @@ function fixture({ role = "ADMIN", providerFails = false, recipient = { email: "
 }
 
 const REASON = "Hateful language in the description";
+const REVIEWED_AT = "2026-11-17T12:00:00.000Z";
+const removalBody = (reason = REASON) => ({ reason, reviewedAt: REVIEWED_AT });
 
 test("removing a listing requires a reason and changes nothing without one", async () => {
-  for (const body of [undefined, {}, { reason: "" }, { reason: "   " }]) {
+  for (const body of [undefined, {}, { reason: "", reviewedAt: REVIEWED_AT }, { reason: "   ", reviewedAt: REVIEWED_AT }]) {
     const subject = fixture();
     assert.equal((await subject.remove(body)).status, 400);
-    assert.equal(subject.state.updates.length, 0);
-    assert.equal(subject.state.audits.length, 0);
+    assert.equal(subject.state.transitions.length, 0);
     assert.equal(subject.state.sent.length, 0);
   }
 });
 
 test("the maker sees the reason on the edit page, and the listing stays locked", async () => {
   const subject = fixture();
-  assert.equal((await subject.remove({ reason: REASON })).status, 200);
-  const { data } = subject.state.updates[0];
-  assert.equal(data.status, "REJECTED");
-  assert.equal(subject.state.audits[0].reason, REASON);
+  assert.equal((await subject.remove(removalBody())).status, 200);
+  assert.equal(subject.state.transitions[0].reason, REASON);
+  assert.equal(subject.state.transitions[0].reviewedAt.toISOString(), REVIEWED_AT);
 
-  const saved = { ...data, listingType: "MADE_TO_ORDER" };
+  const saved = { status: "REJECTED", rejectionReason: `Removed by Grainline staff. Reason: ${REASON}`, listingType: "MADE_TO_ORDER" };
   assert.match(listingEditBlockReason(saved), /removed by Grainline staff/);
   assert.ok(listingEditBlockReason(saved).includes(REASON));
   assert.match(publishListingBlockReason(saved), /cannot be resubmitted/);
@@ -135,7 +147,7 @@ test("the maker sees the reason on the edit page, and the listing stays locked",
 
 test("the maker is emailed the reason", async () => {
   const subject = fixture();
-  await subject.remove({ reason: REASON });
+  await subject.remove(removalBody());
   assert.deepEqual(subject.state.captured, []);
   assert.equal(subject.state.sent.length, 1);
   assert.equal(subject.state.sent[0].to, "maker@example.test");
@@ -146,14 +158,14 @@ test("the maker is emailed the reason", async () => {
 test("a failed email or an unavailable maker does not undo the removal", async () => {
   for (const options of [{ providerFails: true }, { recipient: null }]) {
     const subject = fixture(options);
-    assert.equal((await subject.remove({ reason: REASON })).status, 200);
-    assert.equal(subject.state.updates.length, 1);
+    assert.equal((await subject.remove(removalBody())).status, 200);
+    assert.equal(subject.state.transitions.length, 1);
     assert.equal(subject.state.sent.length, 0);
   }
 });
 
 test("an employee still cannot remove a listing, because the cleanup functions require ADMIN", async () => {
   const subject = fixture({ role: "EMPLOYEE" });
-  assert.equal((await subject.remove({ reason: REASON })).status, 403);
-  assert.equal(subject.state.updates.length, 0);
+  assert.equal((await subject.remove(removalBody())).status, 403);
+  assert.equal(subject.state.transitions.length, 0);
 });

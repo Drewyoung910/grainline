@@ -23,27 +23,51 @@ export function verifyStockProofIdentity(identity, githubActions = false) {
 // of its delta/status algorithm. The route behavior is covered separately by the
 // actual-handler PGlite tests; this fixture isolates native row-lock behavior.
 export function loadStockUpdate() {
-  const source = ts.createSourceFile("stock.ts", readFileSync("src/app/api/listings/[id]/stock/route.ts", "utf8"),
+  const source = ts.createSourceFile("stock.ts", readFileSync("src/lib/listingStockMutation.ts", "utf8"),
     ts.ScriptTarget.Latest, true);
   const matches = [];
+  let applyFunction = null;
   function visit(node) {
-    if (ts.isVariableDeclaration(node) && node.name.getText(source) === "updatedRows") {
-      assert.ok(ts.isAwaitExpression(node.initializer));
-      const tagged = node.initializer.expression;
-      assert.ok(ts.isTaggedTemplateExpression(tagged));
-      assert.equal(tagged.tag.getText(source), "tx.$queryRaw");
-      matches.push(tagged.template.getText(source));
+    if (
+      ts.isFunctionDeclaration(node)
+      && node.name?.getText(source) === "applyListingStockMutation"
+    ) {
+      applyFunction = node;
+      return;
     }
     ts.forEachChild(node, visit);
   }
-  visit(source); assert.equal(matches.length, 1);
+  visit(source);
+  assert.ok(applyFunction);
+  function visitApply(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === "rows") {
+      assert.ok(ts.isAwaitExpression(node.initializer));
+      const tagged = node.initializer.expression;
+      assert.ok(ts.isTaggedTemplateExpression(tagged));
+      assert.equal(tagged.tag.getText(source), "client.$queryRaw");
+      matches.push(tagged.template.getText(source));
+    }
+    ts.forEachChild(node, visitApply);
+  }
+  visitApply(applyFunction); assert.equal(matches.length, 1);
   return new Function("tx", "id", "seller", "applyDelta", "stockDelta", "quantity",
-    `return tx.$queryRaw${matches[0]};`);
+    `const input = { listingId: id, sellerId: seller.sellerProfileId, applyDelta, stockDelta, quantity };
+     const client = tx;
+     return client.$queryRaw${matches[0]};`);
 }
-function port(client) {
+function port(client, schema = null) {
   return {
-    $queryRaw: async (parts, ...values) => (await client.query(parts.reduce((sql, part, index) =>
-      sql + (index ? `$${index}` : "") + part, ""), values)).rows,
+    $queryRaw: async (parts, ...values) => {
+      let sql = parts.reduce((text, part, index) =>
+        text + (index ? `$${index}` : "") + part, "");
+      if (schema) {
+        assert.match(schema, /^listing_stock_proof_[a-f0-9]{32}$/);
+        sql = sql
+          .replaceAll("public.grainline_listing_owner_stock_lock", `"${schema}".grainline_listing_owner_stock_lock`)
+          .replaceAll("public.grainline_listing_owner_stock_apply", `"${schema}".grainline_listing_owner_stock_apply`);
+      }
+      return (await client.query(sql, values)).rows;
+    },
     systemAuditLog: {
       findUnique: async ({ where }) => (await client.query('SELECT * FROM "SystemAuditLog" WHERE id=$1', [where.id])).rows[0] ?? null,
       create: async ({ data }) => {
@@ -96,7 +120,49 @@ export async function runStockMutationPostgresProof(env = process.env, onPhase =
         "listingType" text DEFAULT 'IN_STOCK', "rejectionReason" text, "archivedAt" timestamp,
         "updatedAt" timestamp DEFAULT now());
       CREATE TABLE "SystemAuditLog" (id text PRIMARY KEY, "actorType" text, "actorId" text,
-        action text, "targetType" text, "targetId" text, metadata jsonb)`);
+        action text, "targetType" text, "targetId" text, metadata jsonb);
+      CREATE FUNCTION grainline_listing_owner_stock_lock(p_listing_id text, p_seller_id text)
+      RETURNS TABLE (id text, title text, "stockQuantity" integer, "listingType" text,
+        status text, "isPrivate" boolean, "archivedAt" timestamp, "rejectionReason" text)
+      LANGUAGE sql AS $$
+        SELECT listing.id, listing.title, listing."stockQuantity", listing."listingType",
+          listing.status::text, listing."isPrivate", listing."archivedAt", listing."rejectionReason"
+        FROM "Listing" AS listing
+        WHERE listing.id = p_listing_id AND listing."sellerId" = p_seller_id
+        FOR UPDATE OF listing
+      $$;
+      CREATE FUNCTION grainline_listing_owner_stock_apply(
+        p_listing_id text, p_seller_id text, p_apply_delta boolean,
+        p_stock_delta integer, p_quantity integer
+      ) RETURNS TABLE (id text, title text, "stockQuantity" integer, status text,
+        "previousStockQuantity" integer, "previousStatus" text)
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        RETURN QUERY
+        WITH previous_listing AS MATERIALIZED (
+          SELECT listing.id, listing."stockQuantity", listing.status
+          FROM "Listing" AS listing
+          WHERE listing.id = p_listing_id AND listing."sellerId" = p_seller_id
+          FOR UPDATE OF listing
+        )
+        UPDATE "Listing" AS target
+        SET "stockQuantity" = CASE WHEN p_apply_delta
+              THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + p_stock_delta)
+              ELSE p_quantity END,
+            status = CASE
+              WHEN target.status = 'ACTIVE' AND
+                (CASE WHEN p_apply_delta THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + p_stock_delta) ELSE p_quantity END) <= 0
+                THEN 'SOLD_OUT'::"ListingStatus"
+              WHEN target.status = 'SOLD_OUT' AND NOT target."isPrivate" AND
+                (CASE WHEN p_apply_delta THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + p_stock_delta) ELSE p_quantity END) > 0
+                THEN 'ACTIVE'::"ListingStatus"
+              ELSE target.status END,
+            "updatedAt" = now()
+        FROM previous_listing AS previous
+        WHERE target.id = previous.id
+        RETURNING target.id, target.title, target."stockQuantity", target.status::text,
+          previous."stockQuantity", previous.status::text;
+      END $$`);
     const update = loadStockUpdate();
     const scope = { listingId: "listing", sellerId: "seller", actorId: "owner" };
     const input = () => ({ mutationId: randomUUID(), issuedAt: Date.now() });
@@ -107,7 +173,7 @@ export async function runStockMutationPostgresProof(env = process.env, onPhase =
         VALUES ('listing','seller','Synthetic piece',5,'ACTIVE')`);
     }
     async function apply(client, identity) {
-      const tx = port(client);
+      const tx = port(client, schema);
       const claim = await prepareListingStockMutation(tx, scope, identity, payload);
       assert.ok(claim);
       if (!claim.replayed) {

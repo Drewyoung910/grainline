@@ -17,6 +17,10 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import {
+  listingPublicCatalogCount,
+  listingPublicCatalogPage,
+} from "@/lib/listingPublicCatalogAccess";
+import {
   sellerPublicListingCards,
   sellerPublicMetroCount,
 } from "@/lib/sellerProfilePublicAccess";
@@ -49,9 +53,10 @@ export async function generateMetadata({
 
   // Count listings and sellers for description
   const [listingCount, sellerCount] = await Promise.all([
-    prisma.listing.count({
-      where: publicListingWhere(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
-    }),
+    listingPublicCatalogCount(
+      null,
+      isMajor ? { metroId: metro.id } : { cityMetroId: metro.id },
+    ),
     sellerPublicMetroCount(null, metro.id, isMajor, false),
   ]);
   // The page itself 404s with no listings; say so here, before streaming starts.
@@ -101,7 +106,7 @@ async function BrowseMetroContent({
       childMetros: { select: { id: true, slug: true, name: true } },
     },
   });
-  if (!metro || !metro) return notFound();
+  if (!metro) return notFound();
 
   const isMajorMetro = !metro.parentMetroId;
   const cityName = formatCityState(metro.name, metro.state);
@@ -119,32 +124,21 @@ async function BrowseMetroContent({
     ? { sellerId: { notIn: blockedSellerIds } }
     : {};
 
-  const listingWhere = publicListingWhere({
+  const catalogFilter = {
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-    ...blockedSellerListingWhere,
-  });
+    sort: "newest" as const,
+    includeCategoryCounts: true,
+  };
 
-  const [listingRows, listingCount, sellerCount] = await Promise.all([
-    prisma.listing.findMany({
-      where: listingWhere,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 24,
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        status: true,
-        listingType: true,
-        stockQuantity: true,
-        category: true,
-        sellerId: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-      },
-    }),
-    prisma.listing.count({ where: listingWhere }),
+  const [catalogPage, sellerCount] = await Promise.all([
+    listingPublicCatalogPage(meDbId, catalogFilter, 0, 24),
     sellerPublicMetroCount(meDbId, metro.id, isMajorMetro, false),
   ]);
+  const {
+    listings: listingRows,
+    total: listingCount,
+    categoryCounts,
+  } = catalogPage;
   if (listingCount === 0) return notFound();
   const listingCards = await sellerPublicListingCards(meDbId, listingRows.map((listing) => listing.id));
   const listingCardById = new Map(listingCards.map((seller) => [seller.listingId, seller]));
@@ -159,14 +153,6 @@ async function BrowseMetroContent({
     const listingIds = listings.map((listing) => listing.id);
     savedSet = await ownerFavoriteListingIds(meDbId, listingIds);
   }
-
-  // Category counts for filter tabs
-  const categoryCounts = await prisma.listing.groupBy({
-    by: ["category"],
-    where: { ...listingWhere, category: { not: null } },
-    _count: { _all: true },
-    orderBy: [{ _count: { category: "desc" } }, { category: "asc" }],
-  });
 
   // Nearby metros with content
   const nearbyRaw = isMajorMetro
@@ -250,18 +236,15 @@ async function BrowseMetroContent({
           >
             All
           </Link>
-          {categoryCounts.map(({ category, _count }) => {
-            if (!category) return null;
-            return (
-              <Link
-                key={category}
-                href={`/browse/${metroSlug}/${category.toLowerCase()}`}
-                className="flex-none whitespace-nowrap rounded-full bg-[#EFEAE0] px-4 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
-              >
-                {CATEGORY_LABELS[category]} ({_count._all})
-              </Link>
-            );
-          })}
+          {categoryCounts.map(({ category, count }) => (
+            <Link
+              key={category}
+              href={`/browse/${metroSlug}/${category.toLowerCase()}`}
+              className="flex-none whitespace-nowrap rounded-full bg-[#EFEAE0] px-4 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+            >
+              {CATEGORY_LABELS[category]} ({count})
+            </Link>
+          ))}
         </div>
       )}
 

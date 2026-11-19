@@ -4,13 +4,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { sendFirstListingCongratsIfFirst } from "@/lib/firstListingEmail";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
-import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
@@ -25,8 +23,12 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
-import { parseListingMaterials } from "@/lib/listingEditState";
 import { listingPriceMaxError } from "@/lib/listingPrice";
+import {
+  MAX_LISTING_MATERIAL_CODE_POINTS,
+  MAX_LISTING_MATERIALS,
+  parseListingMaterials,
+} from "@/lib/listingMaterials";
 import {
   normalizeVariantPriceAdjustCents,
   validateVariantGroupsForBasePrice,
@@ -38,11 +40,17 @@ import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
-import { applyListingCreationAIReviewResult } from "@/lib/listingCreationAIReview";
 import {
   sellerOwnerListingMetroSource,
   sellerOwnerListingReview,
 } from "@/lib/sellerProfileOwnerAccess";
+import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
+import {
+  assignListingOwnerMetros,
+  createListingOwner,
+  listingOwnerActionState,
+  listingOwnerAiReviewContext,
+} from "@/lib/listingOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -139,7 +147,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
-  const materials = parseListingMaterials(formData.get("materials"));
+  const materialsResult = parseListingMaterials(String(formData.get("materials") ?? ""));
+  if (!materialsResult.ok) return { ok: false, error: materialsResult.error };
+  const materials = materialsResult.value;
 
   // Product dimensions (inches — stored directly, separate from packaged dims)
   const productLengthIn = Number(String(formData.get("productLengthIn") ?? "").trim()) || null;
@@ -244,60 +254,50 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (processingWindowError) return { ok: false, error: processingWindowError };
 
   // 3. Create listing with status based on saveAsDraft
-  const created = await prisma.$transaction(async (tx) => {
-    const listing = await tx.listing.create({
-      data: {
-        sellerId: seller.id,
-        title,
-        description,
-        priceCents,
-        tags,
-        metaDescription,
-        materials,
-        productLengthIn,
-        productWidthIn,
-        productHeightIn,
-        packagedLengthCm,
-        packagedWidthCm,
-        packagedHeightCm,
-        packagedWeightGrams,
-        category,
-        listingType,
-        stockQuantity,
-        shipsWithinDays,
-        processingTimeMinDays,
-        processingTimeMaxDays,
-        status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
-        photos: { create: photoPairs.map((photo, i) => ({
-          url: photo.url,
-          originalUrl: photo.originalUrl,
-          sortOrder: i,
-          altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
-        })) },
-        variantGroups: variantGroups.length > 0 ? {
-          create: variantGroups.map((g, gi) => ({
-            name: g.name,
-            sortOrder: gi,
-            options: {
-              create: g.options.filter((o) => o.label).map((o, oi) => ({
-                label: o.label,
-                priceAdjustCents: o.priceAdjustCents,
-                sortOrder: oi,
-                inStock: o.inStock,
-              })),
-            },
-          })),
-        } : undefined,
-      },
-    });
-    await syncListingDirectUploadReferences({
-      client: tx,
-      userId: seller.userId,
-      listingId: listing.id,
-      requireAllTracked: true,
-    });
-    return listing;
+  const created = await createListingOwner(seller.userId, {
+    status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
+    isPrivate: false,
+    reservedForUserId: null,
+    customOrderConversationId: null,
+    title,
+    description,
+    priceCents,
+    tags,
+    metaDescription,
+    materials,
+    productLengthIn,
+    productWidthIn,
+    productHeightIn,
+    packagedLengthCm,
+    packagedWidthCm,
+    packagedHeightCm,
+    packagedWeightGrams,
+    category,
+    listingType,
+    stockQuantity,
+    shipsWithinDays,
+    processingTimeMinDays,
+    processingTimeMaxDays,
+    photos: photoPairs.map((photo, index) => ({
+      url: photo.url,
+      originalUrl: photo.originalUrl,
+      altText: imageAltTexts[index]
+        ? truncateText(sanitizeText(imageAltTexts[index].trim()), 200) || null
+        : null,
+    })),
+    variantGroups: variantGroups.map((group) => ({
+      name: group.name,
+      options: group.options.filter((option) => option.label).map((option) => ({
+        label: option.label,
+        priceAdjustCents: option.priceAdjustCents,
+        inStock: option.inStock,
+      })),
+    })),
   });
+  if (!created) {
+    return { ok: false, error: "Your shop changed while the listing was being saved. Refresh and try again." };
+  }
+  let reviewedListingVersion = created.updatedAt;
 
   revalidatePath("/browse");
   revalidatePath("/dashboard");
@@ -308,8 +308,14 @@ async function createListing(_prevState: unknown, formData: FormData) {
     if (sellerLocation?.lat != null && sellerLocation?.lng != null) {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(sellerLocation.lat, sellerLocation.lng);
-      if (metroId || cityMetroId) {
-        await prisma.listing.update({ where: { id: created.id }, data: { metroId, cityMetroId } });
+      if (metroId) {
+        const assignment = await assignListingOwnerMetros(seller.userId, {
+          listingId: created.id,
+          expectedUpdatedAt: reviewedListingVersion,
+          metroId,
+          cityMetroId,
+        });
+        if (assignment.applied) reviewedListingVersion = assignment.updatedAt;
       }
     }
   } catch (e) {
@@ -325,99 +331,79 @@ async function createListing(_prevState: unknown, formData: FormData) {
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
 
-  // AI listing review + first-listing hold. Bind every verdict to the exact
-  // revision sent for review so an older request cannot publish a withdrawn,
-  // edited, and resubmitted listing.
-  let reviewedUpdatedAt: Date | null = null;
+  // Bind the AI verdict to the exact Listing revision and child manifests that
+  // were reviewed. A stale request cannot publish newer seller content.
+  let activatedByThisReview = false;
   try {
-    creationReview: {
-      const reviewTarget = await prisma.listing.findFirst({
-        where: {
-          id: created.id,
-          sellerId: seller.id,
-          status: ListingStatus.PENDING_REVIEW,
-        },
-        select: {
-          updatedAt: true,
-          title: true,
-          description: true,
-          priceCents: true,
-          currency: true,
-          category: true,
-          tags: true,
-          metaDescription: true,
-          materials: true,
-          variantGroups: { select: { name: true, options: { select: { label: true } } } },
-          photos: {
-            select: { url: true, altText: true },
-            orderBy: { sortOrder: "asc" },
-            take: 10,
-          },
-        },
-      });
-      reviewedUpdatedAt = reviewTarget?.updatedAt ?? null;
-      if (!reviewTarget || !reviewedUpdatedAt) {
-        break creationReview;
-      }
+    const sellerInfo = await sellerOwnerListingReview(seller.userId);
+    if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
+      throw new Error("Seller listing-review authority returned a different seller");
+    }
 
-      const sellerInfo = await sellerOwnerListingReview(seller.userId);
-      if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
-        throw new Error("Seller listing-review authority returned a different seller");
-      }
+    const listingCount = sellerInfo?.totalListingCount ?? 0;
+    const aiContext = await listingOwnerAiReviewContext(seller.userId, created.id);
+    if (
+      !aiContext
+      || aiContext.sellerProfileId !== seller.id
+      || aiContext.listingUpdatedAt.getTime() !== reviewedListingVersion.getTime()
+    ) {
+      throw new Error("Listing AI-review context changed before review");
+    }
+    const reviewedImageUrls = [...aiContext.photoUrls];
+    const { reviewListingWithAI } = await import("@/lib/ai-review");
+    const aiResult = await reviewListingWithAI({
+      listingId: created.id,
+      sellerId: seller.id,
+      title,
+      description,
+      priceCents,
+      currency: created.currency,
+      category: category ?? null,
+      tags,
+      sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
+      listingCount,
+      imageUrls: reviewedImageUrls,
+      metaDescription,
+      materials,
+      variantLabels: variantGroups.flatMap((group) => [
+        group.name,
+        ...group.options.map((option) => option.label),
+      ]),
+      photoAltTexts: imageAltTexts,
+      recentListingTitles: aiContext.recentTitles.map((recentTitle) => ({
+        title: recentTitle,
+      })),
+    }).catch((): AIReviewResult => ({
+      approved: false,
+      flags: ["AI review error"],
+      confidence: 0,
+      reason: "AI error, sending to staff review",
+      altTexts: [],
+    }));
 
-      const listingCount = sellerInfo?.totalListingCount ?? 0;
-
-      const { reviewListingWithAI } = await import("@/lib/ai-review");
-
-      const aiResult = await reviewListingWithAI({
+    const shouldHold = !aiResult.approved
+      || aiResult.flags.length > 0
+      || aiResult.confidence < 0.8;
+    const reviewApplied = await applyVersionBoundListingAiReviewTransition(
+      seller.userId,
+      {
         listingId: created.id,
-        sellerId: seller.id,
-        title: reviewTarget.title,
-        description: reviewTarget.description,
-        priceCents: reviewTarget.priceCents,
-        currency: reviewTarget.currency,
-        category: reviewTarget.category ?? null,
-        tags: reviewTarget.tags,
-        sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
-        listingCount,
-        imageUrls: reviewTarget.photos.map((photo) => photo.url),
-        metaDescription: reviewTarget.metaDescription,
-        materials: reviewTarget.materials,
-        variantLabels: reviewTarget.variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
-        photoAltTexts: reviewTarget.photos.map((photo) => photo.altText),
-      }).catch((): AIReviewResult => ({
-        approved: false,
-        flags: ["AI review error"],
-        confidence: 0,
-        reason: "AI error, sending to staff review",
-        altTexts: [],
-      }));
-
-      const transition = await applyListingCreationAIReviewResult(prisma, {
-        listingId: created.id,
-        sellerId: seller.id,
-        reviewedUpdatedAt,
-        approved: aiResult.approved,
+        reviewedAt: reviewedListingVersion,
+        sourceStatus: ListingStatus.PENDING_REVIEW,
+        status: shouldHold ? ListingStatus.PENDING_REVIEW : ListingStatus.ACTIVE,
         flags: aiResult.flags,
-        confidence: aiResult.confidence,
-        reason: aiResult.reason,
-      });
-      if (transition.activated) {
-        await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET status = 'SOLD_OUT'
-          WHERE id = ${created.id}
-            AND "sellerId" = ${seller.id}
-            AND "listingType" = 'IN_STOCK'
-            AND COALESCE("stockQuantity", 0) <= 0
-            AND status = 'ACTIVE'
-        `;
-      }
+        score: aiResult.confidence,
+      },
+    );
+    activatedByThisReview = reviewApplied && !shouldHold;
 
-      // Never let an older review write alt text onto a newer photo revision.
-      if (transition.applied) {
-        await backfillEmptyAltTexts(created.id, aiResult.altTexts);
-      }
+    if (reviewApplied) {
+      await backfillEmptyAltTexts(
+        seller.userId,
+        created.id,
+        aiResult.altTexts,
+        reviewedImageUrls,
+      );
     }
   } catch (error) {
     logServerError(error, {
@@ -425,31 +411,24 @@ async function createListing(_prevState: unknown, formData: FormData) {
       level: "warning",
       extra: { listingId: created.id, sellerProfileId: seller.id },
     });
-    if (reviewedUpdatedAt) {
-      await applyListingCreationAIReviewResult(prisma, {
-        listingId: created.id,
-        sellerId: seller.id,
-        reviewedUpdatedAt,
-        approved: false,
-        flags: ["AI review error"],
-        confidence: 0,
-        reason: "AI error, sending to staff review",
-      }).catch((updateError) => {
-        logServerError(updateError, {
-          source: "listing_create_ai_error_mark_failed",
-          level: "error",
-          extra: { listingId: created.id, sellerProfileId: seller.id },
-        });
+    await applyVersionBoundListingAiReviewTransition(seller.userId, {
+      listingId: created.id,
+      reviewedAt: reviewedListingVersion,
+      sourceStatus: ListingStatus.PENDING_REVIEW,
+      status: ListingStatus.PENDING_REVIEW,
+      flags: ["AI review error"],
+      score: 0,
+    }).catch((updateError) => {
+      logServerError(updateError, {
+        source: "listing_create_ai_error_mark_failed",
+        level: "error",
+        extra: { listingId: created.id, sellerProfileId: seller.id },
       });
-    }
+    });
   }
-
   // Only notify followers if the listing went live (not held for review)
-  const finalListing = await prisma.listing.findUnique({
-    where: { id: created.id },
-    select: { status: true },
-  });
-  if (finalListing?.status === "ACTIVE") {
+  const finalListing = await listingOwnerActionState(seller.userId, created.id);
+  if (finalListing?.status === "ACTIVE" && activatedByThisReview) {
     await syncGuildMemberListingThreshold(seller.id);
     revalidateListingSearchCaches();
     revalidateFeaturedMakerCaches();
@@ -579,7 +558,9 @@ export default async function NewListingPage({
             placeholder="e.g. walnut, maple, brass hardware"
             className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
           />
-          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            Comma-separated, up to {MAX_LISTING_MATERIALS}; {MAX_LISTING_MATERIAL_CODE_POINTS} characters each.
+          </p>
         </div>
 
         <div>

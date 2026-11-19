@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import { ListingStatus, Prisma } from "@prisma/client";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
-import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { extractRouteId, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { sellerPublicCustomerPhotoHeader } from "@/lib/sellerProfilePublicAccess";
+import { listingPublicCustomerPhotoPage } from "@/lib/listingReviewHistoryAccess";
 import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 
 const PAGE_SIZE = 24;
@@ -51,31 +50,19 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
   const seller = await sellerPublicCustomerPhotoHeader(meId, sellerId);
   if (!seller) return notFound();
 
-  const blockedUserIds = await getBlockedUserIdsFor(meId);
-
   // Canonicalize URL slug
   if (id !== routeSegmentWithSlug(seller.id, seller.displayName, "maker")) {
     permanentRedirect(`/seller/${routeSegmentWithSlug(seller.id, seller.displayName, "maker")}/customer-photos${requestedPage > 1 ? `?page=${requestedPage}` : ""}`);
   }
   if (!seller.publicPhotosEligible) return notFound();
 
-  const blockedReviewerFilter = blockedUserIds.size > 0
-    ? { reviewerId: { notIn: [...blockedUserIds] } }
-    : {};
-  const photoWhere = {
-    review: {
-      ...blockedReviewerFilter,
-      reviewerAccountActive: true,
-      listing: {
-        sellerId: seller.id,
-        status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
-        isPrivate: false,
-        archivedAt: null,
-      },
-    },
-  } satisfies Prisma.ReviewPhotoWhereInput;
-
-  const totalCount = await prisma.reviewPhoto.count({ where: photoWhere });
+  const requestedPhotoPage = await listingPublicCustomerPhotoPage(
+    meId,
+    seller.id,
+    (requestedPage - 1) * PAGE_SIZE,
+    PAGE_SIZE,
+  );
+  const totalCount = requestedPhotoPage.total;
 
   // Empty state: redirect back to seller profile if no photos exist
   if (totalCount === 0) {
@@ -84,18 +71,14 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
-  const photos = await prisma.reviewPhoto.findMany({
-    where: photoWhere,
-    orderBy: [{ review: { createdAt: "desc" } }, { id: "desc" }],
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    select: {
-      id: true,
-      url: true,
-      altText: true,
-      review: { select: { listingId: true, listing: { select: { title: true } } } },
-    },
-  });
+  const photos = page === requestedPage
+    ? requestedPhotoPage.photos
+    : (await listingPublicCustomerPhotoPage(
+        meId,
+        seller.id,
+        (page - 1) * PAGE_SIZE,
+        PAGE_SIZE,
+      )).photos;
   const currentSeller = await sellerPublicCustomerPhotoHeader(meId, sellerId);
   if (!currentSeller?.publicPhotosEligible) return notFound();
 
@@ -120,8 +103,8 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
           id: p.id,
           url: p.url,
           altText: p.altText,
-          listingId: p.review.listingId,
-          listingTitle: p.review.listing?.title ?? null,
+          listingId: p.listingId,
+          listingTitle: p.listingTitle,
         }))}
       />
 

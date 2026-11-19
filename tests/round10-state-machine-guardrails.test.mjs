@@ -159,9 +159,10 @@ describe("Round 10 state-machine guardrails", () => {
     );
 
     const audit = source("src/lib/audit.ts");
-    assert.match(audit, /tx\.listing\.updateMany/);
-    assert.match(audit, /listingUndoCurrentStatusWhere\(log\.action, log\.targetId\)/);
-    assert.match(audit, /listingUndoDataFromMetadata\(metadata\)/);
+    assert.match(audit, /sellerProfileStaffListingUndoTransition\(staffClient, \{/);
+    assert.match(audit, /actorId: adminId,[\s\S]*logId,[\s\S]*reason: sanitizedUndoReason/);
+    assert.match(audit, /transition\.action !== log\.action \|\| transition\.listingId !== log\.targetId/);
+    assert.doesNotMatch(audit, /(?:tx|prisma)\.listing\.(?:update|updateMany)/);
     assert.doesNotMatch(audit, /ListingStatus\.ACTIVE/);
   });
 

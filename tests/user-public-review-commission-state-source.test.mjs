@@ -65,13 +65,27 @@ describe("User public review and commission state source boundary", () => {
     for (const path of [
       "src/app/listing/[id]/page.tsx",
       "src/components/ReviewsSection.tsx",
-      "src/app/seller/[id]/page.tsx",
-      "src/app/seller/[id]/customer-photos/page.tsx",
     ]) {
       const source = read(path);
       assert.doesNotMatch(source, /reviewer:\s*\{\s*(?:select|where|banned):/);
       assert.match(source, /reviewerAccountActive/);
     }
+    for (const path of [
+      "src/app/seller/[id]/page.tsx",
+      "src/app/seller/[id]/customer-photos/page.tsx",
+    ]) {
+      const source = read(path);
+      assert.doesNotMatch(source, /reviewer:\s*\{\s*(?:select|where|banned):/);
+      assert.match(source, /listingPublicCustomerPhotoPage\(/);
+    }
+    const customerPhotoAccess = read("src/lib/listingReviewHistoryAccess.ts");
+    const listingPreparation = read(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    assert.match(customerPhotoAccess, /grainline_listing_public_customer_photo_page/);
+    assert.match(listingPreparation, /CREATE FUNCTION public\.grainline_listing_public_customer_photo_page/);
+    assert.match(listingPreparation, /review\."reviewerAccountActive" = true/);
+    assert.match(listingPreparation, /relationship\."blockedId" IN \([\s\S]*seller\."userId", review\."reviewerId"/);
   });
 
   it("filters every public commission query on snapshots without User joins", () => {

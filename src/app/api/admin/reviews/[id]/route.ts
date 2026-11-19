@@ -9,6 +9,8 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { listingStaffReferenceTargets } from "@/lib/listingStaffAccess";
 
 export async function DELETE(
   request: Request,
@@ -33,14 +35,18 @@ export async function DELETE(
       id: true,
       listingId: true,
       reviewerId: true,
-      listing: { select: { sellerId: true } },
     },
   });
   if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
+  const [listing] = await listingStaffReferenceTargets(getOrderStaffReadClient(), {
+    actorId: admin.id,
+    listingIds: [review.listingId],
+  });
+  if (!listing) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   await prisma.$transaction(async (tx) => {
     await tx.review.delete({ where: { id } });
-    await refreshSellerRatingSummary(review.listing.sellerId, tx);
+    await refreshSellerRatingSummary(listing.sellerProfileId, tx);
     await logAdminActionOrThrow({
       client: tx,
       adminId: admin.id,

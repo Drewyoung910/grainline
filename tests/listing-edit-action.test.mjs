@@ -5,6 +5,7 @@ import * as formJson from "../src/lib/formJson.ts";
 import * as fulfillmentDays from "../src/lib/listingFulfillmentDays.ts";
 import * as editState from "../src/lib/listingEditState.ts";
 import * as listingPrice from "../src/lib/listingPrice.ts";
+import * as listingMaterials from "../src/lib/listingMaterials.ts";
 import * as stockMutation from "../src/lib/listingStockMutation.ts";
 import * as listingVariants from "../src/lib/listingVariants.ts";
 import * as money from "../src/lib/money.ts";
@@ -32,6 +33,8 @@ function formWith(fields) {
 
 async function loadEditAction({ listing, currentStock = listing.stockQuantity, aiApproved = true, stock = {} }) {
   const statusWrites = [];
+  let currentStatus = listing.status;
+  let currentUpdatedAt = listing.updatedAt;
   const client = {
     listing: { update: async () => ({ title: listing.title, updatedAt: new Date(0) }) },
     listingVariantGroup: { deleteMany: async () => ({}), create: async () => ({}) },
@@ -47,6 +50,12 @@ async function loadEditAction({ listing, currentStock = listing.stockQuantity, a
       updateMany: async (write) => { statusWrites.push(write); return { count: 1 }; },
     },
   };
+  const ownerState = () => ({
+    ...listing,
+    status: currentStatus,
+    stockQuantity: currentStock,
+    updatedAt: currentUpdatedAt,
+  });
   const page = loadWithStubs("src/app/dashboard/listings/[id]/edit/page.tsx", {
     "@prisma/client": { ListingStatus },
     "next/navigation": {
@@ -61,10 +70,54 @@ async function loadEditAction({ listing, currentStock = listing.stockQuantity, a
       sellerOwnerCore: async () => ({ sellerProfileId: "seller-1", chargesEnabled: true, displayName: "Oak Shop" }),
       sellerOwnerListingReview: async () => ({ sellerProfileId: "seller-1", totalListingCount: 3 }),
     },
+    "@/lib/dbUserContext": {
+      withDbUserContext: async (_userId, operation) => operation(client),
+    },
+    "@/lib/listingOwnerAccess": {
+      listingOwnerEditor: async () => ownerState(),
+      listingOwnerActionState: async () => ownerState(),
+      listingOwnerAiReviewContext: async () => ({
+        sellerProfileId: listing.sellerId,
+        listingUpdatedAt: currentUpdatedAt,
+        recentTitles: [],
+        photoUrls: listing.photos.map((photo) => photo.url),
+      }),
+      updateListingOwnerContent: async (_tx, input) => {
+        const requiresReview =
+          currentStatus === ListingStatus.ACTIVE || currentStatus === ListingStatus.SOLD_OUT;
+        currentUpdatedAt = new Date(currentUpdatedAt.getTime() + 1);
+        if (requiresReview) currentStatus = ListingStatus.PENDING_REVIEW;
+        return {
+          applied: true,
+          title: input.title,
+          updatedAt: currentUpdatedAt,
+          requiresReview,
+          approvedStatus:
+            listing.isPrivate || input.listingType !== "IN_STOCK" || currentStock === 0
+              ? ListingStatus.SOLD_OUT
+              : ListingStatus.ACTIVE,
+        };
+      },
+      listingOwnerTransition: async (_userId, input) => {
+        currentStatus = input.operation === "RETURN_TO_DRAFT" ? ListingStatus.DRAFT : currentStatus;
+        return true;
+      },
+    },
+    "@/lib/listingAiReviewTransition": {
+      applyVersionBoundListingAiReviewTransition: async (_userId, input) => {
+        statusWrites.push({
+          where: { stockQuantity: currentStock },
+          data: { status: input.status },
+        });
+        currentStatus = input.status;
+        return true;
+      },
+    },
     "@/lib/formJson": formJson,
     "@/lib/listingEditState": editState,
     "@/lib/listingFulfillmentDays": fulfillmentDays,
     "@/lib/listingPrice": listingPrice,
+    "@/lib/listingMaterials": listingMaterials,
     "@/lib/listingStockMutation": { ...stockMutation, lockListingStock: async () => listing, ...stock },
     "@/lib/listingVariants": listingVariants,
     "@/lib/money": money,
@@ -94,6 +147,9 @@ const baseListing = {
   rejectionReason: null,
   listingType: "MADE_TO_ORDER",
   stockQuantity: null,
+  priceVersion: 1,
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
   tags: [],
   materials: [],
   photos: [],

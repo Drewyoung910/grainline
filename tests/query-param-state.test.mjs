@@ -128,6 +128,10 @@ describe("query parameter parsing helpers", () => {
 
   it("keeps admin queues capped and stably ordered", () => {
     const review = readFileSync("src/app/admin/review/page.tsx", "utf8");
+    const listingPreparation = readFileSync(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      "utf8",
+    );
     const verification = readFileSync("src/app/admin/verification/page.tsx", "utf8");
     const sellerGuildStaffPrivateAccess = readFileSync(
       "src/lib/sellerGuildStaffPrivateAccess.ts",
@@ -151,9 +155,10 @@ describe("query parameter parsing helpers", () => {
     );
 
     assert.match(review, /const REVIEW_QUEUE_LIMIT = 100/);
-    assert.match(review, /prisma\.listing\.count\(\{ where: \{ status: "PENDING_REVIEW" \} \}\)/);
-    assert.match(review, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-    assert.match(review, /take: REVIEW_QUEUE_LIMIT/);
+    assert.match(review, /sellerProfileStaffListingReviewQueue\(staffClient, \{/);
+    assert.match(review, /limit: REVIEW_QUEUE_LIMIT/);
+    assert.doesNotMatch(review, /prisma\.listing\.(?:count|findMany|groupBy)/);
+    assert.match(listingPreparation, /ORDER BY listing\."createdAt" ASC, listing\.id ASC[\s\S]*LIMIT p_limit/);
 
     assert.match(verification, /makerVerificationStaffPendingCount\(staffClient, staff\.id\)/);
     assert.match(verification, /makerVerificationStaffPendingPage\(staffClient, \{[\s\S]*actorId: staff\.id,[\s\S]*take: STAFF_FETCH_SIZE/);

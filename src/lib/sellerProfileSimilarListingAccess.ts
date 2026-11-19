@@ -6,7 +6,7 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 import {
   isSimilarListingCategoryMatch,
   normalizeSimilarListingCategoryMatch,
-} from "./sellerSimilarListingCategory.ts";
+} from "@/lib/sellerSimilarListingCategory";
 
 export type SellerSimilarListingCandidate = Readonly<{
   sourceTitle: string;
