@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { runPsqlScript } from "./psql-script.mjs";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -28,7 +32,226 @@ function pageOf(result) {
   return rows[0];
 }
 
-export async function proveListingDomainPublicCatalog({ database, seller }) {
+async function readActivationPosture(database) {
+  return rowsOf(await database.query(`
+    SELECT relation.relname AS table_name,
+           relation.relrowsecurity AS rls_enabled,
+           relation.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = relation.oid) AS policy_count,
+           CASE WHEN relation.relname = 'Listing' THEN (
+             SELECT constraint_state.convalidated
+               FROM pg_catalog.pg_constraint AS constraint_state
+              WHERE constraint_state.conrelid = relation.oid
+                AND constraint_state.conname =
+                    'Listing_public_reservation_routing_chk'
+           ) ELSE NULL END AS reservation_guard_validated
+      FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = relation.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND relation.relname = ANY($1::text[])
+     ORDER BY relation.relname
+  `, [[
+    "Listing",
+    "ListingVariantGroup",
+    "ListingVariantOption",
+    "Photo",
+  ]]));
+}
+
+async function provePredecessorRuntimeCrud({ database, seller }) {
+  const suffix = randomUUID();
+  const listingId = `listing-rollback-${suffix}`;
+  const photoId = `photo-rollback-${suffix}`;
+  const groupId = `group-rollback-${suffix}`;
+  const optionId = `option-rollback-${suffix}`;
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `INSERT INTO public."Listing"
+       (id, "sellerId", title, description, "priceCents", status,
+        "listingType", "stockQuantity", "isPrivate", "sellerPubliclyOrderable",
+        "createdAt", "updatedAt")
+     VALUES
+       ($1, $2, 'Rollback predecessor listing', 'Executed rollback proof', 2500,
+        'DRAFT', 'MADE_TO_ORDER', NULL, false, false,
+        pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())
+     RETURNING id`,
+    [listingId, seller.sellerProfileId],
+  )), [{ id: listingId }]);
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `INSERT INTO public."Photo"
+       (id, "listingId", url, "originalUrl", "altText", "sortOrder", "createdAt")
+     VALUES ($1, $2, 'https://cdn.example.test/rollback.jpg',
+             'https://cdn.example.test/rollback-original.jpg',
+             'Rollback predecessor photo', 0, pg_catalog.clock_timestamp())
+     RETURNING id`,
+    [photoId, listingId],
+  )), [{ id: photoId }]);
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `INSERT INTO public."ListingVariantGroup" (id, "listingId", name, "sortOrder")
+     VALUES ($1, $2, 'Finish', 0)
+     RETURNING id`,
+    [groupId, listingId],
+  )), [{ id: groupId }]);
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `INSERT INTO public."ListingVariantOption"
+       (id, "groupId", label, "priceAdjustCents", "sortOrder", "inStock")
+     VALUES ($1, $2, 'Natural', 0, 0, true)
+     RETURNING id`,
+    [optionId, groupId],
+  )), [{ id: optionId }]);
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `SELECT listing.id AS listing_id,
+            photo.id AS photo_id,
+            variant_group.id AS group_id,
+            variant_option.id AS option_id
+       FROM public."Listing" AS listing
+       JOIN public."Photo" AS photo ON photo."listingId" = listing.id
+       JOIN public."ListingVariantGroup" AS variant_group
+         ON variant_group."listingId" = listing.id
+       JOIN public."ListingVariantOption" AS variant_option
+         ON variant_option."groupId" = variant_group.id
+      WHERE listing.id = $1`,
+    [listingId],
+  )), [{
+    listing_id: listingId,
+    photo_id: photoId,
+    group_id: groupId,
+    option_id: optionId,
+  }]);
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `UPDATE public."Listing"
+        SET title = 'Rollback predecessor listing updated',
+            "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1
+      RETURNING title`,
+    [listingId],
+  )), [{ title: "Rollback predecessor listing updated" }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `UPDATE public."Photo" SET "altText" = 'Rollback photo updated'
+      WHERE id = $1 RETURNING "altText" AS alt_text`,
+    [photoId],
+  )), [{ alt_text: "Rollback photo updated" }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `UPDATE public."ListingVariantGroup" SET name = 'Material'
+      WHERE id = $1 RETURNING name`,
+    [groupId],
+  )), [{ name: "Material" }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `UPDATE public."ListingVariantOption" SET label = 'Walnut'
+      WHERE id = $1 RETURNING label`,
+    [optionId],
+  )), [{ label: "Walnut" }]);
+
+  for (const [table, id] of [
+    ["ListingVariantOption", optionId],
+    ["Photo", photoId],
+    ["ListingVariantGroup", groupId],
+    ["Listing", listingId],
+  ]) {
+    assert.deepEqual(rowsOf(await runtimeQuery(
+      database,
+      seller.userId,
+      `DELETE FROM public."${table}" WHERE id = $1 RETURNING id`,
+      [id],
+    )), [{ id }]);
+  }
+}
+
+async function proveListingDomainRollback({ database, repositoryRoot, seller }) {
+  const rollback = readFileSync(
+    join(repositoryRoot, "docs/rls-drafts/listing-domain-activation-rollback.sql"),
+    "utf8",
+  );
+  const activation = readFileSync(
+    join(
+      repositoryRoot,
+      "prisma/migrations/20261102060000_activate_listing_domain_rls/migration.sql",
+    ),
+    "utf8",
+  );
+
+  await runPsqlScript(database, rollback);
+  assert.deepEqual(await readActivationPosture(database), [
+    ["Listing", false],
+    ["ListingVariantGroup", null],
+    ["ListingVariantOption", null],
+    ["Photo", null],
+  ].map(([tableName, reservationGuardValidated]) => ({
+    table_name: tableName,
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+    policy_count: 0,
+    reservation_guard_validated: reservationGuardValidated,
+  })));
+  await provePredecessorRuntimeCrud({ database, seller });
+
+  await runPsqlScript(database, activation);
+  assert.deepEqual(await readActivationPosture(database), [
+    ["Listing", true],
+    ["ListingVariantGroup", null],
+    ["ListingVariantOption", null],
+    ["Photo", null],
+  ].map(([tableName, reservationGuardValidated]) => ({
+    table_name: tableName,
+    rls_enabled: true,
+    rls_forced: true,
+    runtime_select: false,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: false,
+    policy_count: 1,
+    reservation_guard_validated: reservationGuardValidated,
+  })));
+}
+
+export async function proveListingDomainPublicCatalog({
+  database,
+  repositoryRoot,
+  seller,
+}) {
+  await proveListingDomainRollback({ database, repositoryRoot, seller });
   const suffix = randomUUID();
   const actorId = `listing-catalog-actor-${suffix}`;
   const listingIds = {
