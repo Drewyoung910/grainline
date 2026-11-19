@@ -364,6 +364,238 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."UserReport"
 TO :"runtime_role";
 
+-- Listing-domain activation replaces ordinary table CRUD with reviewed column
+-- reads and SECURITY DEFINER authorities. The broad compatibility grant above
+-- must remain for pre-activation databases, but every provisioning replay
+-- after the exact activation ledger entry must converge back to that posture.
+-- Refuse partial or checksum-drifted ledger rows before changing any grant.
+WITH listing_domain_activation_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = '49b7c1700d4db1cc6434a6bcaa2e6577df6c31fb762737553cfee62034c5b168'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+    )::integer AS exact_count
+  FROM public._prisma_migrations
+  WHERE migration_name = '20261102060000_activate_listing_domain_rls'
+), listing_domain_expected_policy(
+  table_name, policy_name, using_md5
+) AS (
+  VALUES
+    ('Listing', 'listing_public_select',
+     '47cfaee29e837cf1223a23f44ef17cee'),
+    ('Photo', 'photo_public_select',
+     '11b4cd755c0824418f1918d11b1e9482'),
+    ('ListingVariantGroup', 'listing_variant_group_public_select',
+     '7608345f967a6cbfe9bfd685b357acd3'),
+    ('ListingVariantOption', 'listing_variant_option_public_select',
+     '0447f238bd35b7f549f4c9a7d6484699')
+), listing_domain_expected_column(table_name, column_name) AS (
+  VALUES
+    ('Listing', 'id'), ('Listing', 'sellerId'), ('Listing', 'title'),
+    ('Listing', 'description'), ('Listing', 'priceCents'),
+    ('Listing', 'currency'), ('Listing', 'status'),
+    ('Listing', 'createdAt'), ('Listing', 'updatedAt'),
+    ('Listing', 'archivedAt'), ('Listing', 'videoUrl'),
+    ('Listing', 'tags'), ('Listing', 'processingTimeMinDays'),
+    ('Listing', 'processingTimeMaxDays'), ('Listing', 'listingType'),
+    ('Listing', 'stockQuantity'), ('Listing', 'shipsWithinDays'),
+    ('Listing', 'category'), ('Listing', 'clickCount'),
+    ('Listing', 'viewCount'), ('Listing', 'isPrivate'),
+    ('Listing', 'cityMetroId'), ('Listing', 'metroId'),
+    ('Listing', 'qualityScore'), ('Listing', 'materials'),
+    ('Listing', 'metaDescription'), ('Listing', 'productHeightIn'),
+    ('Listing', 'productLengthIn'), ('Listing', 'productWidthIn'),
+    ('Listing', 'sellerPubliclyOrderable'),
+    ('Listing', 'sellerDisplayName'),
+    ('Listing', 'sellerDisplayNameNormalized'),
+    ('Listing', 'sellerAverageRating'), ('Listing', 'sellerReviewCount'),
+    ('Listing', 'favoriteCount'),
+    ('Photo', 'id'), ('Photo', 'listingId'), ('Photo', 'url'),
+    ('Photo', 'altText'), ('Photo', 'sortOrder'), ('Photo', 'createdAt'),
+    ('ListingVariantGroup', 'id'), ('ListingVariantGroup', 'listingId'),
+    ('ListingVariantGroup', 'name'), ('ListingVariantGroup', 'sortOrder'),
+    ('ListingVariantOption', 'id'), ('ListingVariantOption', 'groupId'),
+    ('ListingVariantOption', 'label'),
+    ('ListingVariantOption', 'priceAdjustCents'),
+    ('ListingVariantOption', 'sortOrder'),
+    ('ListingVariantOption', 'inStock')
+), listing_domain_runtime_role AS (
+  SELECT oid
+  FROM pg_catalog.pg_roles
+  WHERE rolname = :'runtime_role'
+), listing_domain_table_state AS (
+  SELECT
+    relation.relname,
+    relation.relrowsecurity,
+    relation.relforcerowsecurity,
+    pg_catalog.count(policy.oid)::integer AS policy_count,
+    pg_catalog.count(policy.oid) FILTER (
+      WHERE policy.polname = expected.policy_name
+        AND policy.polcmd = 'r'
+        AND policy.polpermissive
+        AND policy.polroles = ARRAY[
+          (SELECT oid FROM listing_domain_runtime_role)
+        ]::oid[]
+        AND policy.polwithcheck IS NULL
+        AND pg_catalog.md5(
+          pg_catalog.pg_get_expr(policy.polqual, policy.polrelid)
+        ) = expected.using_md5
+    )::integer AS exact_policy_count
+  FROM pg_catalog.pg_class AS relation
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  JOIN listing_domain_expected_policy AS expected
+    ON expected.table_name = relation.relname
+  LEFT JOIN pg_catalog.pg_policy AS policy
+    ON policy.polrelid = relation.oid
+  WHERE namespace.nspname = 'public'
+    AND relation.relname IN (
+      'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'
+    )
+    AND relation.relkind = 'r'
+  GROUP BY relation.relname, relation.relrowsecurity,
+           relation.relforcerowsecurity, expected.policy_name,
+           expected.using_md5
+), listing_domain_column_acl_state AS (
+  SELECT
+    pg_catalog.count(acl.privilege_type)::integer AS acl_count,
+    pg_catalog.count(acl.privilege_type) FILTER (
+      WHERE expected.column_name IS NOT NULL
+        AND acl.grantee = (SELECT oid FROM listing_domain_runtime_role)
+        AND acl.privilege_type = 'SELECT'
+        AND NOT acl.is_grantable
+    )::integer AS exact_acl_count
+  FROM pg_catalog.pg_class AS relation
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  JOIN pg_catalog.pg_attribute AS attribute
+    ON attribute.attrelid = relation.oid
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+  CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+  LEFT JOIN listing_domain_expected_column AS expected
+    ON expected.table_name = relation.relname
+   AND expected.column_name = attribute.attname
+  WHERE namespace.nspname = 'public'
+    AND relation.relname IN (
+      'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'
+    )
+), listing_domain_table_acl_state AS (
+  SELECT pg_catalog.bool_or(
+    acl.grantee NOT IN (
+      relation.relowner,
+      (SELECT oid FROM listing_domain_runtime_role)
+    )
+    OR (
+      acl.grantee = (SELECT oid FROM listing_domain_runtime_role)
+      AND (
+        acl.privilege_type NOT IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
+        OR acl.is_grantable
+      )
+    )
+  ) AS drifted
+  FROM pg_catalog.pg_class AS relation
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    COALESCE(
+      relation.relacl,
+      pg_catalog.acldefault('r', relation.relowner)
+    )
+  ) AS acl
+  WHERE namespace.nspname = 'public'
+    AND relation.relname IN (
+      'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'
+    )
+    AND relation.relkind = 'r'
+), listing_domain_posture AS (
+  SELECT
+    pg_catalog.count(*) = 4
+      AND pg_catalog.bool_and(
+        relrowsecurity AND relforcerowsecurity
+        AND policy_count = 1 AND exact_policy_count = 1
+      )
+      AND column_acl.acl_count = 51
+      AND column_acl.exact_acl_count = 51
+      AND NOT COALESCE(table_acl.drifted, false) AS active,
+    pg_catalog.count(*) = 4
+      AND pg_catalog.bool_and(
+        NOT relrowsecurity AND NOT relforcerowsecurity
+        AND policy_count = 0
+      )
+      AND column_acl.acl_count = 0
+      AND NOT COALESCE(table_acl.drifted, false) AS clean_predecessor
+  FROM listing_domain_table_state
+  CROSS JOIN listing_domain_column_acl_state AS column_acl
+  CROSS JOIN listing_domain_table_acl_state AS table_acl
+), failure AS (
+  SELECT
+    'Listing-domain activation ledger or table posture drifted; refusing runtime-role provisioning'
+      AS message
+  FROM listing_domain_activation_ledger
+  CROSS JOIN listing_domain_posture
+  WHERE (row_count <> 0 AND (row_count <> 1 OR exact_count <> 1))
+     OR (active AND exact_count <> 1)
+     OR (NOT active AND NOT clean_predecessor)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((
+    SELECT exact_count = 1 AND active
+    FROM listing_domain_activation_ledger
+    CROSS JOIN listing_domain_posture
+  ), false) AS grainline_listing_domain_activation_applied;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_listing_domain_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_listing_domain_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_listing_domain_activation_applied
+REVOKE ALL ON TABLE
+  public."Listing",
+  public."Photo",
+  public."ListingVariantGroup",
+  public."ListingVariantOption"
+FROM PUBLIC, :"runtime_role";
+
+GRANT SELECT (
+  "id", "sellerId", "title", "description", "priceCents", "currency",
+  "status", "createdAt", "updatedAt", "archivedAt", "videoUrl", "tags",
+  "processingTimeMinDays", "processingTimeMaxDays", "listingType",
+  "stockQuantity", "shipsWithinDays", "category", "clickCount", "viewCount",
+  "isPrivate", "cityMetroId", "metroId", "qualityScore", "materials",
+  "metaDescription", "productHeightIn", "productLengthIn", "productWidthIn",
+  "sellerPubliclyOrderable", "sellerDisplayName",
+  "sellerDisplayNameNormalized", "sellerAverageRating", "sellerReviewCount",
+  "favoriteCount"
+) ON TABLE public."Listing" TO :"runtime_role";
+
+GRANT SELECT (
+  "id", "listingId", "url", "altText", "sortOrder", "createdAt"
+) ON TABLE public."Photo" TO :"runtime_role";
+
+GRANT SELECT (
+  "id", "listingId", "name", "sortOrder"
+) ON TABLE public."ListingVariantGroup" TO :"runtime_role";
+
+GRANT SELECT (
+  "id", "groupId", "label", "priceAdjustCents", "sortOrder", "inStock"
+) ON TABLE public."ListingVariantOption" TO :"runtime_role";
+\endif
+\unset grainline_listing_domain_activation_applied
+
 -- These service/reference tables have no user-row ownership boundary. Preserve
 -- predecessor CRUD until the exact privilege migration is durably recorded;
 -- afterwards every provisioning replay must converge to the reviewed exact

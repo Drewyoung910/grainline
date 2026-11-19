@@ -2185,6 +2185,7 @@ BEGIN
     JOIN public."Listing" AS listing
       ON listing.id = review."listingId"
    WHERE listing."sellerId" = seller_id
+     AND review."reviewerAccountActive" = true
      AND review."createdAt" >= range_start
      AND (
        (p_end_exclusive AND review."createdAt" < range_end)
@@ -2246,6 +2247,7 @@ BEGIN
     JOIN public."Listing" AS listing
       ON listing.id = review."listingId"
    WHERE listing."sellerId" = p_seller_profile_id
+     AND review."reviewerAccountActive" = true
   ON CONFLICT ("sellerProfileId") DO UPDATE
   SET "averageRating" = EXCLUDED."averageRating",
       "reviewCount" = EXCLUDED."reviewCount",

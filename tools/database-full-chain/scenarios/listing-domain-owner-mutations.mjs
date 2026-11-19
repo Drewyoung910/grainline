@@ -402,6 +402,7 @@ export async function proveListingDomainOwnerMutations({
   const suffix = randomUUID();
   const listingId = `listing-owner-proof-${suffix}`;
   const buyerId = `listing-buyer-proof-${suffix}`;
+  const inactiveReviewerId = `listing-inactive-reviewer-proof-${suffix}`;
   const conversationId = randomUUID();
   const initialPhotoId = `listing-photo-initial-${suffix}`;
   const removedPhotoId = `listing-photo-removed-${suffix}`;
@@ -421,6 +422,21 @@ export async function proveListingDomainOwnerMutations({
        pg_catalog.clock_timestamp(), '2026-01-01', pg_catalog.clock_timestamp()
      )`,
     [buyerId, `clerk_${buyerId}`, `${buyerId}@example.test`],
+  );
+  await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, "createdAt", "updatedAt",
+        "termsAcceptedAt", "termsVersion", "ageAttestedAt")
+     VALUES (
+       $1, $2, $3, 'Inactive listing review proof',
+       pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp(),
+       pg_catalog.clock_timestamp(), '2026-01-01', pg_catalog.clock_timestamp()
+     )`,
+    [
+      inactiveReviewerId,
+      `clerk_${inactiveReviewerId}`,
+      `${inactiveReviewerId}@example.test`,
+    ],
   );
   const createResult = rowsOf(await runtimeQuery(
     database,
@@ -917,6 +933,7 @@ export async function proveListingDomainOwnerMutations({
   const ratingReviewIds = [
     `listing-rating-review-a-${suffix}`,
     `listing-rating-review-b-${suffix}`,
+    `listing-rating-review-inactive-${suffix}`,
   ];
   await database.query(
     `INSERT INTO public."Review"
@@ -924,7 +941,8 @@ export async function proveListingDomainOwnerMutations({
         "ratingX2", verified, "createdAt", "updatedAt")
      VALUES
        ($1, $3, $5, true, 10, true, $6, $6),
-       ($2, $4, $5, true, 8, true, $7, $7)`,
+       ($2, $4, $5, true, 8, true, $7, $7),
+       ($8, $4, $9, false, 2, true, $7, $7)`,
     [
       ratingReviewIds[0],
       ratingReviewIds[1],
@@ -933,6 +951,8 @@ export async function proveListingDomainOwnerMutations({
       buyerId,
       new Date("2026-01-15T12:00:00.000Z"),
       new Date("2026-02-10T12:00:00.000Z"),
+      ratingReviewIds[2],
+      inactiveReviewerId,
     ],
   );
   await database.query(
@@ -975,7 +995,8 @@ export async function proveListingDomainOwnerMutations({
        FROM public."Review" AS review
        JOIN public."Listing" AS listing
          ON listing.id = review."listingId"
-      WHERE listing."sellerId" = $1`,
+      WHERE listing."sellerId" = $1
+        AND review."reviewerAccountActive" = true`,
     [seller.sellerProfileId],
   ))[0];
   const refreshedRatingSummary = rowsOf(await runtimeQuery(
@@ -988,6 +1009,11 @@ export async function proveListingDomainOwnerMutations({
     refreshedRatingSummary,
     [expectedRatingSummary],
     "seller rating refresh computes the exact aggregate",
+  );
+  assert.deepEqual(
+    refreshedRatingSummary,
+    [{ averageRating: 4.5, reviewCount: 2 }],
+    "seller rating refresh excludes inactive reviewers",
   );
   assert.notDeepEqual(
     refreshedRatingSummary,
@@ -1028,6 +1054,11 @@ export async function proveListingDomainOwnerMutations({
       reviewCount: 1,
     },
   ], "owner rating buckets preserve monthly averages");
+  assert.equal(
+    ratingBuckets[1]?.reviewCount,
+    1,
+    "owner rating buckets exclude inactive reviewers",
+  );
   assert.deepEqual(rowsOf(await runtimeQuery(
     database,
     buyerId,

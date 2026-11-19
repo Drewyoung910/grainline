@@ -6774,6 +6774,9 @@ describe("database grant inventory guardrails", () => {
     const serviceReferenceLeastPrivilegeProvisioningPresent = provision.includes(
       "grainline_service_reference_least_privilege_applied",
     );
+    const listingDomainActivationProvisioningPresent = provision.includes(
+      "grainline_listing_domain_activation_applied",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6785,8 +6788,47 @@ describe("database grant inventory guardrails", () => {
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
         + Number(reviewVoteProvisioningPresent)
-        + Number(serviceReferenceLeastPrivilegeProvisioningPresent),
+        + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
+        + Number(listingDomainActivationProvisioningPresent),
     );
+    if (listingDomainActivationProvisioningPresent) {
+      const listingDomainProvisioningBlock = provision.match(
+        /\\if :grainline_listing_domain_activation_applied[\s\S]*?\\endif/,
+      )?.[0] ?? "";
+      assert.match(
+        provision,
+        /49b7c1700d4db1cc6434a6bcaa2e6577df6c31fb762737553cfee62034c5b168[\s\S]*20261102060000_activate_listing_domain_rls/,
+      );
+      assert.match(
+        provision,
+        /Listing-domain activation ledger or table posture drifted; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /listing_domain_expected_policy[\s\S]*listing_public_select[\s\S]*47cfaee29e837cf1223a23f44ef17cee[\s\S]*photo_public_select[\s\S]*11b4cd755c0824418f1918d11b1e9482[\s\S]*listing_variant_group_public_select[\s\S]*7608345f967a6cbfe9bfd685b357acd3[\s\S]*listing_variant_option_public_select[\s\S]*0447f238bd35b7f549f4c9a7d6484699/,
+      );
+      assert.match(
+        provision,
+        /policy\.polcmd = 'r'[\s\S]*policy\.polpermissive[\s\S]*policy\.polroles = ARRAY[\s\S]*policy\.polwithcheck IS NULL[\s\S]*pg_catalog\.pg_get_expr/,
+      );
+      assert.match(
+        provision,
+        /listing_domain_expected_column[\s\S]*listing_domain_column_acl_state[\s\S]*acl\.privilege_type = 'SELECT'[\s\S]*NOT acl\.is_grantable[\s\S]*column_acl\.acl_count = 51[\s\S]*column_acl\.exact_acl_count = 51/,
+      );
+      assert.match(
+        provision,
+        /listing_domain_table_acl_state[\s\S]*acl\.privilege_type NOT IN \('SELECT', 'INSERT', 'UPDATE', 'DELETE'\)[\s\S]*NOT COALESCE\(table_acl\.drifted, false\)/,
+      );
+      assert.match(
+        provision,
+        /row_count <> 0 AND \(row_count <> 1 OR exact_count <> 1\)[\s\S]*active AND exact_count <> 1[\s\S]*NOT active AND NOT clean_predecessor/,
+      );
+      assert.match(
+        listingDomainProvisioningBlock,
+        /\\if :grainline_listing_domain_activation_applied[\s\S]*REVOKE ALL ON TABLE[\s\S]*public\."Listing"[\s\S]*public\."Photo"[\s\S]*public\."ListingVariantGroup"[\s\S]*public\."ListingVariantOption"[\s\S]*GRANT SELECT \([\s\S]*"sellerAverageRating"[\s\S]*ON TABLE public\."Listing" TO :"runtime_role"/,
+      );
+      assert.doesNotMatch(listingDomainProvisioningBlock, /"originalUrl"/);
+    }
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
       assert.match(

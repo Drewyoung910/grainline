@@ -20,6 +20,10 @@ test("seller rating history uses one actor-bound Listing-domain aggregate", asyn
   assert.match(migration, /current_setting\('app\.user_id', true\)/u);
   assert.match(
     migration,
+    /CREATE FUNCTION public\.grainline_listing_owner_rating_buckets\([\s\S]*review\."reviewerAccountActive" = true[\s\S]*GROUP BY pg_catalog\.date_trunc/u,
+  );
+  assert.match(
+    migration,
     /GRANT EXECUTE ON FUNCTION public\.grainline_listing_owner_rating_buckets\(\s*bigint,bigint,boolean\s*\)[\s\S]*TO grainline_app_runtime/u,
   );
   assert.match(access, /export function listingOwnerRatingBuckets\(/u);
@@ -32,6 +36,7 @@ test("seller rating history uses one actor-bound Listing-domain aggregate", asyn
   );
   for (const evidence of [
     "owner rating buckets preserve monthly averages",
+    "owner rating buckets exclude inactive reviewers",
     "cross-owner rating buckets are empty",
     "missing-actor rating buckets fail closed",
   ]) assert.match(scenario, new RegExp(evidence, "u"));

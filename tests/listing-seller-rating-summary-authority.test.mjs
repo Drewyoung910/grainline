@@ -23,6 +23,10 @@ test("seller rating summary refresh uses one derived Listing-domain authority", 
   );
   assert.match(
     migration,
+    /CREATE FUNCTION public\.grainline_listing_seller_rating_summary_refresh\([\s\S]*review\."reviewerAccountActive" = true[\s\S]*ON CONFLICT \("sellerProfileId"\) DO UPDATE/u,
+  );
+  assert.match(
+    migration,
     /GRANT EXECUTE ON FUNCTION public\.grainline_listing_seller_rating_summary_refresh\(text\)[\s\S]*TO grainline_app_runtime/u,
   );
   assert.match(access, /FROM public\.grainline_listing_seller_rating_summary_refresh\(/u);
@@ -36,6 +40,7 @@ test("seller rating summary refresh uses one derived Listing-domain authority", 
   assert.match(inventory, /"grainline_listing_seller_rating_summary_refresh"/u);
   for (const evidence of [
     "seller rating refresh computes the exact aggregate",
+    "seller rating refresh excludes inactive reviewers",
     "seller rating refresh replaces stale summary values",
     "seller rating refresh rejects malformed seller ids",
     "reviewer rating refresh resolves only affected sellers",
