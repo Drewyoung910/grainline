@@ -33,17 +33,14 @@ function loadInterestRoute({ buyerId = "buyer-1", blocked = false } = {}) {
   const limiterCalls = [];
   const route = loadWithStubs("src/app/api/commission/[id]/interest/route.ts", {
     ...common(limiterCalls),
-    "@/lib/db": {
-      prisma: {
-        commissionRequest: {
-          findUnique: async () => ({ id: "request-1", buyerId, status: "OPEN", expiresAt: null, buyerAccountActive: true }),
-        },
-      },
+    "@/lib/db": { prisma: {} },
+    "@/lib/commissionRequestAccess": {
+      publicCommissionRequestDetail: async () => blocked ? null : ({
+        id: "request-1",
+        status: "OPEN",
+        isOwner: buyerId === "maker-1",
+      }),
     },
-    "@/lib/blockAccess": {
-      userBlockPairIsBlocked: async () => blocked,
-    },
-    "@/lib/commissionExpiry": { commissionIsExpired: () => false },
     "@/lib/userIdentityAccess": {
       userClerkCommissionContext: async () => ({
         id: "maker-1",

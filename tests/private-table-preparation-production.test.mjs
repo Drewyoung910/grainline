@@ -108,26 +108,34 @@ async function runOwnerWriteBinding(mainSha = "a".repeat(40)) {
   });
 }
 
-function acceptedMigration() {
+function acceptedMigration(candidateRelease = release) {
   return {
-    migration_name: release.migration,
-    checksum: release.migrationSha256,
+    migration_name: candidateRelease.migration,
+    checksum: candidateRelease.migrationSha256,
     finished_at: "2026-10-23T12:00:00.000Z",
     rolled_back_at: null,
     applied_steps_count: 1,
   };
 }
 
-function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
+function fakeClientClass({
+  ledgerApplied,
+  schemaApplied,
+  partial = false,
+  candidateRelease = release,
+  candidateVerified = verified,
+}) {
   return class FakeClient {
     async connect() {}
     async end() {}
 
-    async query(statement) {
+    async query(statement, parameters = []) {
       const sql = String(statement);
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
       if (sql.includes("current_database() AS database_name")) {
-        return { rows: [{
+        const tables = parameters[0] ?? [release.table];
+        return { rows: tables.map((table) => ({
+          table_name: table,
           database_name: "grainline",
           current_user_name: "neondb_owner",
           session_user_name: "neondb_owner",
@@ -143,32 +151,35 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
           runtime_delete: true,
           staff_select: false,
           public_select: false,
-        }] };
+        })) };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
-        return { rows: ledgerApplied ? [acceptedMigration()] : [] };
+        return { rows: ledgerApplied ? [acceptedMigration(candidateRelease)] : [] };
       }
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
         return { rows: [{
-          columns: schemaApplied ? release.addedColumns.length : 0,
+          columns: schemaApplied ? candidateRelease.addedColumns.length : 0,
           functions: schemaApplied
-            ? release.functions.length - (partial ? 1 : 0)
+            ? candidateRelease.functions.filter(
+                (entry) => entry.predecessorSourceSha256 === undefined,
+              ).length - (partial ? 1 : 0)
             : 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
-        return { rows: [{ name: "emailDeliveryToken", type: "uuid", nullable: true }] };
+        return { rows: candidateRelease.addedColumns.map((column) => ({ ...column })) };
       }
       if (sql.includes("procedure.prosrc AS source")) {
-        return { rows: release.functions
+        return { rows: candidateRelease.functions
           .map((entry) => ({
             function_name: entry.name,
             identity_arguments: entry.arguments,
             owner_name: "neondb_owner",
             owner_bypasses_rls: true,
-            security_definer: true,
+            security_definer: entry.securityDefiner ?? true,
+            volatility: entry.volatility ?? "v",
             configuration: ["search_path=pg_catalog"],
-            source: verified.functionSources.get(entry.name),
+            source: candidateVerified.functionSources.get(entry.name),
             runtime_execute: true,
             staff_execute: false,
             public_execute: false,
@@ -183,10 +194,10 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
   };
 }
 
-function environment(directory, phase, previousPath) {
+function environment(directory, phase, previousPath, candidateReleaseId = releaseId) {
   return {
     DIRECT_URL: "postgresql://example.invalid/grainline",
-    PRIVATE_TABLE_PREPARATION_RELEASE_ID: releaseId,
+    PRIVATE_TABLE_PREPARATION_RELEASE_ID: candidateReleaseId,
     PRIVATE_TABLE_PREPARATION_PHASE: phase,
     PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(directory, `${phase}.json`),
     PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH: previousPath,
@@ -319,6 +330,27 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("Commission domain preparation is byte-sealed and remains compatible", () => {
+  const commission = verifyPrivateTablePreparationSource("commission_domain_v1");
+  assert.equal(commission.release.table, "CommissionRequest");
+  assert.deepEqual(commission.release.additionalTables, ["CommissionInterest"]);
+  assert.equal(commission.functionSources.size, 22);
+  assert.deepEqual(commission.release.addedColumns, []);
+  const sql = readFileSync(commission.migrationPath, "utf8");
+  assert.match(sql, /grainline_commission_request_public_page/u);
+  assert.match(sql, /grainline_commission_interest_actor_create/u);
+  assert.match(sql, /grainline_commission_request_owner_transition/u);
+  assert.match(sql, /grainline_commission_account_deletion_prepare/u);
+  assert.match(sql, /grainline_commission_request_staff_ban_close/u);
+  assert.match(sql, /grainline_commission_request_service_expire_batch/u);
+  assert.match(sql, /Commission owner-interest predecessor authority drifted/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("email service preparation is byte-sealed and remains compatible", () => {
   const emailService = verifyPrivateTablePreparationSource("email_service_v1");
   assert.equal(emailService.release.table, "EmailOutbox");
@@ -429,6 +461,44 @@ test("inspector proves pending and applied states without recording row data", a
   }
 });
 
+test("inspector binds every table in a coupled preparation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-commission-preparation-"));
+  const commissionReleaseId = "commission_domain_v1";
+  const commissionRelease = privateTablePreparation(commissionReleaseId);
+  const commissionVerified = verifyPrivateTablePreparationSource(commissionReleaseId);
+  try {
+    const commissionEnv = environment(
+      directory,
+      "preflight",
+      undefined,
+      commissionReleaseId,
+    );
+    const evidence = await inspectPrivateTablePreparationProduction(
+      commissionEnv,
+      {
+        Client: fakeClientClass({
+          ledgerApplied: true,
+          schemaApplied: true,
+          candidateRelease: commissionRelease,
+          candidateVerified: commissionVerified,
+        }),
+      },
+    );
+    assert.equal(evidence.state, "applied");
+    assert.deepEqual(evidence.tables, ["CommissionRequest", "CommissionInterest"]);
+    assert.deepEqual(
+      Object.keys(evidence.tablePostures).sort(),
+      ["CommissionInterest", "CommissionRequest"],
+    );
+    assert.deepEqual(
+      evidence.tablePostures.CommissionRequest,
+      evidence.tablePostures.CommissionInterest,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("inspector admits only an exact applied-but-unrecorded preparation", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-restart-"));
   try {
@@ -473,6 +543,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "user_report_v1",
     "seller_faq_v1",
     "email_service_v1",
+    "commission_domain_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -501,6 +572,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "review_vote_v1",
       "maker_verification_v1",
       "email_service_v1",
+      "commission_domain_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
       "listing_domain_v1",

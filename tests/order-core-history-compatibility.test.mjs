@@ -25,10 +25,7 @@ const boundedSellerSummaryRenderers = [
 ];
 
 const durableSellerConsumers = [
-  "src/app/api/account/export/route.ts",
   "src/app/api/stripe/webhook/route.ts",
-  "src/lib/accountDeletion.ts",
-  "src/lib/ban.ts",
   "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
   "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
 ];
@@ -90,6 +87,25 @@ describe("core Order historical compatibility", () => {
         /items:\s*\{\s*(?:some|every):\s*\{\s*listing:\s*\{\s*sellerId/s,
         file,
       );
+    }
+    const accountExport = read("src/app/api/account/export/route.ts");
+    assert.match(accountExport, /exportSellerOrders\(user\.id\)/);
+    assert.doesNotMatch(accountExport, /prisma\.order/);
+
+    const accountDeletion = read("src/lib/accountDeletion.ts");
+    assert.match(accountDeletion, /getOrderAccountDeletionBlockerCounts\(/);
+    assert.match(accountDeletion, /scrubOrderDataForAccountDeletion\(/);
+
+    const ban = read("src/lib/ban.ts");
+    assert.match(ban, /flagBannedSellerOpenOrders\(/);
+    assert.match(ban, /restoreBannedSellerOrderReviews\(/);
+
+    for (const file of [
+      "prisma/migrations/20260901030000_prepare_order_participant_export_authority/migration.sql",
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+      "prisma/migrations/20260905100000_prepare_order_ban_review_authority/migration.sql",
+    ]) {
+      assert.match(read(file), /source_order\."sellerProfileId"/, file);
     }
     const sellerRefundPreflight = read(
       "docs/rls-drafts/order-seller-refund-preflight-authority.sql",

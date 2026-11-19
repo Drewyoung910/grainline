@@ -36,8 +36,8 @@ type AccountExportCollections = {
   savedSearches: unknown[];
   follows: unknown[];
   savedBlogPosts: unknown[];
-  commissionRequests: unknown[];
-  commissionInterests: unknown[];
+  commissionRequests: readonly unknown[];
+  commissionInterests: readonly unknown[];
   notifications: unknown[];
   blocks: unknown[];
   userReportsSubmitted: unknown[];

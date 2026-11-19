@@ -24,10 +24,11 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   // actor-bound SQL authority.
   // Email-service least privilege removes eight additional app-side query
   // shapes by moving their bounded behavior behind fixed SQL authorities.
-  assert.equal(result.reviewedOpaqueShapes, 96);
+  // Commission preparation removes fifteen reviewed app-side factory calls.
+  assert.equal(result.reviewedOpaqueShapes, 81);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 85);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 70);
   assert.equal(result.opaqueNonTargetResiduals, 11);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,

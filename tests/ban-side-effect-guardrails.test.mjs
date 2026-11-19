@@ -22,12 +22,17 @@ describe("ban side-effect guardrails", () => {
     const audit = source("src/lib/audit.ts");
     const authority = source("src/lib/orderBanReviewAuthority.ts");
 
-    assert.match(ban, /const BANNED_BUYER_COMMISSION_STATUSES = \['OPEN', 'IN_PROGRESS'\] as const/);
-    assert.match(ban, /status: \{ in: \[\.\.\.BANNED_BUYER_COMMISSION_STATUSES\] \}/);
+    assert.match(ban, /const commissionRequests = await closeCommissionRequestsForStaffBan\(\s*tx,\s*banReviewCapability,\s*userId,\s*\)/s);
+    assert.match(ban, /buildBanAuditMetadata\(\{[\s\S]*commissionRequests,[\s\S]*openOrderSnapshots: flaggedOpenOrders/s);
+    assert.doesNotMatch(ban, /(?:prisma|tx)\.commissionRequest\./);
     assert.match(ban, /flagBannedSellerOpenOrders\(\s*banReviewCapability,\s*userId,\s*tx/s);
     assert.match(ban, /openOrderSnapshots: flaggedOpenOrders/);
     assert.match(ban, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*userId,\s*capabilityBanMetadata\.flaggedOpenOrders,\s*tx/s);
     assert.match(audit, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*log\.targetId,\s*banMetadata\?\.flaggedOpenOrders \?\? \[\],\s*tx/s);
+    assert.match(ban, /mintCommissionBanRestoreCapability\(\s*adminId,\s*userId,\s*capabilityBanMetadata\.previousCommissionRequests,\s*staffClient/s);
+    assert.match(ban, /restoreCommissionRequestsForStaffBan\(\s*tx,\s*commissionRestoreCapability,\s*userId,\s*capabilityBanMetadata\.previousCommissionRequests/s);
+    assert.match(audit, /mintCommissionBanRestoreCapability\(\s*adminId,\s*log\.targetId,\s*banMetadata\?\.previousCommissionRequests \?\? \[\],\s*staffClient/s);
+    assert.match(audit, /restoreCommissionRequestsForStaffBan\(\s*tx,\s*commissionRestoreCapability,\s*log\.targetId,\s*banMetadata\.previousCommissionRequests/s);
     assert.match(authority, /grainline_order_flag_banned_seller_open_orders/);
     assert.match(authority, /grainline_order_restore_banned_seller_reviews/);
     assert.doesNotMatch(ban, /(?:prisma|tx)\.order\./);

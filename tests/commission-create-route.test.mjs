@@ -9,13 +9,21 @@ import { loadWithStubs } from "./helpers/load-with-stubs.mjs";
 function loadRoute(sellerProfile = null) {
   const limiterCalls = [];
   const created = [];
-  const tx = { commissionRequest: { create: async ({ data }) => { created.push(data); return { id: "new-request" }; } } };
   const route = loadWithStubs("src/app/api/commission/route.ts", {
     zod: { z },
     "@/lib/money": money,
     "@/lib/sanitize": sanitize,
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk-1" }) },
-    "@/lib/db": { prisma: { $transaction: (fn) => fn(tx) } },
+    "@/lib/db": { prisma: {} },
+    "@/lib/commissionRequestAccess": {
+      createOwnerCommissionRequest: async (_userId, input) => {
+        created.push(input);
+        return { id: "new-request" };
+      },
+      assignOwnerCommissionRequestMetros: async () => undefined,
+      publicCommissionRequestCount: async () => 0,
+      publicCommissionRequestPage: async () => ({ rows: [] }),
+    },
     "@/lib/ratelimit": {
       commissionAttemptRatelimit: "attempt",
       commissionCreateRatelimit: "daily-quota",
