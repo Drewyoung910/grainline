@@ -524,9 +524,14 @@ const {
   LISTING_DOMAIN_PREPARATION_MIGRATION: LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION,
   LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256:
     LISTING_DOMAIN_PREPARATION_LEDGER_MIGRATION_SHA256,
-  LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES,
+  LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES:
+    LISTING_DOMAIN_LEDGER_FUNCTION_NAMES,
   LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
   LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
+  LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION,
+  LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION_SHA256,
+  LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION,
+  LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION_SHA256,
   EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
   EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
@@ -644,6 +649,8 @@ const {
   readSellerFaqRlsActivationState,
   readListingDomainPreparationState,
   readListingDomainStaffReviewPredecessorState,
+  readListingDomainFeaturedTogglePredecessorState,
+  readListingDomainMessageListPredecessorState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -2163,42 +2170,91 @@ describe("database grant inventory guardrails", () => {
   it("derives Listing functions from the exact preparation ledger state", (context) => {
     if (
       typeof withAppliedListingDomainPreparation !== "function"
-      || !Array.isArray(LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES)
+      || !Array.isArray(LISTING_DOMAIN_LEDGER_FUNCTION_NAMES)
     ) {
       context.skip("requires the staged Listing grant-audit generation");
       return;
     }
-    const predecessorFunction = "grainline_message_list";
+    const staffReviewFunction =
+      "grainline_seller_staff_listing_review_transition";
+    const featuredToggleFunction =
+      "grainline_seller_owner_featured_listing_toggle";
+    const messageListFunction = "grainline_message_list";
     const sourceInventory = {
       functions: [
         "grainline_existing_function",
-        predecessorFunction,
-        ...LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES,
+        ...LISTING_DOMAIN_LEDGER_FUNCTION_NAMES,
       ],
     };
     const pending = withAppliedListingDomainPreparation(sourceInventory, {
       preparationApplied: false,
       staffReviewPredecessorApplied: false,
+      featuredTogglePredecessorApplied: false,
+      messageListPredecessorApplied: false,
     });
-    assert.deepEqual(pending.functions, [
-      "grainline_existing_function",
-      predecessorFunction,
-    ].sort((left, right) => left.localeCompare(right)));
+    assert.deepEqual(pending.functions, ["grainline_existing_function"]);
     assert.equal(pending.listingDomainPreparationApplied, false);
 
-    const predecessorApplied = withAppliedListingDomainPreparation(sourceInventory, {
+    const staffReviewPredecessorApplied = withAppliedListingDomainPreparation(
+      sourceInventory,
+      {
+        preparationApplied: false,
+        staffReviewPredecessorApplied: true,
+        featuredTogglePredecessorApplied: false,
+        messageListPredecessorApplied: false,
+      },
+    );
+    assert.deepEqual(staffReviewPredecessorApplied.functions, [
+      "grainline_existing_function",
+      staffReviewFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const featuredTogglePredecessorApplied = withAppliedListingDomainPreparation(
+      sourceInventory,
+      {
+        preparationApplied: false,
+        staffReviewPredecessorApplied: false,
+        featuredTogglePredecessorApplied: true,
+        messageListPredecessorApplied: false,
+      },
+    );
+    assert.deepEqual(featuredTogglePredecessorApplied.functions, [
+      "grainline_existing_function",
+      featuredToggleFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const messageListPredecessorApplied = withAppliedListingDomainPreparation(
+      sourceInventory,
+      {
+        preparationApplied: false,
+        staffReviewPredecessorApplied: false,
+        featuredTogglePredecessorApplied: false,
+        messageListPredecessorApplied: true,
+      },
+    );
+    assert.deepEqual(messageListPredecessorApplied.functions, [
+      "grainline_existing_function",
+      messageListFunction,
+    ].sort((left, right) => left.localeCompare(right)));
+
+    const allPredecessorsApplied = withAppliedListingDomainPreparation(sourceInventory, {
       preparationApplied: false,
       staffReviewPredecessorApplied: true,
+      featuredTogglePredecessorApplied: true,
+      messageListPredecessorApplied: true,
     });
-    assert.deepEqual(predecessorApplied.functions, [
+    assert.deepEqual(allPredecessorsApplied.functions, [
       "grainline_existing_function",
-      predecessorFunction,
-      "grainline_seller_staff_listing_review_transition",
+      staffReviewFunction,
+      featuredToggleFunction,
+      messageListFunction,
     ].sort((left, right) => left.localeCompare(right)));
 
     const applied = withAppliedListingDomainPreparation(sourceInventory, {
       preparationApplied: true,
       staffReviewPredecessorApplied: true,
+      featuredTogglePredecessorApplied: true,
+      messageListPredecessorApplied: true,
     });
     assert.deepEqual(applied.functions, [
       ...new Set(sourceInventory.functions),
@@ -2208,13 +2264,33 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(collectListingDomainMigrationOrderIssues({
       preparationApplied: false,
       staffReviewPredecessorApplied: false,
+      messageListPredecessorApplied: false,
     }), []);
     assert.deepEqual(collectListingDomainMigrationOrderIssues({
       preparationApplied: true,
       staffReviewPredecessorApplied: false,
+      messageListPredecessorApplied: false,
     }), [
       "Listing domain preparation is applied without its exact staff-review prerequisite",
+      "Listing domain preparation is applied without its exact message-list prerequisite",
     ]);
+
+    const pendingStaffIdentities = staffReadFunctionIdentitiesForInventory(
+      staffReviewPredecessorApplied,
+    );
+    assert.equal(pendingStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text)",
+    ), true);
+    assert.equal(pendingStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
+    ), false);
+    const appliedStaffIdentities = staffReadFunctionIdentitiesForInventory(applied);
+    assert.equal(appliedStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text)",
+    ), false);
+    assert.equal(appliedStaffIdentities.includes(
+      "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
+    ), true);
   });
 
   it("reads exact email migration ledger states including manual resolution rows", async (context) => {
@@ -2225,6 +2301,8 @@ describe("database grant inventory guardrails", () => {
       || typeof readEmailServicePreparationState !== "function"
       || typeof readListingDomainPreparationState !== "function"
       || typeof readListingDomainStaffReviewPredecessorState !== "function"
+      || typeof readListingDomainFeaturedTogglePredecessorState !== "function"
+      || typeof readListingDomainMessageListPredecessorState !== "function"
     ) {
       context.skip("requires the staged email migration-ledger readers");
       return;
@@ -2292,6 +2370,22 @@ describe("database grant inventory guardrails", () => {
       await readListingDomainStaffReviewPredecessorState(exactClient(
         LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
         LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
+        "1",
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainFeaturedTogglePredecessorState(exactClient(
+        LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION,
+        LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION_SHA256,
+        "1",
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readListingDomainMessageListPredecessorState(exactClient(
+        LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION,
+        LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION_SHA256,
         "1",
       )),
       { applied: true, issues: [] },
