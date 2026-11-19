@@ -995,6 +995,7 @@ test(
       });
       await proveListingDomainPublicCatalog({
         database: adapter,
+        repositoryRoot,
         seller: fixture,
       });
       await proveListingDomainStaffReferences({
