@@ -24,7 +24,7 @@ test("Order checkout receipt authority is one exact compatible successor pair", 
   assert.equal(result.productionTouched, false);
 });
 
-test("CI isolates Listing for the historical Order release chain and restores it", () => {
+test("CI isolates Listing through the historical Order release chain and full suite", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const isolate = workflow.indexOf(
     "Temporarily isolate Listing domain from historical Order release guards",
@@ -56,6 +56,10 @@ test("CI isolates Listing for the historical Order release chain and restores it
   const currentTreeTypecheck = workflow.indexOf(
     "      - run: npx tsc --noEmit",
   );
+  const tests = workflow.indexOf("      - name: Tests\n");
+  const restoreSuccessors = workflow.indexOf(
+    "Restore and prove the reviewed successors",
+  );
   assert.ok(isolate >= 0 && isolate < verify);
   assert.ok(verify < participantDetail && participantDetail < restore);
   assert.ok(
@@ -66,7 +70,8 @@ test("CI isolates Listing for the historical Order release chain and restores it
       && participantAuthority < historicalGrantBoundary
       && historicalGrantBoundary < restore,
   );
-  assert.ok(restore < currentTreeTypecheck);
+  assert.ok(currentTreeTypecheck < tests && tests < restore);
+  assert.ok(restore < restoreSuccessors);
   const isolatedBlock = workflow.slice(isolate, restore);
   assert.match(
     isolatedBlock,
@@ -75,7 +80,7 @@ test("CI isolates Listing for the historical Order release chain and restores it
   assert.match(isolatedBlock, /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=/u);
   const restoredBlock = workflow.slice(
     restore,
-    currentTreeTypecheck,
+    restoreSuccessors,
   );
   assert.match(
     restoredBlock,
