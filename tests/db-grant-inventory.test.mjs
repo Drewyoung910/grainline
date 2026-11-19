@@ -555,6 +555,10 @@ const {
   SELLER_FAQ_TABLE,
   SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
   SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
+  LISTING_DOMAIN_TABLES = Object.freeze([]),
+  LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES = Object.freeze({}),
+  LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION,
+  LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
   FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
@@ -651,6 +655,7 @@ const {
   readListingDomainStaffReviewPredecessorState,
   readListingDomainFeaturedTogglePredecessorState,
   readListingDomainMessageListPredecessorState,
+  readListingDomainRlsActivationState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -1125,6 +1130,20 @@ describe("database grant inventory guardrails", () => {
       rlsEnableTables: [BLOCK_TABLE, USER_REPORT_TABLE, SELLER_FAQ_TABLE],
       rlsForceTables: [BLOCK_TABLE, USER_REPORT_TABLE, SELLER_FAQ_TABLE],
     };
+    const listingDomainPredecessorInventory = {
+      tables: LISTING_DOMAIN_TABLES,
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+      listingDomainRlsActivationApplied: false,
+    };
+    const listingDomainActivatedInventory = {
+      ...listingDomainPredecessorInventory,
+      rlsEnableTables: LISTING_DOMAIN_TABLES,
+      rlsForceTables: LISTING_DOMAIN_TABLES,
+      rlsPolicyTables: LISTING_DOMAIN_TABLES,
+      listingDomainRlsActivationApplied: true,
+    };
     const savedBlogPostPredecessorInventory = {
       rlsPolicyTables: [],
       savedBlogPostOwnerPrivilegesProvisioned: false,
@@ -1452,6 +1471,24 @@ describe("database grant inventory guardrails", () => {
           true,
         );
       }
+    }
+    for (const tableName of LISTING_DOMAIN_TABLES) {
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, listingDomainPredecessorInventory),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeColumnPrivileges(tableName, listingDomainPredecessorInventory),
+        [],
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, listingDomainActivatedInventory),
+        [],
+      );
+      assert.deepEqual(
+        requiredRuntimeColumnPrivileges(tableName, listingDomainActivatedInventory),
+        LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName],
+      );
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
@@ -4227,6 +4264,9 @@ describe("database grant inventory guardrails", () => {
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_delete",
       );
+    const listingDomainRlsActivationPresent = existsSync(
+      "prisma/migrations/20261102060000_activate_listing_domain_rls/migration.sql",
+    );
     const reviewVoteRlsActivationPresent = existsSync(
       REVIEW_VOTE_ACTIVATION_MIGRATION,
     ) && REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.every((functionName) =>
@@ -4533,6 +4573,7 @@ describe("database grant inventory guardrails", () => {
         + (accountDeletionClaimFencePrepared ? 13 : 0)
         + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
         + (favoriteRlsActivationPresent ? 1 : 0)
+        + (listingDomainRlsActivationPresent ? 1 : 0)
         + (listingHideDeleteMigrationPresent ? 1 : 0)
         + (supportRequestAuthorityPrepared
           ? supportRequestAuthorityFunctionNames.length
@@ -5023,8 +5064,12 @@ describe("database grant inventory guardrails", () => {
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Conversation",
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? ["Listing", "ListingVariantGroup", "ListingVariantOption"]
+          : []),
         "Message",
         "Notification",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -5061,6 +5106,9 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? ["Listing", "ListingVariantGroup", "ListingVariantOption"]
+          : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -5073,6 +5121,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -5129,6 +5178,9 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsForceExpected === "function"
           && followRlsForceExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? ["Listing", "ListingVariantGroup", "ListingVariantOption"]
+          : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -5141,6 +5193,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -5735,6 +5788,11 @@ describe("database grant inventory guardrails", () => {
         readSellerFaqRlsActivationState,
         SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
         SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
+      ],
+      [
+        readListingDomainRlsActivationState,
+        LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION,
+        LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
       ],
     ].filter(([reader]) => typeof reader === "function")) {
       assert.deepEqual(

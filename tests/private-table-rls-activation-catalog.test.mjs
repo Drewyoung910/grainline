@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
   mkdirSync,
@@ -109,6 +110,24 @@ test("catalog pins the exact reviewed suffix after the block/report/FAQ batch", 
     privateTableRlsActivationLaterPendingMigrations("favorite_v1"),
     [],
   );
+});
+
+test("Listing activation pins an ancestral compatible application", () => {
+  const listing = privateTableRlsActivation("listing_domain_v1");
+  assert.equal(
+    listing.minimumCompatibleAppCommit,
+    "5a10c0df3282ec400ca6785922aceab11d4e7ed9",
+  );
+  assert.doesNotThrow(() => execFileSync(
+    "git",
+    [
+      "merge-base",
+      "--is-ancestor",
+      listing.minimumCompatibleAppCommit,
+      "HEAD",
+    ],
+    { stdio: "pipe" },
+  ));
 });
 
 test("batch source verification prefers each release's staged paths", () => {

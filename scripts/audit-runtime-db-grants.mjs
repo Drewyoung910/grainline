@@ -143,6 +143,8 @@ const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
 const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_faq_v1");
+const LISTING_DOMAIN_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("listing_domain_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
@@ -206,6 +208,26 @@ export const SELLER_FAQ_RLS_ACTIVATION_MIGRATION =
   SELLER_FAQ_RLS_ACTIVATION_RELEASE.migration;
 export const SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256 =
   SELLER_FAQ_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION =
+  LISTING_DOMAIN_RLS_ACTIVATION_RELEASE.migration;
+export const LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256 =
+  LISTING_DOMAIN_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const LISTING_DOMAIN_TABLES = Object.freeze(
+  [...LISTING_DOMAIN_RLS_ACTIVATION_RELEASE.tables],
+);
+const LISTING_DOMAIN_TABLE_NAME_SET = new Set(LISTING_DOMAIN_TABLES);
+export const LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES = Object.freeze(
+  Object.fromEntries(Object.entries(
+    LISTING_DOMAIN_RLS_ACTIVATION_RELEASE.activatedRuntimeColumns,
+  ).map(([tableName, columns]) => [
+    tableName,
+    Object.freeze(columns.map((column) => (
+      `${/^[a-z_][a-z0-9_$]*$/u.test(column)
+        ? column
+        : `"${column.replaceAll('"', '""')}"`}:SELECT`
+    ))),
+  ])),
+);
 export const FOLLOW_RLS_ACTIVATION_MIGRATION =
   FOLLOW_RLS_ACTIVATION_RELEASE.migration;
 export const FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256 =
@@ -2133,6 +2155,14 @@ export async function readSellerFaqRlsActivationState(client) {
   });
 }
 
+export async function readListingDomainRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION,
+    checksum: LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "Listing domain RLS activation",
+  });
+}
+
 export async function readClerkWebhookEventForceState(client) {
   return readExactMigrationAppliedState(client, {
     migration: CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
@@ -3441,6 +3471,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && sellerFaqRlsActivationExpected(inventory)
     )
     || (
+      LISTING_DOMAIN_TABLE_NAME_SET.has(tableName)
+      && inventory?.listingDomainRlsActivationApplied === true
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3497,6 +3531,12 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
 
 export function requiredRuntimeColumnPrivileges(tableName, inventory) {
   const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
+  if (
+    LISTING_DOMAIN_TABLE_NAME_SET.has(tableName)
+    && inventory?.listingDomainRlsActivationApplied === true
+  ) {
+    return [...LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName]];
+  }
   if (tableName === "Notification" && rlsPolicyTables.includes("Notification")) {
     return NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES;
   }
@@ -3945,6 +3985,9 @@ export async function auditLiveDatabase({
     messageListPredecessorApplied:
       listingDomainMessageListPredecessor.applied,
   }));
+  const listingDomainRlsActivation =
+    await readListingDomainRlsActivationState(client);
+  issues.push(...listingDomainRlsActivation.issues);
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -4094,6 +4137,7 @@ export async function auditLiveDatabase({
     blockRlsActivationApplied: blockRlsActivation.applied,
     userReportRlsActivationApplied: userReportRlsActivation.applied,
     sellerFaqRlsActivationApplied: sellerFaqRlsActivation.applied,
+    listingDomainRlsActivationApplied: listingDomainRlsActivation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,
