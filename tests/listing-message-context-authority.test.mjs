@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { PGlite } from "@electric-sql/pglite";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const migration = readFileSync(
-  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  listingDomainPreparationMigrationPath(),
   "utf8",
 );
 

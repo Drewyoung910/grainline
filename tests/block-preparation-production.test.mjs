@@ -41,6 +41,7 @@ function fakeClientClass({ applied }) {
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
       if (sql.includes("current_database() AS database_name")) {
         return { rows: [{
+          table_name: release.table,
           database_name: "grainline",
           current_user_name: "neondb_owner",
           session_user_name: "neondb_owner",

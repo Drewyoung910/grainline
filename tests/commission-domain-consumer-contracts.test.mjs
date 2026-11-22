@@ -3,6 +3,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import test from "node:test";
 
+import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
+
 const root = resolve(new URL("..", import.meta.url).pathname);
 const sourceRoot = resolve(root, "src");
 const operations = [
@@ -49,10 +51,7 @@ test("Commission application source has zero direct base-table access", () => {
 test("Commission ban restoration uses a separate snapshot-bound capability", () => {
   const access = readFileSync(resolve(root, "src/lib/commissionRequestAccess.ts"), "utf8");
   const migration = readFileSync(
-    resolve(
-      root,
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
-    ),
+    resolve(root, commissionDomainPreparationMigrationPath),
     "utf8",
   );
   assert.match(
@@ -62,6 +61,11 @@ test("Commission ban restoration uses a separate snapshot-bound capability", () 
   assert.match(
     migration,
     /snapshot_hash :=[\s\S]*DELETE FROM public\."OrderStaffCapability"[\s\S]*"payloadHash" = snapshot_hash/u,
+  );
+  assert.doesNotMatch(
+    migration,
+    /pg_catalog\.coalesce/u,
+    "COALESCE is SQL syntax, not a pg_catalog function",
   );
   assert.match(
     migration,
@@ -76,10 +80,7 @@ test("Commission ban restoration uses a separate snapshot-bound capability", () 
 
 test("Commission preparation refuses legacy rows that would break owner/export flows", () => {
   const migration = readFileSync(
-    resolve(
-      root,
-      "prisma/migrations/20261113010000_prepare_commission_domain_authorities/migration.sql",
-    ),
+    resolve(root, commissionDomainPreparationMigrationPath),
     "utf8",
   );
   assert.match(

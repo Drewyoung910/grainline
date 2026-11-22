@@ -1704,7 +1704,7 @@ BEGIN
     RAISE EXCEPTION 'Commission staff restore input is invalid'
       USING ERRCODE = '22023';
   END IF;
-  SELECT pg_catalog.coalesce(
+  SELECT COALESCE(
            pg_catalog.jsonb_agg(
              pg_catalog.jsonb_build_object('id', source.id, 'status', source.status)
              ORDER BY source.ordinality

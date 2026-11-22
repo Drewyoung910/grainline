@@ -87,9 +87,12 @@ import {
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 import { privateTablePreparation } from "../scripts/private-table-preparation-catalog.mjs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
-const LISTING_DOMAIN_PREPARATION_MIGRATION =
+const LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION =
   "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  listingDomainPreparationMigrationPath();
 const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_remove_transition",
@@ -1750,6 +1753,14 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_complete",
       "grainline_seller_owner_public_state_bind",
       "grainline_user_public_seller_state_sync",
+      ...(existsSync(LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION)
+        ? [
+            "grainline_listing_actor_transaction_source_core",
+            "grainline_listing_children_replace_core",
+            "grainline_listing_detail_source_core",
+            "grainline_listing_materials_guard",
+          ]
+        : []),
       ...(existsSync(REVIEW_VOTE_PREPARATION_MIGRATION)
         ? [
             "grainline_review_vote_insert_guard",
@@ -2384,7 +2395,7 @@ describe("database grant inventory guardrails", () => {
     const appliedStaffIdentities = staffReadFunctionIdentitiesForInventory(applied);
     assert.equal(appliedStaffIdentities.includes(
       "grainline_seller_staff_listing_review_transition(text,text,text,text)",
-    ), false);
+    ), true);
     assert.equal(appliedStaffIdentities.includes(
       "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
     ), true);
@@ -4312,7 +4323,7 @@ describe("database grant inventory guardrails", () => {
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
     const listingDomainAuthorityPrepared = existsSync(
-      LISTING_DOMAIN_PREPARATION_MIGRATION,
+      LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION,
     ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
       source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
@@ -6969,6 +6980,10 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /listing_domain_expected_column[\s\S]*listing_domain_column_acl_state[\s\S]*acl\.privilege_type = 'SELECT'[\s\S]*NOT acl\.is_grantable[\s\S]*column_acl\.acl_count = 51[\s\S]*column_acl\.exact_acl_count = 51/,
+      );
+      assert.match(
+        provision,
+        /listing_domain_activation[\s\S]*20261102060000_activate_listing_domain_rls[\s\S]*column_grants[\s\S]*SELECT applied FROM listing_domain_activation[\s\S]*'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'/,
       );
       assert.match(
         provision,

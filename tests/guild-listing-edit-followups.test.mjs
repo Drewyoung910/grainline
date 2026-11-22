@@ -15,8 +15,8 @@ describe("guild and listing-edit audit follow-ups", () => {
       "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
     );
 
-    assert.match(dashboard, /status: "ACTIVE", isPrivate: false/);
-    assert.match(applyRoute, /status: "ACTIVE", isPrivate: false/);
+    assert.match(dashboard, /listingOwnerCounts\(sellerUserId\)[\s\S]*activePublicCount/);
+    assert.match(applyRoute, /listingOwnerCounts\(me\.id\)[\s\S]*activePublicCount/);
     assert.match(applyRoute, /safeRateLimit\(verificationApplyRatelimit, me\.id\)/);
     assert.match(applyRoute, /rateLimitResponse\(reset, "Too many verification applications\."\)/);
     assert.match(applyRoute, /getSellerVerificationOrderSales/);
@@ -43,11 +43,10 @@ describe("guild and listing-edit audit follow-ups", () => {
   it("keeps listing edit row and variant replacement in one transaction", () => {
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(editPage, /let updatedListing: \{ title: string; updatedAt: Date \}/);
-    assert.match(editPage, /updatedListing = await prisma\.\$transaction\(async \(tx\) => \{/);
-    assert.match(editPage, /await tx\.listing\.update\(/);
-    assert.match(editPage, /await tx\.listingVariantGroup\.deleteMany/);
-    assert.match(editPage, /await tx\.listingVariantGroup\.create/);
+    assert.match(editPage, /updateListingOwnerContent\(tx, \{/);
+    assert.match(editPage, /updatedListing = await withDbUserContext\(actor\.id, async \(tx\) => \{/);
+    assert.doesNotMatch(editPage, /await tx\.listing\.update\(/);
+    assert.doesNotMatch(editPage, /await tx\.listingVariantGroup\.(?:deleteMany|create)/);
     assert.doesNotMatch(editPage, /await prisma\.listingVariantGroup\.deleteMany/);
     assert.doesNotMatch(editPage, /await prisma\.listingVariantGroup\.create/);
   });
@@ -104,7 +103,7 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(dashboard, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
-    assert.match(stockRoute, /syncGuildMemberListingThreshold\(seller\.sellerProfileId\)/);
+    assert.match(stockRoute, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(adminRemoveRoute, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(adminReviewRoute, /syncGuildThresholdAfterAdminReview\(id, listing\.sellerId, 'admin_listing_approve_guild_threshold'\)/);
     assert.match(adminReviewRoute, /syncGuildThresholdAfterAdminReview\(id, listing\.sellerId, 'admin_listing_reject_guild_threshold'\)/);

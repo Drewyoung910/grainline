@@ -123,14 +123,17 @@ export async function proveSellerProfilePublicVisibilityMirrors({ database, sell
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
-    await database.query(
-      `UPDATE public."Listing"
-          SET "sellerPubliclyOrderable" = false,
-              "sellerDisplayName" = 'Forged',
-              "sellerAverageRating" = 1,
-              "sellerReviewCount" = 1
-        WHERE id = $1`,
-      [listingId],
+    await assert.rejects(
+      database.query(
+        `UPDATE public."Listing"
+            SET "sellerPubliclyOrderable" = false,
+                "sellerDisplayName" = 'Forged',
+                "sellerAverageRating" = 1,
+                "sellerReviewCount" = 1
+          WHERE id = $1`,
+        [listingId],
+      ),
+      (error) => error?.code === "42501",
     );
     await database.query(
       `UPDATE public."BlogPost"
@@ -141,6 +144,18 @@ export async function proveSellerProfilePublicVisibilityMirrors({ database, sell
   } finally {
     await database.query("RESET ROLE");
   }
+
+  // The migration owner still exercises the Listing mirror trigger directly;
+  // activation only removes this table mutation from the ordinary app role.
+  await database.query(
+    `UPDATE public."Listing"
+        SET "sellerPubliclyOrderable" = false,
+            "sellerDisplayName" = 'Forged',
+            "sellerAverageRating" = 1,
+            "sellerReviewCount" = 1
+      WHERE id = $1`,
+    [listingId],
+  );
 
   assert.deepEqual(rowsOf(await database.query(
     `SELECT "sellerPubliclyOrderable" AS orderable,

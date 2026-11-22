@@ -181,7 +181,7 @@ describe("upload UX follow-ups", () => {
     ]) {
       const listingCreate = source(path);
       assert.match(listingCreate, /verifyFirstPartyMediaUrlPairsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
-      assert.match(listingCreate, /photos: \{ create: photoPairs\.map\(\(photo, i\) => \(\{/);
+      assert.match(listingCreate, /photos: photoPairs\.map\(\(photo, index\) => \(\{/);
       assert.match(listingCreate, /originalUrl: photo\.originalUrl/);
       assert.doesNotMatch(listingCreate, /imageOriginalUrls\[i\] \?\? url/);
     }

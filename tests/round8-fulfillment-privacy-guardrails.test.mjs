@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -90,9 +91,7 @@ describe("Round 8 public profile privacy guardrails", () => {
     const seller = source("src/app/seller/[id]/page.tsx");
     const customerPhotos = source("src/app/seller/[id]/customer-photos/page.tsx");
     const customerPhotoAccess = source("src/lib/listingReviewHistoryAccess.ts");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = source(listingDomainPreparationMigrationPath());
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
 
     assert.match(listing, /reviewerAccountActive: true/);

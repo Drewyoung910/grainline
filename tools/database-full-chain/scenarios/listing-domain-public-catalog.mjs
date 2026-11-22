@@ -313,7 +313,9 @@ async function proveListingDomainRollback({ database, repositoryRoot, seller }) 
     "provisioning must reject a mixed Listing-domain RLS posture",
   );
 
-  const duplicateLedgerId = `listing-activation-duplicate-${randomUUID()}`;
+  // Prisma's migration ledger id is VARCHAR(36); a UUID is both unique and
+  // representative of the real ledger shape.
+  const duplicateLedgerId = randomUUID();
   await database.query("BEGIN");
   await database.query(
     `INSERT INTO public._prisma_migrations

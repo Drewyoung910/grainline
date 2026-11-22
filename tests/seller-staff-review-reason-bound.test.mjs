@@ -31,6 +31,7 @@ test("an emoji-heavy rejection reason within 500 characters reaches the database
     listingId: "listing",
     operation: "REJECT",
     reason: "😀".repeat(500),
+    reviewedAt: new Date("2026-11-21T00:00:00.000Z"),
   });
   assert.equal(reached, true);
 });
@@ -42,6 +43,7 @@ test("a longer one is still refused", async () => {
       listingId: "listing",
       operation: "REJECT",
       reason: "x".repeat(501),
+      reviewedAt: new Date("2026-11-21T00:00:00.000Z"),
     }),
     RangeError,
   );

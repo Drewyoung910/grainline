@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import yaml from "js-yaml";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
@@ -276,10 +277,7 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
     "src/app/api/admin/listings/[id]/route.ts",
     "utf8",
   );
-  const listingPreparation = readFileSync(
-    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    "utf8",
-  );
+  const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
   assert.match(adminRemoval, /sellerProfileStaffListingRemovalTransition\(/u);
   assert.match(
     listingPreparation,

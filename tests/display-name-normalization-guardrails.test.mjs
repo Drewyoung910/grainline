@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
@@ -47,9 +48,7 @@ describe("seller display-name lookup normalization guardrails", () => {
     const suggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const browse = source("src/app/browse/page.tsx");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
 
     for (const text of [suggestions, blogSuggestions]) {
       assert.match(text, /normalizeDisplayNameForLookup\(q\)/);
