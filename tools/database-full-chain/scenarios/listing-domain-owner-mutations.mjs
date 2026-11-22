@@ -426,11 +426,11 @@ export async function proveListingDomainOwnerMutations({
   await database.query(
     `INSERT INTO public."User"
        (id, "clerkId", email, name, "createdAt", "updatedAt",
-        "termsAcceptedAt", "termsVersion", "ageAttestedAt")
+        "termsAcceptedAt", "termsVersion", "ageAttestedAt", banned)
      VALUES (
        $1, $2, $3, 'Inactive listing review proof',
        pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp(),
-       pg_catalog.clock_timestamp(), '2026-01-01', pg_catalog.clock_timestamp()
+       pg_catalog.clock_timestamp(), '2026-01-01', pg_catalog.clock_timestamp(), true
      )`,
     [
       inactiveReviewerId,
