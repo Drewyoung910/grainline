@@ -208,6 +208,16 @@ WITH runtime_role AS (
   SELECT oid
     FROM pg_roles
    WHERE rolname = :'runtime_role'
+), listing_domain_activation AS (
+  SELECT pg_catalog.count(*) = 1
+    AND pg_catalog.count(*) FILTER (
+      WHERE checksum = '49b7c1700d4db1cc6434a6bcaa2e6577df6c31fb762737553cfee62034c5b168'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+    ) = 1 AS applied
+  FROM public._prisma_migrations
+  WHERE migration_name = '20261102060000_activate_listing_domain_rls'
 ), column_grants AS (
   SELECT
     n.nspname,
@@ -224,6 +234,18 @@ WITH runtime_role AS (
     AND a.attnum > 0
     AND NOT a.attisdropped
     AND acl.grantee = runtime_role.oid
+    -- The Listing activation deliberately replaces table-level SELECT with
+    -- 51 reviewed column grants. Preserve those grants until the exact
+    -- ledger, policy, table and column posture gate below has verified them;
+    -- otherwise this generic cleanup would erase the evidence immediately
+    -- before checking it. Checksum-drifted or partial ledger rows are not
+    -- exempt and still fail closed in the later activation gate.
+    AND NOT (
+      (SELECT applied FROM listing_domain_activation)
+      AND c.relname IN (
+        'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'
+      )
+    )
   GROUP BY n.nspname, c.relname, upper(acl.privilege_type)
 )
 SELECT format(
