@@ -1010,9 +1010,27 @@ export async function proveListingDomainOwnerMutations({
     [expectedRatingSummary],
     "seller rating refresh computes the exact aggregate",
   );
-  assert.deepEqual(
+  const unfilteredRatingSummary = rowsOf(await database.query(
+    `SELECT
+       COALESCE(
+         pg_catalog.avg(review."ratingX2")::double precision / 2.0,
+         0.0
+       ) AS "averageRating",
+       pg_catalog.count(review.id)::integer AS "reviewCount"
+       FROM public."Review" AS review
+       JOIN public."Listing" AS listing
+         ON listing.id = review."listingId"
+      WHERE listing."sellerId" = $1`,
+    [seller.sellerProfileId],
+  ));
+  assert.equal(
+    unfilteredRatingSummary[0].reviewCount,
+    expectedRatingSummary.reviewCount + 1,
+    "the fixture includes exactly one inactive-reviewer row",
+  );
+  assert.notDeepEqual(
     refreshedRatingSummary,
-    [{ averageRating: 4.5, reviewCount: 2 }],
+    unfilteredRatingSummary,
     "seller rating refresh excludes inactive reviewers",
   );
   assert.notDeepEqual(
