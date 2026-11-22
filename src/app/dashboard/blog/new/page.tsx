@@ -17,6 +17,7 @@ import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseCreateBlogStatus } from "@/lib/blogStatusInput";
 import { fanOutBlogPostToFollowers } from "@/lib/followerBlogNotifications";
 import { sellerOwnerBlogEditor } from "@/lib/sellerProfileOwnerAccess";
+import { verifiedBlogFeaturedListingIds } from "@/lib/blogFeaturedListingAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -115,20 +116,11 @@ export default async function NewBlogPostPage() {
       return { ok: false, error: "Create a maker profile before publishing blog posts." };
     }
     const sellerProfileId = sellerForAuthor?.sellerProfileId ?? null;
-    const uniqueFeaturedListingIds = [...new Set(featuredListingIds)].slice(0, 6);
-    const verifiedFeaturedListings = uniqueFeaturedListingIds.length
-      ? await prisma.listing.findMany({
-          where: {
-            id: { in: uniqueFeaturedListingIds },
-            status: "ACTIVE",
-            ...(isStaffUser ? {} : { sellerId: sellerProfileId ?? "__none" }),
-          },
-          select: { id: true },
-        })
-      : [];
-    const verifiedFeaturedListingIds = uniqueFeaturedListingIds.filter((id) =>
-      verifiedFeaturedListings.some((listing) => listing.id === id)
-    );
+    const verifiedFeaturedListingIds = await verifiedBlogFeaturedListingIds({
+      actorUserId: author.id,
+      isStaff: isStaffUser,
+      listingIds: featuredListingIds,
+    });
 
     let newPost;
     for (let createAttempt = 0; createAttempt < 5; createAttempt += 1) {

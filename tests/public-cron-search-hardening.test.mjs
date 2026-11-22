@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -135,6 +136,10 @@ describe("cron and public route hardening", () => {
     const blogSearch = source("src/app/api/blog/search/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
+    const listingCatalogAccess = source("src/lib/listingPublicCatalogAccess.ts");
+    const listingPreparation = source(
+      listingDomainPreparationMigrationPath(),
+    );
     const blogPage = source("src/app/blog/page.tsx");
     const popularTagsRoute = source("src/app/api/search/popular-tags/route.ts");
     const popularBlogTagsRoute = source("src/app/api/search/popular-blog-tags/route.ts");
@@ -181,7 +186,13 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /getBlockedIdsFor\(meDbId\)/);
     assert.match(globalSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(globalSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
-    assert.match(globalSuggestions, /publicListingWhere/);
+    assert.match(globalSuggestions, /listingPublicTitleSuggestions\(meDbId, q\)/);
+    assert.match(globalSuggestions, /listingPublicCatalogPage\([\s\S]*\{ listingIds \}/);
+    assert.match(listingCatalogAccess, /grainline_listing_public_title_suggestions/);
+    assert.match(listingCatalogAccess, /grainline_listing_public_catalog_page/);
+    assert.match(listingPreparation, /CREATE FUNCTION public\.grainline_listing_public_title_suggestions/);
+    assert.match(listingPreparation, /listing\.status = 'ACTIVE'::public\."ListingStatus"[\s\S]*listing\."isPrivate" = false[\s\S]*listing\."archivedAt" IS NULL[\s\S]*listing\."sellerPubliclyOrderable" = true/);
+    assert.match(listingPreparation, /blocked_pair\."blockerId" = request_user_id[\s\S]*blocked_pair\."blockedId" = seller\."userId"[\s\S]*blocked_pair\."blockerId" = seller\."userId"[\s\S]*blocked_pair\."blockedId" = request_user_id/);
     assert.match(globalSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
     assert.match(globalSuggestions, /bp\."publishedAt" IS NOT NULL/);
     assert.match(globalSuggestions, /bp\."publishedAt" <= NOW\(\)/);

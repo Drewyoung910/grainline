@@ -7,19 +7,20 @@ const { applyListingCreationAIReviewResult } = await import(
 
 function listingClient(state) {
   return {
-    listing: {
-      async updateMany({ where, data }) {
-        if (
-          state.id !== where.id
-          || state.sellerId !== where.sellerId
-          || state.status !== where.status
-          || state.updatedAt.getTime() !== where.updatedAt.getTime()
-        ) {
-          return { count: 0 };
-        }
-        Object.assign(state, data);
-        return { count: 1 };
-      },
+    async applyTransition(input) {
+      if (
+        state.id !== input.listingId
+        || state.sellerId !== input.sellerId
+        || state.status !== "PENDING_REVIEW"
+        || state.updatedAt.getTime() !== input.reviewedUpdatedAt.getTime()
+      ) {
+        return false;
+      }
+      state.status = input.status;
+      state.aiReviewFlags = input.flags;
+      state.aiReviewScore = input.confidence;
+      state.rejectionReason = input.reason;
+      return true;
     },
   };
 }

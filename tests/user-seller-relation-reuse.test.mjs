@@ -24,10 +24,7 @@ function fixture(options = {}) {
     findUnique: async () => {
       state.reads++;
       if (options.missingReview) return null;
-      const snapshot = {
-        sellerReply: state.reply,
-        listing: { sellerId: options.foreignOwner ? "other-seller" : "seller" },
-      };
+      const snapshot = { id: "review", sellerReply: state.reply };
       if (options.concurrent) {
         if (state.reads === 2) bothRead();
         await barrier;
@@ -74,6 +71,16 @@ function fixture(options = {}) {
         ) return false;
         state.reply = input.reply;
         return true;
+      },
+    },
+    "@/lib/listingReviewHistoryAccess": {
+      listingActorReviewContexts: async (userId, reviewIds) => {
+        assert.equal(userId, actor.id);
+        assert.deepEqual([...reviewIds], ["review"]);
+        return [{
+          reviewId: "review",
+          sellerProfileId: options.foreignOwner ? "other-seller" : "seller",
+        }];
       },
     },
   };

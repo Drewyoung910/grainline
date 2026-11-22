@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -294,8 +295,25 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(similarListingAuthority, /seller\."stripeAccountSupported" = true/);
     assert.doesNotMatch(similarListingAuthority, /stripeAccountVersion/);
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
-    assert.match(globalSuggestions, /grainline_seller_public_follower_listing_target/);
+    assert.match(globalSuggestions, /listingPublicTitleSuggestions\(meDbId, q\)/);
+    assert.doesNotMatch(globalSuggestions, /grainline_seller_public_follower_listing_target/);
     assert.doesNotMatch(globalSuggestions, /JOIN "SellerProfile"|stripeAccountVersion/);
+    const listingPublicCatalog = source("src/lib/listingPublicCatalogAccess.ts");
+    assert.match(
+      listingPublicCatalog,
+      /grainline_listing_public_title_suggestions\(\$\{query\}::text\)/,
+    );
+    const listingPreparation = source(listingDomainPreparationMigrationPath());
+    const titleSuggestionAuthority = listingPreparation.slice(
+      listingPreparation.indexOf(
+        "CREATE FUNCTION public.grainline_listing_public_title_suggestions(",
+      ),
+      listingPreparation.indexOf(
+        "REVOKE ALL ON FUNCTION public.grainline_listing_public_title_suggestions(text)",
+      ),
+    );
+    assert.match(titleSuggestionAuthority, /listing\."sellerPubliclyOrderable" = true/);
+    assert.match(titleSuggestionAuthority, /FROM public\."Block" AS blocked_pair/);
     for (const path of [
       "src/app/blog/page.tsx",
       "src/app/api/blog/search/route.ts",

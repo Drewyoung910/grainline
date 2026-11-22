@@ -15,8 +15,8 @@ describe("public card media styling", () => {
     const pagerStart = browse.indexOf("// ── Pager component", emptyStart);
     const emptyState = browse.slice(emptyStart, pagerStart);
 
-    assert.match(emptyState, /const featuredRows = await fetchListings\(/);
-    assert.match(emptyState, /const featured = await hydrateSellerCards\(meDbId, featuredRows\)/);
+    assert.match(emptyState, /const featuredPage = await listingPublicCatalogPage\(/);
+    assert.match(emptyState, /const featured = await hydrateSellerCards\(meDbId, \[\.\.\.featuredPage\.listings\]\)/);
     assert.match(emptyState, /featuredFavorites/);
     assert.match(emptyState, /featuredRatings/);
     assert.match(emptyState, /<h1 className="font-display text-2xl font-semibold">/);

@@ -30,10 +30,12 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { z } from "zod";
 import {
-  prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired,
+  applyListingStockMutation, prepareListingStockMutation, recordListingStockMutation,
+  StockMutationConflict, StockMutationExpired,
 } from "@/lib/listingStockMutation";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
-import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
 import { stockNotificationRestockCandidates } from "@/lib/stockNotificationAccess";
 
 const StockPatchSchema = z.object({
@@ -90,18 +92,7 @@ export async function PATCH(
       : normalizeManualStockQuantity(stockParsed.expectedQuantity);
 
     // Ownership check
-    const seller = await sellerOwnerCore(me.id);
-    if (!seller) return privateJson({ error: "Not found" }, { status: 404 });
-    const listing = await prisma.listing.findFirst({
-      where: { id, sellerId: seller.sellerProfileId },
-      select: {
-        id: true,
-        listingType: true,
-        status: true,
-        stockQuantity: true,
-        isPrivate: true,
-      },
-    });
+    const listing = await listingOwnerActionState(me.id, id);
     if (!listing) return privateJson({ error: "Not found" }, { status: 404 });
     if (listing.listingType !== "IN_STOCK") {
       return privateJson({ error: "Only IN_STOCK listings have quantity" }, { status: 400 });
@@ -117,9 +108,9 @@ export async function PATCH(
       updated,
       lowStockAuthoritySourceId,
       backInStockAuthoritySourceId,
-    } = await prisma.$transaction(async (tx) => {
+    } = await withDbUserContext(me.id, async (tx) => {
       const mutation = await prepareListingStockMutation(tx, {
-        listingId: id, sellerId: seller.sellerProfileId, actorId: me.id,
+        listingId: id, sellerId: listing.sellerId, actorId: me.id,
       }, stockParsed, { kind: "inventory", quantity, expectedQuantity });
       if (!mutation) return { updated: null, lowStockAuthoritySourceId: null, backInStockAuthoritySourceId: null };
       if (mutation.replayed) {
@@ -130,54 +121,13 @@ export async function PATCH(
       if (mutation.listing.listingType !== "IN_STOCK") {
         throw new StockMutationConflict("Listing type changed. Refresh inventory before adjusting stock.");
       }
-      const updatedRows = await tx.$queryRaw<Array<{
-        id: string;
-        title: string;
-        stockQuantity: number | null;
-        status: string;
-        previousStockQuantity: number | null;
-        previousStatus: string;
-      }>>`
-        WITH previous_listing AS MATERIALIZED (
-          SELECT id, "stockQuantity", status
-          FROM "Listing"
-          WHERE id = ${id}
-            AND "sellerId" = ${seller.sellerProfileId}
-          FOR UPDATE
-        )
-        UPDATE "Listing" AS target
-        SET
-          "stockQuantity" = CASE
-            WHEN ${applyDelta} THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + ${stockDelta})
-            ELSE ${quantity}
-          END,
-          status = CASE
-            WHEN target.status = 'ACTIVE'::"ListingStatus" AND (
-              CASE
-                WHEN ${applyDelta} THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + ${stockDelta})
-                ELSE ${quantity}
-              END
-            ) <= 0 THEN 'SOLD_OUT'::"ListingStatus"
-            WHEN target.status = 'SOLD_OUT'::"ListingStatus" AND NOT target."isPrivate" AND (
-              CASE
-                WHEN ${applyDelta} THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + ${stockDelta})
-                ELSE ${quantity}
-              END
-            ) > 0 THEN 'ACTIVE'::"ListingStatus"
-            ELSE target.status
-          END,
-          "updatedAt" = NOW()
-        FROM previous_listing AS previous
-        WHERE target.id = previous.id
-        RETURNING
-          target.id,
-          target.title,
-          target."stockQuantity",
-          target.status::text AS status,
-          previous."stockQuantity" AS "previousStockQuantity",
-          previous.status::text AS "previousStatus"
-      `;
-      const committed = updatedRows[0];
+      const committed = await applyListingStockMutation(tx, {
+        listingId: id,
+        sellerId: listing.sellerId,
+        applyDelta,
+        stockDelta,
+        quantity,
+      });
       if (!committed) {
         return {
           updated: null,
@@ -238,7 +188,7 @@ export async function PATCH(
     if (!updated) return privateJson({ error: "Not found" }, { status: 404 });
 
     // Track listingsBelowThresholdSince for Guild Member revocation check
-    await syncGuildMemberListingThreshold(seller.sellerProfileId);
+    await syncGuildMemberListingThreshold(listing.sellerId);
     if (updated.previousStatus !== updated.status) {
       revalidateListingSearchCaches();
       revalidateFeaturedMakerCaches();
@@ -348,7 +298,7 @@ export async function PATCH(
           Sentry.captureException(error, {
             level: "warning",
             tags: { source: "stock_back_in_stock_fanout" },
-            extra: { listingId: id, sellerProfileId: seller.sellerProfileId },
+            extra: { listingId: id, sellerProfileId: listing.sellerId },
           });
         }
       });

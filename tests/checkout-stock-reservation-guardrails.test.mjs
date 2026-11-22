@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const {
   checkoutStockReservationRepairAction,
@@ -16,6 +17,9 @@ const sourceConsistencySql = source(
 );
 const authorityClient = source("src/lib/checkoutStockReservationAuthority.ts");
 const paidCheckoutSql = source("docs/rls-drafts/order-paid-checkout-authority.sql");
+const listingPreparation = source(
+  listingDomainPreparationMigrationPath(),
+);
 
 describe("durable checkout stock reservation guardrails", () => {
   it("preserves the predecessor schema and adds draft-only repair invariants", () => {
@@ -109,14 +113,29 @@ describe("durable checkout stock reservation guardrails", () => {
 
   it("keeps listing edits on the parent-first lock order required by source consistency", () => {
     const editRoute = source("src/app/dashboard/listings/[id]/edit/page.tsx");
-    const transactionStart = editRoute.indexOf("prisma.$transaction(async (tx) =>");
-    const parentUpdate = editRoute.indexOf("tx.listing.update({", transactionStart);
-    const variantDelete = editRoute.indexOf("tx.listingVariantGroup.deleteMany", transactionStart);
-    const photoDelete = editRoute.indexOf("tx.photo.deleteMany", transactionStart);
-    assert.ok(transactionStart >= 0);
-    assert.ok(parentUpdate > transactionStart);
-    assert.ok(variantDelete > parentUpdate);
-    assert.ok(photoDelete > parentUpdate);
+    const updateStart = listingPreparation.indexOf(
+      "CREATE FUNCTION public.grainline_listing_owner_content_update(",
+    );
+    const updateEnd = listingPreparation.indexOf(
+      "REVOKE ALL ON FUNCTION public.grainline_listing_owner_content_update(",
+      updateStart,
+    );
+    const ownerContentUpdate = listingPreparation.slice(updateStart, updateEnd);
+    const parentLock = ownerContentUpdate.indexOf("FOR UPDATE;");
+    const parentUpdate = ownerContentUpdate.indexOf('UPDATE public."Listing" AS listing');
+    const childReplace = ownerContentUpdate.indexOf(
+      "PERFORM * FROM public.grainline_listing_children_replace_core(",
+    );
+
+    assert.match(editRoute, /withDbUserContext\(actor\.id, async \(tx\) =>/u);
+    assert.match(editRoute, /lockListingStock\(tx, scope\)/u);
+    assert.match(editRoute, /updateListingOwnerContent\(tx, \{/u);
+    assert.doesNotMatch(editRoute, /tx\.(?:listing|listingVariantGroup|listingVariantOption|photo)\./u);
+    assert.ok(updateStart >= 0);
+    assert.ok(updateEnd > updateStart);
+    assert.ok(parentLock >= 0);
+    assert.ok(parentUpdate > parentLock);
+    assert.ok(childReplace > parentUpdate);
     assert.match(
       sourceConsistencySql,
       /compatible function already holds every target Listing[\s\S]*FOR UPDATE/,

@@ -36,13 +36,11 @@ describe("Order legacy stock-restore fence", () => {
     );
   });
 
-  it("removes direct Order access while retaining the transactional claim", () => {
-    assert.match(restore, /await lockCheckoutSessionMutation\(tx, input\.sessionId\)/);
-    assert.match(restore, /claimLegacyStockRestore\(sessionId, tx\)/);
+  it("retires the caller-selected legacy restore path after durable reservations", () => {
+    assert.doesNotMatch(restore, /claimLegacyStockRestore|claimCheckoutStockRestore/);
+    assert.doesNotMatch(restore, /restoreReservedStockItems|restorableStockItemsFromMetadata/);
     assert.doesNotMatch(restore, /\btx\.order\b|\bprisma\.order\b/);
-    const lock = restore.indexOf("await lockCheckoutSessionMutation(tx, input.sessionId)");
-    const claim = restore.indexOf("await claimCheckoutStockRestore(tx, input.sessionId)");
-    const stock = restore.indexOf("return restoreReservedStockItems(tx, items)");
-    assert.ok(lock >= 0 && lock < claim && claim < stock);
+    assert.match(restore, /Checkout stock restoration requires a durable reservation/);
+    assert.match(restore, /restoreCheckoutStockReservationFromWebhook\(/);
   });
 });

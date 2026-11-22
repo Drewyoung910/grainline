@@ -160,8 +160,6 @@ describe("DirectUpload fixed public reference families", () => {
   it("removes the generic application claim API and pins every fixed call site", () => {
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
     const callSites = [
-      ["src/app/dashboard/listings/new/page.tsx", "syncListingDirectUploadReferences"],
-      ["src/app/dashboard/listings/custom/page.tsx", "syncListingDirectUploadReferences"],
       ["src/app/dashboard/listings/[id]/edit/page.tsx", "syncListingDirectUploadReferences"],
       ["src/app/dashboard/onboarding/actions.ts", "syncSellerProfileDirectUploadReferences"],
       ["src/app/dashboard/profile/page.tsx", "syncSellerProfileDirectUploadReferences"],
@@ -181,5 +179,14 @@ describe("DirectUpload fixed public reference families", () => {
       assert.match(text, new RegExp(helper), path);
       assert.doesNotMatch(text, /claimDirectUploadFor(?:Url|Key)|claimDirectUploadsForUrls/, path);
     }
+    for (const path of [
+      "src/app/dashboard/listings/new/page.tsx",
+      "src/app/dashboard/listings/custom/page.tsx",
+    ]) {
+      assert.match(source(path), /createListingOwner\(/, path);
+    }
+    const listingOwnerAccess = source("src/lib/listingOwnerAccess.ts");
+    assert.match(listingOwnerAccess, /syncListingDirectUploadReferences\(\{/);
+    assert.match(listingOwnerAccess, /requireAllTracked: true/);
   });
 });

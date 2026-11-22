@@ -59,6 +59,7 @@ import {
   makerVerificationStaffPendingCount,
   makerVerificationStaffPendingPage,
 } from "@/lib/makerVerificationAccess";
+import { listingStaffSellerActivePublicCount } from "@/lib/listingStaffAccess";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -281,8 +282,9 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
   }
 
   const [activeListings, orderFacts, longCaseCount] = await Promise.all([
-    prisma.listing.count({
-      where: { sellerId: verification.sellerProfileId, status: "ACTIVE", isPrivate: false },
+    listingStaffSellerActivePublicCount(getOrderStaffReadClient(), {
+      actorId: me.id,
+      sellerProfileId: verification.sellerProfileId,
     }),
     readOrderSellerMetricsFacts(
       verification.sellerProfileId,

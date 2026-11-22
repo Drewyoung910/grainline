@@ -27,7 +27,10 @@ describe("account export privacy coverage", () => {
       "prisma/migrations/20260901030000_prepare_order_participant_export_authority/migration.sql",
     );
 
-    assert.match(route, /photos: \{ orderBy: \{ sortOrder: "asc" \}, select: \{ url: true, originalUrl: true/);
+    const listingAuthority = source("src/lib/listingOwnerAccess.ts");
+    assert.match(route, /listingOwnerExportRows\(user\.id\)/);
+    assert.doesNotMatch(route, /prisma\.listing\.findMany/);
+    assert.match(listingAuthority, /originalUrl/);
     assert.match(route, /exportBuyerOrders\(user\.id\)/);
     assert.match(route, /exportSellerOrders\(user\.id\)/);
     assert.doesNotMatch(route, /prisma\.order\.findMany|shippingRateQuotes/);
@@ -212,9 +215,9 @@ describe("account export privacy coverage", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");
     const sellerSelect = source("src/lib/sellerOwnerPrivateAccess.ts");
-    const listingSelectStart = route.indexOf("sellerProfile\n      ? prisma.listing.findMany");
-    const listingSelectEnd = route.indexOf("photos: { orderBy", listingSelectStart);
-    const listingSelect = route.slice(listingSelectStart, listingSelectEnd);
+    const listingSelect = source("src/lib/listingOwnerAccess.ts");
+    assert.match(route, /listingOwnerExportRows\(user\.id\)/);
+    assert.doesNotMatch(route, /prisma\.listing\.findMany/);
 
     for (const field of [
       "defaultPkgWeightGrams",
@@ -285,7 +288,7 @@ describe("account export privacy coverage", () => {
       "productHeightIn",
     ]) {
       assert.match(schema, new RegExp(`\\b${field}\\b`), `schema must retain ${field}`);
-      assert.match(listingSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+      assert.match(listingSelect, new RegExp(`\\b${field}\\b`), `account export authority must retain ${field}`);
     }
   });
 

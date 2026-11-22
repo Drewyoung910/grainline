@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -237,10 +238,16 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /const endExclusive = range === "yesterday"/);
     assert.match(analytics, /const dateEndFilter = endExclusive \? \{ lt: endDate \} : \{ lte: endDate \}/);
     assert.match(analytics, /const analyticsDateRange = \{ gte: startDate, \.\.\.dateEndFilter \}/);
-    assert.match(
-      analytics,
-      /const rangeEndSql = endExclusive \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
+    assert.match(analytics, /listingOwnerRatingBuckets\(me\.id, \{/);
+    assert.match(analytics, /startDate,\s*endDate,\s*endExclusive,/s);
+    const listingAuthority = source("src/lib/listingOwnerAccess.ts");
+    assert.match(listingAuthority, /grainline_listing_owner_rating_buckets\(/);
+    const listingPreparation = source(
+      listingDomainPreparationMigrationPath(),
     );
+    assert.match(listingPreparation, /review\."createdAt" >= range_start/);
+    assert.match(listingPreparation, /p_end_exclusive AND review\."createdAt" < range_end/);
+    assert.match(listingPreparation, /NOT p_end_exclusive AND review\."createdAt" <= range_end/);
     assert.doesNotMatch(analytics, /date: \{ gte: startDate, lte: endDate \}/);
     assert.doesNotMatch(analytics, /createdAt: \{ gte: startDate, lte: endDate \}/);
     assert.doesNotMatch(analytics, /"createdAt" <= \$\{endDate\}/);
@@ -299,8 +306,8 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /const metrics = await getFreshSellerMetrics\(sellerId, 3, existingMetrics\);/);
     assert.doesNotMatch(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
     assert.doesNotMatch(analytics, /const isStale = !existingMetrics/);
-    assert.match(analytics, /AND r\."createdAt" >= \$\{startDate\}/);
-    assert.match(analytics, /AND r\."createdAt" \$\{rangeEndSql\}/);
+    assert.match(analytics, /const ratingRowsPromise = listingOwnerRatingBuckets\(me\.id, \{/);
+    assert.doesNotMatch(analytics, /prisma\.review\./);
     assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);
     assert.doesNotMatch(analytics, /const topFavsRows/);
     assert.doesNotMatch(analytics, /const topStockRows/);
@@ -310,9 +317,11 @@ describe("seller operational route hardening", () => {
   it("keeps listing stock updates owner-scoped in the final mutation", () => {
     const route = source("src/app/api/listings/[id]/stock/route.ts");
 
-    assert.match(route, /const seller = await sellerOwnerCore\(me\.id\)/);
-    assert.match(route, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
-    assert.match(route, /AND "sellerId" = \$\{seller\.sellerProfileId\}/);
+    assert.match(route, /const listing = await listingOwnerActionState\(me\.id, id\)/);
+    assert.match(route, /withDbUserContext\(me\.id, async \(tx\) =>/);
+    assert.match(route, /prepareListingStockMutation\(tx, \{\s*listingId: id, sellerId: listing\.sellerId, actorId: me\.id,/s);
+    assert.match(route, /applyListingStockMutation\(tx, \{\s*listingId: id,\s*sellerId: listing\.sellerId,/s);
+    assert.doesNotMatch(route, /prisma\.listing\.(?:find|update|delete|create)/);
     assert.match(route, /source: "stock_back_in_stock_fanout"/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
@@ -323,11 +332,18 @@ describe("seller operational route hardening", () => {
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(shopActions, /WHERE id = \$\{listingId\}\s+AND "sellerId" = \$\{listing\.sellerId\}/);
-    assert.match(createListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
-    assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
-    assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.PENDING_REVIEW, updatedAt: updatedListing\.updatedAt \}/);
-    assert.match(editListing, /status: approvedListingStatus\(listing\.status, current\)/);
+    assert.match(shopActions, /listingOwnerTransition\(listing\.seller\.userId, \{/);
+    assert.match(shopActions, /listingId,\s*operation: "(?:HIDE|MARK_SOLD|WITHDRAW_REVIEW)"/s);
+    assert.match(createListing, /createListingOwner\(seller\.userId, \{/);
+    assert.match(createListing, /listingOwnerActionState\(seller\.userId, created\.id\)/);
+    assert.match(customListing, /createListingOwner\(seller\.userId, \{/);
+    assert.match(customListing, /listingOwnerTransition\(seller\.userId, \{/);
+    assert.match(editListing, /updateListingOwnerContent\(tx, \{/);
+    assert.match(editListing, /listingOwnerTransition\(actor\.id, \{/);
+    assert.match(editListing, /listingOwnerActionState\(actor\.id, listingId\)/);
+    for (const sourceText of [shopActions, createListing, customListing, editListing]) {
+      assert.doesNotMatch(sourceText, /prisma\.listing\.(?:update|updateMany|delete|deleteMany|create)\(/);
+    }
   });
 
   it("rate-limits seller listing server actions before owner mutation work", () => {

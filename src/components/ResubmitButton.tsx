@@ -23,6 +23,8 @@ export default function ResubmitButton({
               const result = await publishListingAction(listingId);
               if ("error" in result) {
                 setMessage(result.error);
+              } else if (result.warning) {
+                setMessage(result.warning);
               } else if (result.status === "ACTIVE") {
                 setMessage("Published!");
               } else {

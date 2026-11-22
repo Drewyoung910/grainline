@@ -18,7 +18,7 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
   createOwnerCartItem,
   findOwnerCartItemByVariant,
-  findOwnerCartItemByVariantWithListing,
+  findOwnerCartItemByVariantState,
   incrementOwnerCartItemQuantity,
   lockOwnerCart,
   markOwnerCartItemMadeToOrder,
@@ -245,7 +245,7 @@ export async function POST(req: Request) {
             },
             tx,
           ),
-          readUpdated: () => findOwnerCartItemByVariantWithListing(
+          readUpdated: () => findOwnerCartItemByVariantState(
             me.id,
             cart.id,
             listingId,

@@ -1824,6 +1824,24 @@ jobs:
           mv
           prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
           "$RUNNER_TEMP/order-receipt-notification-authority-release"
+      # The remaining release verifiers reconstruct checksum-pinned historical
+      # migration trees. Keep Listing source available through GITHUB_ENV while
+      # excluding the newer migration directories until the shared restoration.
+      - name: Temporarily isolate Listing domain from historical Order release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          if [[ -d "prisma/migrations/$activation" ]]
+          then
+            mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+            echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+          fi
       - name: Verify compatible Order checkout receipt authority release
         run: npm run audit:order-checkout-receipt-authority-release
       - name: Isolate Order checkout receipt authority until snapshot correction passes
@@ -3329,11 +3347,28 @@ jobs:
         env:
           DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: ${{ runner.temp }}/database-full-chain-source/migrations
           DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH: ${{ runner.temp }}/seller-profile-public-candidate/tests/database-full-chain-postgres.test.mjs
+          DB_GRANT_INVENTORY_TEST_PATH: ${{ runner.temp }}/user-accumulated-access/db-grant-inventory.test.mjs
+          ORDER_STAFF_READ_ROLE_PROVISION_TEST_PATH: ${{ runner.temp }}/user-accumulated-access/provision-order-staff-read-role.sql
           SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR: ${{ runner.temp }}/seller-profile-retained-authority-evidence
           USER_CLERK_IDENTITY_MIGRATION_PATH: ${{ runner.temp }}/user-clerk-identity-authority/migration/migration.sql
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
+      - name: Restore Listing domain after historical Order release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          if [[ -d "$holding/migrations/$activation" ]]
+          then
+            mv "$holding/migrations/$activation" "prisma/migrations/$activation"
+          fi
+          rmdir "$holding/migrations" "$holding"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore and prove the reviewed successors
         shell: bash
         run: |
@@ -5335,6 +5370,21 @@ jobs:
       # The next replay installs a checksum-pinned historical grant auditor.
       # Run only that auditor against the exact schema it reviewed; source tests
       # continue to see the current schema and the wrapper always restores it.
+      - name: Isolate Listing domain source packages until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          if [[ -d "prisma/migrations/$activation" ]]
+          then
+            mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+            echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+          fi
       - name: Prepare SellerProfile public predecessor schema for historical audit replay
         shell: bash
         run: |
@@ -7135,6 +7185,21 @@ jobs:
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Listing domain source packages after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          if [[ -d "$holding/migrations/$activation" ]]
+          then
+            mv "$holding/migrations/$activation" "prisma/migrations/$activation"
+          fi
+          rmdir "$holding/migrations" "$holding"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore service and reference least-privilege migration after historical release guards
         shell: bash
         run: |

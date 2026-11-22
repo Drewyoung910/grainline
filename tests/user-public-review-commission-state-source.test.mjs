@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import yaml from "js-yaml";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
 
@@ -65,13 +66,25 @@ describe("User public review and commission state source boundary", () => {
     for (const path of [
       "src/app/listing/[id]/page.tsx",
       "src/components/ReviewsSection.tsx",
-      "src/app/seller/[id]/page.tsx",
-      "src/app/seller/[id]/customer-photos/page.tsx",
     ]) {
       const source = read(path);
       assert.doesNotMatch(source, /reviewer:\s*\{\s*(?:select|where|banned):/);
       assert.match(source, /reviewerAccountActive/);
     }
+    for (const path of [
+      "src/app/seller/[id]/page.tsx",
+      "src/app/seller/[id]/customer-photos/page.tsx",
+    ]) {
+      const source = read(path);
+      assert.doesNotMatch(source, /reviewer:\s*\{\s*(?:select|where|banned):/);
+      assert.match(source, /listingPublicCustomerPhotoPage\(/);
+    }
+    const customerPhotoAccess = read("src/lib/listingReviewHistoryAccess.ts");
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
+    assert.match(customerPhotoAccess, /grainline_listing_public_customer_photo_page/);
+    assert.match(listingPreparation, /CREATE FUNCTION public\.grainline_listing_public_customer_photo_page/);
+    assert.match(listingPreparation, /review\."reviewerAccountActive" = true/);
+    assert.match(listingPreparation, /relationship\."blockedId" IN \([\s\S]*seller\."userId", review\."reviewerId"/);
   });
 
   it("filters every public commission query on snapshots without User joins", () => {

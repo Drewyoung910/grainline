@@ -58,6 +58,12 @@ async function decide(action, reason) {
     "@/lib/emailBaseUrl": { EMAIL_APP_URL: "https://example.test" },
     "@/lib/publicPaths": { publicListingPath: (id) => `/listing/${id}` },
     "@/lib/foundingMaker": { maybeGrantFoundingMaker: async () => {} },
+    "@/lib/searchCache": { revalidateListingSearchCaches: () => {}, revalidateFeaturedMakerCaches: () => {} },
+    "@/lib/orderStaffReadDb": { getOrderStaffReadClient: () => ({}) },
+    "@/lib/notificationSources": { NOTIFICATION_SOURCE_TYPES: { LISTING_ADMIN_REVIEW: "LISTING_ADMIN_REVIEW" } },
+    "@/lib/followerListingNotifications": { fanOutListingToFollowers: async () => {} },
+    "@/lib/customOrderReadyLink": { sendCustomOrderReadyLink: async () => ({ messageDelivered: true }) },
+    "@/lib/guildListingThreshold": { syncGuildMemberListingThreshold: async () => {} },
   };
   const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -68,7 +74,7 @@ async function decide(action, reason) {
     require: (name) => dependencies[name] ?? stub(),
   }, { filename: path });
   const response = await exports.PATCH(
-    new Request("https://example.test/x", { method: "PATCH", body: JSON.stringify({ action, reason }) }),
+    new Request("https://example.test/x", { method: "PATCH", body: JSON.stringify({ action, reason, reviewedAt: "2026-11-17T12:00:00.000Z" }) }),
     { params: Promise.resolve({ id: "listing" }) },
   );
   return { state, response };

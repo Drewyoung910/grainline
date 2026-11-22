@@ -2,31 +2,33 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
-import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
-import { withDbUserContext } from "@/lib/dbUserContext";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
-import { deleteCartItemsForAdminListing } from "@/lib/cartServiceAccess";
-import { deleteStockNotificationsForAdminListing } from "@/lib/stockNotificationAccess";
-import { deleteFavoritesForAdminListing } from "@/lib/favoriteAccess";
 import { renderListingRemovedEmail, sendRenderedEmail } from "@/lib/email";
-import { STAFF_REMOVAL_REJECTION_REASON } from "@/lib/listingActionState";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { sellerStaffListingDetailProfile } from "@/lib/sellerProfileListingDetailAccess";
-import { isInvalidJsonBodyError, isRequestBodyTooLargeError, readBoundedJson } from "@/lib/requestBody";
+import { sellerProfileStaffListingRemovalTransition } from "@/lib/sellerProfileStaffAccess";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
-import { z } from "zod";
 
-const RemoveListingSchema = z.object({ reason: z.string().max(500) });
-const REMOVE_LISTING_BODY_MAX_BYTES = 16 * 1024;
+const RemoveListingSchema = z.object({
+  reason: z.string().max(500),
+  reviewedAt: z.iso.datetime({ offset: true }),
+});
+const ADMIN_LISTING_REMOVE_BODY_MAX_BYTES = 16 * 1024;
 
 export async function DELETE(
   request: Request,
@@ -46,59 +48,54 @@ export async function DELETE(
   const { success, reset } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
 
-  let reason: string;
+  let body: z.infer<typeof RemoveListingSchema>;
   try {
-    const body = RemoveListingSchema.parse(await readBoundedJson(request, REMOVE_LISTING_BODY_MAX_BYTES));
-    reason = truncateText(sanitizeText(body.reason), 500).trim();
+    body = RemoveListingSchema.parse(
+      await readBoundedJson(request, ADMIN_LISTING_REMOVE_BODY_MAX_BYTES),
+    );
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+      return privateJson(
+        { error: "Request body too large" },
+        { status: HTTP_STATUS.PAYLOAD_TOO_LARGE },
+      );
     }
     if (isInvalidJsonBodyError(error) || error instanceof z.ZodError) {
-      return privateJson({ error: "A reason is required." }, { status: HTTP_STATUS.BAD_REQUEST });
+      return privateJson(
+        { error: "A reason and current review version are required." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
     }
     throw error;
   }
-  if (!reason) return privateJson({ error: "A reason is required." }, { status: HTTP_STATUS.BAD_REQUEST });
+  const reason = truncateText(sanitizeText(body.reason), 500).trim();
+  if (!reason) {
+    return privateJson({ error: "A reason is required." }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
 
   const { id } = await params;
-  const listing = await prisma.listing.findUnique({
-    where: { id },
-    select: { id: true, title: true, sellerId: true, status: true, isPrivate: true, rejectionReason: true },
-  });
-  if (!listing) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
-
-  // Staff removal should not be reversible by the seller. Use REJECTED rather
-  // than HIDDEN, and clear buyer-facing references that would otherwise point
-  // at a removed listing.
-  await withDbUserContext(admin.id, async (tx) => {
-    await tx.listing.update({
-      where: { id },
-      data: {
-        status: "REJECTED",
-        isPrivate: true,
-        rejectionReason: `${STAFF_REMOVAL_REJECTION_REASON} Reason: ${reason}`,
-      },
-    });
-    await deleteFavoritesForAdminListing(tx, id);
-    await deleteStockNotificationsForAdminListing(tx, id);
-    await deleteCartItemsForAdminListing(tx, id);
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: admin.id,
-      action: "REMOVE_LISTING",
-      targetType: "Listing",
-      targetId: id,
+  const transition = await sellerProfileStaffListingRemovalTransition(
+    getOrderStaffReadClient(),
+    {
+      actorId: admin.id,
+      listingId: id,
       reason,
-      metadata: {
-        title: listing.title,
-        sellerId: listing.sellerId,
-        previousStatus: listing.status,
-        previousIsPrivate: listing.isPrivate,
-        previousRejectionReason: listing.rejectionReason,
-      },
-    });
-  });
+      reviewedAt: new Date(body.reviewedAt),
+    },
+  );
+  if (!transition) {
+    return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
+  }
+  if (transition.blockReason === "LISTING_VERSION_CHANGED") {
+    return privateJson(
+      { error: "Listing changed after this review card loaded. Refresh and review the current version." },
+      { status: HTTP_STATUS.CONFLICT },
+    );
+  }
+  if (!transition.applied || !transition.auditId) {
+    throw new Error("Listing removal transition did not return its audit authority");
+  }
+  const listing = transition.listing;
 
   await syncGuildMemberListingThreshold(listing.sellerId).catch((error) => {
     Sentry.captureException(error, {
@@ -123,7 +120,6 @@ export async function DELETE(
     });
   });
 
-  // The edit page shows the stored reason. The email tells the maker to look.
   try {
     const seller = await sellerStaffListingDetailProfile(getOrderStaffReadClient(), admin.id, id);
     const recipient = seller && await userEmailDeliveryRecipient(prisma, { userId: seller.userId });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -22,11 +23,13 @@ describe("public visibility follow-ups", () => {
   it("keeps listing detail related listings and review aggregates on public visibility filters", () => {
     const listingPage = read("src/app/listing/[id]/page.tsx");
 
-    assert.match(listingPage, /import \{ canViewListingDetail, isPublicListingDetail, publicListingWhere \}/);
+    assert.match(listingPage, /import \{ canViewListingDetail, isPublicListingDetail \}/);
+    assert.match(listingPage, /getListingForDetailPage\(meId, listingId\)/);
     assert.match(listingPage, /const visibleListingReviewWhere = \{[\s\S]*?reviewerAccountActive: true,[\s\S]*?\.\.\.blockedReviewerFilter,/);
     assert.match(listingPage, /prisma\.review\.aggregate\(\{\s*where: visibleListingReviewWhere,/);
     assert.match(listingPage, /prisma\.review\.findMany\(\{\s*where: visibleListingReviewWhere,/);
-    assert.match(listingPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{\s*sellerId: listing\.sellerId,\s*id: \{ not: listing\.id \},\s*\}\),/);
+    assert.match(listingPage, /listingPublicCatalogPage\(\s*meId,[\s\S]*sellerId: listing\.sellerId,[\s\S]*excludeListingId: listing\.id,[\s\S]*sort: "quality"/);
+    assert.doesNotMatch(listingPage, /prisma\.listing\.(?:findFirst|findMany|findUnique)\(/);
   });
 
   it("applies viewer block filters to public blog comment reads", () => {
@@ -73,26 +76,38 @@ describe("public visibility follow-ups", () => {
     assert.match(reviewsSection, /prisma\.review\.findMany\(\{\s*where: \{\s*\.\.\.visibleReviewWhere,/);
   });
 
-  it("keeps public listing-card queries on top-level select allowlists", () => {
+  it("keeps public listing-card queries on bounded projections", () => {
     const browsePage = read("src/app/browse/page.tsx");
     const homePage = read("src/app/page.tsx");
     const listingPage = read("src/app/listing/[id]/page.tsx");
     const sellerPage = read("src/app/seller/[id]/page.tsx");
     const sellerShopPage = read("src/app/seller/[id]/shop/page.tsx");
     const tagPage = read("src/app/tag/[slug]/page.tsx");
+    const catalogAccess = read("src/lib/listingPublicCatalogAccess.ts");
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
 
     for (const [path, source] of [
-      ["browse", browsePage],
       ["homepage", homePage],
-      ["listing detail", listingPage],
       ["seller profile", sellerPage],
       ["seller shop", sellerShopPage],
-      ["tag landing", tagPage],
     ]) {
       assert.doesNotMatch(source, /include:\s*\{\s*photos:/, `${path} should not fetch full Listing rows for cards`);
       assert.doesNotMatch(source, /Prisma\.ListingInclude/, `${path} should not type public Listing card payloads as includes`);
       assert.match(source, /(?:select:\s*\{|const (?:sellerProfileListingCardSelect|homeListingCardSelect|TAG_LISTING_SELECT) = \{)[\s\S]*?id: true,[\s\S]*?title: true,[\s\S]*?priceCents: true,/);
     }
+
+    for (const [path, source] of [
+      ["browse", browsePage],
+      ["listing detail", listingPage],
+      ["tag landing", tagPage],
+    ]) {
+      assert.match(source, /listingPublicCatalogPage\(/, `${path} should use the bounded catalog authority`);
+      assert.doesNotMatch(source, /prisma\.listing\.(?:findMany|count)\(/, `${path} should not query Listing cards directly`);
+    }
+    assert.match(catalogAccess, /const ITEM_KEYS = new Set\(\[[\s\S]*"id",[\s\S]*"title",[\s\S]*"priceCents",[\s\S]*"photos",[\s\S]*\]\)/);
+    assert.match(catalogAccess, /!hasOnlyKeys\(item, ITEM_KEYS\)/);
+    assert.match(catalogAccess, /!Array\.isArray\(value\) \|\| value\.length > 2/);
+    assert.match(listingPreparation, /'id', page\.id,[\s\S]*'title', page\.title,[\s\S]*'priceCents', page\."priceCents",[\s\S]*'photos', page\.photos/);
   });
 
   it("derives seller profile tag chips from cached public seller tag counts", () => {
@@ -144,6 +159,8 @@ describe("public visibility follow-ups", () => {
   });
 
   it("resolves analytics ownership to local ids and fails closed for missing local users", () => {
+    const analyticsAccess = read("src/lib/listingAnalyticsAccess.ts");
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     for (const routePath of [
       "src/app/api/listings/[id]/click/route.ts",
       "src/app/api/listings/[id]/view/route.ts",
@@ -151,10 +168,14 @@ describe("public visibility follow-ups", () => {
       const source = read(routePath);
       assert.match(source, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(source, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(source, /sellerOwnerCore\(viewerUserId\)/);
-      assert.match(source, /sellerId: \{ not: viewerSellerProfileId \}/);
-      assert.doesNotMatch(source, /seller: \{ user: \{ clerkId:/);
+      assert.match(source, /incrementPublicListingAnalytics\(\{[\s\S]*listingId: id,[\s\S]*eventKind: "(?:click|view)",[\s\S]*viewerUserId,/);
+      assert.doesNotMatch(source, /prisma\.listing\.(?:findFirst|findUnique|update)\(/);
     }
+    assert.match(analyticsAccess, /withDbUserContext\(input\.viewerUserId/);
+    assert.match(analyticsAccess, /grainline_listing_public_analytics_increment/);
+    assert.match(listingPreparation, /request_user_id text := NULLIF\([\s\S]*current_setting\('app\.user_id', true\)/);
+    assert.match(listingPreparation, /SELECT seller\.id[\s\S]*WHERE seller\."userId" = request_user_id/);
+    assert.match(listingPreparation, /actor_seller_id IS NULL[\s\S]*listing\."sellerId" <> actor_seller_id/);
   });
 
   it("allows sellers to clear their workshop gallery explicitly", () => {

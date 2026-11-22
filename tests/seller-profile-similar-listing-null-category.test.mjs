@@ -13,7 +13,7 @@ test("an uncategorized similar listing becomes a non-match instead of taking dow
   assert.equal(normalizeSimilarListingCategoryMatch(true), true);
 });
 
-test("similar-listing authority still rejects non-null non-boolean category output", () => {
+test("similar-listing category validation still rejects malformed non-null values", () => {
   assert.equal(isSimilarListingCategoryMatch("false"), false);
   assert.equal(isSimilarListingCategoryMatch(0), false);
   assert.equal(isSimilarListingCategoryMatch(undefined), false);

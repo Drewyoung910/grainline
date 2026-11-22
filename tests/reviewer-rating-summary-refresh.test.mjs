@@ -7,17 +7,16 @@ import ts from "typescript";
 const path = "src/lib/sellerRatingSummary.ts";
 
 function load({ sellers = ["seller_1", "seller_2"], failLookup = false } = {}) {
-  const state = { upserts: [], captured: [] };
+  const state = { refreshed: 0, captured: [] };
   const tx = {
     $executeRaw: async () => 1,
-    $queryRaw: async () => [{ averageRating: 5, reviewCount: 1n }],
-    sellerRatingSummary: { upsert: async (args) => state.upserts.push(args.where.sellerProfileId) },
+    $queryRaw: async () => { state.refreshed += 1; return [{ averageRating: 5, reviewCount: 1 }]; },
   };
   const prisma = {
     ...tx,
     $queryRaw: async () => {
       if (failLookup) throw new Error("database down");
-      return sellers.map((sellerId) => ({ sellerId }));
+      return sellers.map((sellerProfileId) => ({ sellerProfileId }));
     },
     $transaction: (callback) => callback(tx),
   };
@@ -37,12 +36,12 @@ function load({ sellers = ["seller_1", "seller_2"], failLookup = false } = {}) {
 test("banning or deleting a reviewer refreshes every seller they reviewed", async () => {
   const subject = load();
   await subject.refreshRatingSummariesForReviewer("reviewer");
-  assert.deepEqual(subject.state.upserts, ["seller_1", "seller_2"]);
+  assert.equal(subject.state.refreshed, 2);
 });
 
 test("a failed refresh is reported and never fails the ban", async () => {
   const subject = load({ failLookup: true });
   await subject.refreshRatingSummariesForReviewer("reviewer");
-  assert.equal(subject.state.upserts.length, 0);
+  assert.equal(subject.state.refreshed, 0);
   assert.equal(subject.state.captured.length, 1);
 });

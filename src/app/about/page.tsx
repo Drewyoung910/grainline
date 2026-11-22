@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import { listingPublicCatalogCount } from "@/lib/listingPublicCatalogAccess";
 import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 import { getPublicActiveMemberCount } from "@/lib/userPublicIdentityAccess";
 
@@ -17,7 +16,7 @@ export default async function AboutPage() {
   const makerLink = userId ? "/dashboard" : "/sign-up";
 
   const [listingCount, marketplaceCounts, memberCount] = await Promise.all([
-    prisma.listing.count({ where: publicListingWhere() }),
+    listingPublicCatalogCount(null, {}),
     sellerPublicMarketplaceCounts(),
     getPublicActiveMemberCount(),
   ]);

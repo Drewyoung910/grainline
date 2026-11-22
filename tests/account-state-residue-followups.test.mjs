@@ -178,7 +178,15 @@ describe("account-state residue hardening", () => {
     assert.ok(helperStart >= 0, "account deletion should have a seller fanout cleanup helper");
     assert.ok(callIndex >= 0, "account deletion should call seller fanout cleanup");
     assert.ok(callIndex < broadcastDeleteIndex, "fanout cleanup should run before broadcast rows are deleted");
-    assert.ok(callIndex < listingAnonymizeIndex, "fanout cleanup should collect listing ids before listing anonymization");
+    assert.ok(
+      callIndex > listingAnonymizeIndex,
+      "claim-bound Listing redaction should finish before seller fanout cleanup",
+    );
+    assert.match(
+      deletion,
+      /const listingDeletion = await redactListingsForAccountDeletion[\s\S]*auditTargetIds\.push\(\.\.\.listingDeletion\.listingIds\)[\s\S]*await cleanupDeletedSellerFanoutRows/,
+      "account deletion should retain Listing audit ids before cleaning durable fanout sources",
+    );
     assert.ok(callIndex < blogArchiveIndex, "fanout cleanup should collect blog slugs before blog archive slugs are written");
     assert.match(deletion, /await deleteAccountNotificationServiceRows\(tx, user\.id\)/);
     assert.doesNotMatch(helper, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);

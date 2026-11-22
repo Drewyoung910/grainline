@@ -3,7 +3,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 
-export function DeleteListingButton({ listingId }: { listingId: string }) {
+export function DeleteListingButton({
+  listingId,
+  reviewedAt,
+}: {
+  listingId: string;
+  reviewedAt: string;
+}) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +22,7 @@ export function DeleteListingButton({ listingId }: { listingId: string }) {
       const res = await fetch(`/api/admin/listings/${listingId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, reviewedAt }),
       });
       if (res.ok) {
         setOpen(false);

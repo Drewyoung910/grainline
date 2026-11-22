@@ -13,10 +13,11 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     const end = text.indexOf("export async function deleteListingAction");
     const body = text.slice(start, end);
 
-    assert.match(body, /prisma\.listing\.updateMany/);
-    assert.match(body, /sellerId: listing\.sellerId/);
-    assert.match(body, /status: \{ in: \[ListingStatus\.ACTIVE, ListingStatus\.SOLD_OUT\] \}/);
-    assert.doesNotMatch(body, /prisma\.listing\.update\(\{ where: \{ id: listingId \}/);
+    assert.match(body, /listingOwnerTransition\(listing\.seller\.userId, \{/);
+    assert.match(body, /listingId,/);
+    assert.match(body, /operation: "MARK_SOLD"/);
+    assert.match(body, /if \(!result\) return \{ ok: false, error: "Listing state changed; refresh and try again\." \}/);
+    assert.doesNotMatch(body, /prisma\.listing\.(?:update|updateMany)/);
   });
 
   it("keeps review submission single-flight and review photo removal touch-friendly", () => {
@@ -52,11 +53,14 @@ describe("R56-R67 small audit follow-up guardrails", () => {
   it("keeps existing-listing photo writes behind Save and defers safe object cleanup", () => {
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(editPage, /class ListingPhotoConflictError extends Error/);
     assert.match(editPage, /const submittedNewPhotoUrls = new Set<string>\(\)/);
-    assert.match(editPage, /const updatedPhoto = await tx\.photo\.updateMany/);
-    assert.match(editPage, /if \(updatedPhoto\.count === 0\) \{\s*throw new ListingPhotoConflictError\(\);/s);
+    assert.match(editPage, /withDbUserContext\(actor\.id, async \(tx\) => \{/);
+    assert.match(editPage, /updateListingOwnerContent\(tx, \{/);
+    assert.match(editPage, /expectedUpdatedAt: listing\.updatedAt/);
+    assert.match(editPage, /expectedStatus: listing\.status/);
+    assert.match(editPage, /if \(!updated\.applied\) \{\s*throw new StockMutationConflict/s);
     assert.match(editPage, /syncListingDirectUploadReferences/);
+    assert.doesNotMatch(editPage, /tx\.photo\.(?:create|delete|update)/);
     assert.doesNotMatch(editPage, /deleteR2ObjectByUrl/);
     assert.match(editPage, /fenced lifecycle\s+\/\/ worker removes them/s);
     assert.match(editPage, /source: "listing_update_ai_re_review"/);

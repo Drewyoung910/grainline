@@ -40,8 +40,6 @@ describe("DirectUpload RLS audit contracts", () => {
 
   it("pins every current durable-reference claim family", () => {
     const callSites = [
-      ["src/app/dashboard/listings/new/page.tsx", "syncListingDirectUploadReferences"],
-      ["src/app/dashboard/listings/custom/page.tsx", "syncListingDirectUploadReferences"],
       ["src/app/dashboard/listings/[id]/edit/page.tsx", "syncListingDirectUploadReferences"],
       ["src/app/dashboard/onboarding/actions.ts", "syncSellerProfileDirectUploadReferences"],
       ["src/app/dashboard/profile/page.tsx", "syncSellerProfileDirectUploadReferences"],
@@ -59,6 +57,15 @@ describe("DirectUpload RLS audit contracts", () => {
       assert.match(text, new RegExp(syncHelper), path);
       assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
+    for (const path of [
+      "src/app/dashboard/listings/new/page.tsx",
+      "src/app/dashboard/listings/custom/page.tsx",
+    ]) {
+      assert.match(source(path), /createListingOwner\(/, path);
+    }
+    const listingOwnerAccess = source("src/lib/listingOwnerAccess.ts");
+    assert.match(listingOwnerAccess, /syncListingDirectUploadReferences\(\{/);
+    assert.match(listingOwnerAccess, /requireAllTracked: true/);
     assert.match(
       source("src/app/api/cases/[id]/messages/route.ts"),
       /replyToCaseWithFixedAuthority/,

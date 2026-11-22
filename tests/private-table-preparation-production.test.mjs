@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import yaml from "js-yaml";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
@@ -265,10 +266,12 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
     "src/app/api/admin/listings/[id]/route.ts",
     "utf8",
   );
-  assert.ok(
-    adminRemoval.indexOf("await tx.listing.update")
-      < adminRemoval.indexOf("await deleteFavoritesForAdminListing"),
-    "admin removal must hide and lock the Listing before Favorite cleanup",
+  const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
+  assert.match(adminRemoval, /sellerProfileStaffListingRemovalTransition\(/u);
+  assert.match(
+    listingPreparation,
+    /grainline_seller_staff_listing_remove_transition[\s\S]*FOR UPDATE;[\s\S]*UPDATE public\."Listing"[\s\S]*grainline_favorite_admin_listing_cleanup/u,
+    "admin removal must hide and lock the Listing before Favorite cleanup in one transition",
   );
   assert.ok(
     sql.indexOf('LOCK TABLE public."Listing" IN SHARE ROW EXCLUSIVE MODE')
@@ -498,6 +501,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "email_service_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
+      "listing_domain_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");

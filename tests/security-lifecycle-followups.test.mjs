@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
@@ -163,10 +164,15 @@ describe("security lifecycle follow-ups", () => {
 
   it("removes seller-derived state and seller-authored replies during account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const listingDeletion = source("src/lib/listingAccountDeletionAccess.ts");
+    const listingAuthority = source(listingDomainPreparationMigrationPath());
 
     assert.match(deletion, /sellerMetrics\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /sellerRatingSummary\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
-    assert.match(deletion, /review\.updateMany\(\{\s*where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \},\s*data: \{ sellerReply: null, sellerReplyAt: null \},\s*\}\)/s);
+    assert.match(deletion, /redactListingsForAccountDeletion\(tx, \{/);
+    assert.match(listingDeletion, /grainline_listing_account_deletion_redact/);
+    assert.match(listingAuthority, /claimed_user_id := public\.grainline_account_deletion_claim_user/);
+    assert.match(listingAuthority, /SET "sellerReply" = NULL,[\s\S]*"sellerReplyAt" = NULL/);
     assert.match(deletion, /redactUserReportsForAccountDeletion\(tx, \{/);
     assert.match(deletion, /sideEffectId: localAnonymizeSideEffectId/);
     assert.match(deletion, /claimGeneration: localClaimGeneration/);

@@ -17,7 +17,7 @@ export default function ListingGallery({
   title,
   saveControl,
 }: {
-  photos: Photo[];
+  photos: readonly Photo[];
   title: string;
   saveControl?: ReactNode;
 }) {

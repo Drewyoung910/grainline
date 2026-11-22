@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
@@ -334,34 +335,50 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller listing title and body fields on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const access = source("src/lib/listingAccountDeletionAccess.ts");
+    const authority = source(listingDomainPreparationMigrationPath());
 
-    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({");
-    const listingUpdateEnd = deletion.indexOf("await redactOwnerMakerVerificationForDeletion", listingUpdateStart);
-    const listingUpdate = deletion.slice(listingUpdateStart, listingUpdateEnd);
-
-    assert.ok(listingUpdateStart > -1, "account deletion must update seller listings");
-    assert.match(listingUpdate, /title: "Deleted listing"/);
-    assert.match(listingUpdate, /status: "HIDDEN"/);
-    assert.match(listingUpdate, /isPrivate: true/);
-    assert.match(listingUpdate, /description: "\[Listing removed\]"/);
-    assert.match(listingUpdate, /tags: \[\]/);
-    assert.match(listingUpdate, /metaDescription: null/);
-    assert.match(listingUpdate, /materials: \[\]/);
+    assert.match(deletion, /redactListingsForAccountDeletion\(tx,/u);
+    assert.doesNotMatch(deletion, /tx\.listing\.updateMany/u);
+    assert.match(access, /grainline_listing_account_deletion_redact/u);
+    assert.match(authority, /title = 'Deleted listing'/u);
+    assert.match(authority, /status = 'HIDDEN'/u);
+    assert.match(authority, /"isPrivate" = true/u);
+    assert.match(authority, /description = '\[Listing removed\]'/u);
+    assert.match(authority, /tags = ARRAY\[\]::text\[\]/u);
+    assert.match(authority, /"metaDescription" = NULL/u);
+    assert.match(authority, /materials = ARRAY\[\]::text\[\]/u);
   });
 
   it("removes retained seller-defined listing variant text on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source(listingDomainPreparationMigrationPath());
+    const functionStart = authority.indexOf(
+      "CREATE FUNCTION public.grainline_listing_account_deletion_redact(",
+    );
+    const functionEnd = authority.indexOf(
+      "CREATE FUNCTION public.grainline_listing_owner_delete_lock(",
+      functionStart,
+    );
+    const listingRedaction = authority.slice(functionStart, functionEnd);
+    const variantDeleteStart = listingRedaction.indexOf(
+      'DELETE FROM public."ListingVariantGroup"',
+    );
+    const listingUpdateStart = listingRedaction.indexOf(
+      'UPDATE public."Listing" AS listing',
+      variantDeleteStart,
+    );
 
-    const variantDeleteStart = deletion.indexOf("await tx.listingVariantGroup.deleteMany({");
-    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({", variantDeleteStart);
-    const variantDelete = deletion.slice(variantDeleteStart, listingUpdateStart);
-
-    assert.ok(variantDeleteStart > -1, "account deletion must remove seller variant groups");
+    assert.doesNotMatch(deletion, /tx\.listingVariantGroup\.deleteMany/u);
+    assert.ok(variantDeleteStart > -1, "account deletion authority must remove seller variant groups");
     assert.ok(
       listingUpdateStart > variantDeleteStart,
       "variant text should be removed before retained listing rows are scrubbed",
     );
-    assert.match(variantDelete, /where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    assert.match(
+      listingRedaction.slice(variantDeleteStart, listingUpdateStart),
+      /listing\."sellerId" = source_seller_profile_id/u,
+    );
   });
 
   it("scrubs maker verification personal details and reviewer linkage", () => {

@@ -69,6 +69,9 @@ import {
 import {
   privateTablePreparation,
 } from "./private-table-preparation-catalog.mjs";
+import {
+  SELLER_PROFILE_PUBLIC_PREPARATIONS,
+} from "./seller-profile-public-preparation-manifest.mjs";
 
 const { Client } = pg;
 
@@ -133,6 +136,8 @@ const FOLLOW_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("follow_v1");
 const BLOCK_PREPARATION_RELEASE = privateTablePreparation("block_v1");
 const EMAIL_SERVICE_PREPARATION_RELEASE =
   privateTablePreparation("email_service_v1");
+const LISTING_DOMAIN_PREPARATION_RELEASE =
+  privateTablePreparation("listing_domain_v1");
 const BLOCK_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("block_v1");
 const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
@@ -154,6 +159,41 @@ export const EMAIL_SERVICE_PREPARATION_NEW_FUNCTION_NAMES = Object.freeze(
     .filter((entry) => !entry.predecessorSourceSha256)
     .map((entry) => entry.name),
 );
+export const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  LISTING_DOMAIN_PREPARATION_RELEASE.migration;
+export const LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256 =
+  LISTING_DOMAIN_PREPARATION_RELEASE.migrationSha256;
+export const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze(
+  LISTING_DOMAIN_PREPARATION_RELEASE.functions.map((entry) => entry.name),
+);
+export const LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES = Object.freeze(
+  LISTING_DOMAIN_PREPARATION_RELEASE.functions
+    .filter((entry) => !entry.predecessorSourceSha256)
+    .map((entry) => entry.name),
+);
+export const LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION =
+  SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).name;
+export const LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256 =
+  SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).checksum;
+const LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_FUNCTION =
+  "grainline_seller_staff_listing_review_transition";
+const LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR =
+  SELLER_PROFILE_PUBLIC_PREPARATIONS.find(
+    ({ name }) => name
+      === "20261020160000_prepare_seller_profile_owner_featured_listing_toggle",
+  );
+export const LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION =
+  LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR.name;
+export const LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION_SHA256 =
+  LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR.checksum;
+const LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_FUNCTION =
+  "grainline_seller_owner_featured_listing_toggle";
+export const LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION =
+  "20260726022500_prepare_conversation_message_authority";
+export const LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION_SHA256 =
+  "eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98";
+const LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_FUNCTION =
+  "grainline_message_list";
 export const BLOCK_RLS_ACTIVATION_MIGRATION =
   BLOCK_RLS_ACTIVATION_RELEASE.migration;
 export const BLOCK_RLS_ACTIVATION_MIGRATION_SHA256 =
@@ -389,6 +429,13 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_seller_staff_feature_transition(text,text,text)",
   "grainline_seller_staff_listing_review_transition(text,text,text,text)",
   "grainline_seller_staff_listing_detail_profile(text,text)",
+  "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
+  "grainline_seller_staff_listing_remove_transition(text,text,text,timestamp without time zone)",
+  "grainline_seller_staff_listing_undo_transition(text,text,text)",
+  "grainline_seller_staff_listing_review_queue(text,integer)",
+  "grainline_listing_staff_detail_source(text,text)",
+  "grainline_listing_staff_reference_targets(text,text[])",
+  "grainline_listing_staff_seller_active_public_count(text,text)",
   "grainline_seller_staff_broadcast_targets(text,text[])",
   "grainline_seller_staff_report_targets(text,text[])",
   "grainline_seller_staff_verification_target(text,text)",
@@ -421,6 +468,13 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_seller_staff_feature_transition(text,text,text)",
     "grainline_seller_staff_listing_review_transition(text,text,text,text)",
     "grainline_seller_staff_listing_detail_profile(text,text)",
+    "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
+    "grainline_seller_staff_listing_remove_transition(text,text,text,timestamp without time zone)",
+    "grainline_seller_staff_listing_undo_transition(text,text,text)",
+    "grainline_seller_staff_listing_review_queue(text,integer)",
+    "grainline_listing_staff_detail_source(text,text)",
+    "grainline_listing_staff_reference_targets(text,text[])",
+    "grainline_listing_staff_seller_active_public_count(text,text)",
     "grainline_seller_staff_broadcast_targets(text,text[])",
     "grainline_seller_staff_report_targets(text,text[])",
     "grainline_seller_staff_verification_target(text,text)",
@@ -663,6 +717,10 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_user_public_seller_state_sync",
   "grainline_blog_post_author_public_state_bind",
   "grainline_listing_seller_public_state_bind",
+  "grainline_listing_actor_transaction_source_core",
+  "grainline_listing_children_replace_core",
+  "grainline_listing_detail_source_core",
+  "grainline_listing_materials_guard",
   "grainline_blog_comment_author_public_state_bind",
   "grainline_user_public_blog_state_sync",
   "grainline_seller_public_blog_state_sync",
@@ -695,6 +753,12 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_staff_feature_transition",
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_detail_profile",
+  "grainline_seller_staff_listing_remove_transition",
+  "grainline_seller_staff_listing_undo_transition",
+  "grainline_seller_staff_listing_review_queue",
+  "grainline_listing_staff_detail_source",
+  "grainline_listing_staff_reference_targets",
+  "grainline_listing_staff_seller_active_public_count",
   "grainline_seller_staff_broadcast_targets",
   "grainline_seller_staff_report_targets",
   "grainline_seller_staff_verification_target",
@@ -941,6 +1005,63 @@ export function withAppliedEmailServicePreparation(
   };
 }
 
+const LISTING_DOMAIN_PREPARATION_FUNCTION_NAME_SET = new Set(
+  LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES,
+);
+
+export function withAppliedListingDomainPreparation(
+  inventory,
+  {
+    preparationApplied,
+    staffReviewPredecessorApplied,
+    featuredTogglePredecessorApplied,
+    messageListPredecessorApplied,
+  },
+) {
+  const functions = preparationApplied
+    ? [...(inventory?.functions ?? [])]
+    : (inventory?.functions ?? []).filter((name) => {
+      if (!LISTING_DOMAIN_PREPARATION_FUNCTION_NAME_SET.has(name)) return true;
+      if (name === LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_FUNCTION) {
+        return staffReviewPredecessorApplied;
+      }
+      if (name === LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_FUNCTION) {
+        return featuredTogglePredecessorApplied;
+      }
+      if (name === LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_FUNCTION) {
+        return messageListPredecessorApplied;
+      }
+      return false;
+    });
+  return {
+    ...inventory,
+    functions: sortedUnique(functions),
+    listingDomainPreparationApplied: preparationApplied,
+    listingDomainStaffReviewPredecessorApplied:
+      staffReviewPredecessorApplied,
+    listingDomainFeaturedTogglePredecessorApplied:
+      featuredTogglePredecessorApplied,
+    listingDomainMessageListPredecessorApplied:
+      messageListPredecessorApplied,
+  };
+}
+
+export function collectListingDomainMigrationOrderIssues({
+  preparationApplied,
+  staffReviewPredecessorApplied,
+  messageListPredecessorApplied,
+}) {
+  if (!preparationApplied) return [];
+  return [
+    ...(!staffReviewPredecessorApplied
+      ? ["Listing domain preparation is applied without its exact staff-review prerequisite"]
+      : []),
+    ...(!messageListPredecessorApplied
+      ? ["Listing domain preparation is applied without its exact message-list prerequisite"]
+      : []),
+  ];
+}
+
 export function withAppliedSellerProfileCallerAuthority(
   inventory,
   { deauthorizeCompatApplied, reconciliationCompatApplied },
@@ -1126,13 +1247,32 @@ export function staffReadFunctionIdentitiesForInventory(
   staffReadStage = null,
 ) {
   const functionNames = new Set(inventory?.functions ?? []);
+  const listingIdentityAllowed = (identity) => {
+    const oldReviewIdentity =
+      "grainline_seller_staff_listing_review_transition(text,text,text,text)";
+    const newReviewIdentity =
+      "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)";
+    if (identity === oldReviewIdentity) {
+      return inventory?.listingDomainPreparationApplied === undefined
+        ? true
+        : inventory.listingDomainStaffReviewPredecessorApplied;
+    }
+    if (identity === newReviewIdentity) {
+      return inventory?.listingDomainPreparationApplied === undefined
+        ? true
+        : inventory.listingDomainPreparationApplied;
+    }
+    return true;
+  };
+  const availableIdentities = (identities) => identities.filter((identity) =>
+    functionNames.has(identity.slice(0, identity.indexOf("(")))
+    && listingIdentityAllowed(identity));
   const combinedIdentities = [
     ...new Set([
       ...STAFF_READ_FUNCTION_IDENTITIES,
       ...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
     ]),
-  ].filter((identity) =>
-    functionNames.has(identity.slice(0, identity.indexOf("("))));
+  ].filter((identity) => availableIdentities([identity]).length === 1);
   if (staffReadStage !== null) {
     if (![ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
       ORDER_USER_COMBINED_STAFF_READ_STAGE].includes(staffReadStage)) {
@@ -1148,12 +1288,11 @@ export function staffReadFunctionIdentitiesForInventory(
   if (STAFF_READ_BOOTSTRAP_MARKER_PATTERN.test(String(roleMarker ?? ""))) {
     return combinedIdentities;
   }
-  const userMigrationIdentities = MIGRATION_STAFF_READ_FUNCTION_IDENTITIES
-    .filter((identity) =>
-      functionNames.has(identity.slice(0, identity.indexOf("("))));
+  const userMigrationIdentities = availableIdentities(
+    MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+  );
   if (userMigrationIdentities.length > 0) return userMigrationIdentities;
-  return MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES.filter((identity) =>
-    functionNames.has(identity.slice(0, identity.indexOf("("))));
+  return availableIdentities(MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES);
 }
 
 export function accountDeletionRuntimeExecuteExpected(row, inventory) {
@@ -1938,6 +2077,38 @@ export async function readBlockPreparationState(client) {
     migration: BLOCK_PREPARATION_MIGRATION,
     checksum: BLOCK_PREPARATION_MIGRATION_SHA256,
     label: "Block compatible preparation",
+  });
+}
+
+export async function readListingDomainPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_PREPARATION_MIGRATION,
+    checksum: LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256,
+    label: "Listing domain compatible preparation",
+  });
+}
+
+export async function readListingDomainStaffReviewPredecessorState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION,
+    checksum: LISTING_DOMAIN_STAFF_REVIEW_PREDECESSOR_MIGRATION_SHA256,
+    label: "Listing domain staff-review predecessor",
+  });
+}
+
+export async function readListingDomainFeaturedTogglePredecessorState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION,
+    checksum: LISTING_DOMAIN_FEATURED_TOGGLE_PREDECESSOR_MIGRATION_SHA256,
+    label: "Listing domain featured-toggle predecessor",
+  });
+}
+
+export async function readListingDomainMessageListPredecessorState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION,
+    checksum: LISTING_DOMAIN_MESSAGE_LIST_PREDECESSOR_MIGRATION_SHA256,
+    label: "Listing domain message-list predecessor",
   });
 }
 
@@ -3758,6 +3929,25 @@ export async function auditLiveDatabase({
   const sellerFaqRlsActivation =
     await readSellerFaqRlsActivationState(client);
   issues.push(...sellerFaqRlsActivation.issues);
+  const listingDomainPreparation =
+    await readListingDomainPreparationState(client);
+  issues.push(...listingDomainPreparation.issues);
+  const listingDomainStaffReviewPredecessor =
+    await readListingDomainStaffReviewPredecessorState(client);
+  issues.push(...listingDomainStaffReviewPredecessor.issues);
+  const listingDomainFeaturedTogglePredecessor =
+    await readListingDomainFeaturedTogglePredecessorState(client);
+  issues.push(...listingDomainFeaturedTogglePredecessor.issues);
+  const listingDomainMessageListPredecessor =
+    await readListingDomainMessageListPredecessorState(client);
+  issues.push(...listingDomainMessageListPredecessor.issues);
+  issues.push(...collectListingDomainMigrationOrderIssues({
+    preparationApplied: listingDomainPreparation.applied,
+    staffReviewPredecessorApplied:
+      listingDomainStaffReviewPredecessor.applied,
+    messageListPredecessorApplied:
+      listingDomainMessageListPredecessor.applied,
+  }));
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -3868,9 +4058,20 @@ export async function auditLiveDatabase({
     },
   );
   const liveAuthorityInventory = {
-    ...withAppliedEmailServicePreparation(
-      liveEmailDeliveryAuthorityInventory,
-      emailServicePreparation.applied,
+    ...withAppliedListingDomainPreparation(
+      withAppliedEmailServicePreparation(
+        liveEmailDeliveryAuthorityInventory,
+        emailServicePreparation.applied,
+      ),
+      {
+        preparationApplied: listingDomainPreparation.applied,
+        staffReviewPredecessorApplied:
+          listingDomainStaffReviewPredecessor.applied,
+        featuredTogglePredecessorApplied:
+          listingDomainFeaturedTogglePredecessor.applied,
+        messageListPredecessorApplied:
+          listingDomainMessageListPredecessor.applied,
+      },
     ),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,

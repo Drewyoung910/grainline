@@ -36,11 +36,23 @@ export async function proveSellerProfileQualityScoreAuthorities({ database, sell
        ),
        pg_catalog.to_regprocedure(
          'public.grainline_seller_service_quality_score_zero_ineligible()'
+       ),
+       pg_catalog.to_regprocedure(
+         'public.grainline_listing_service_quality_score_apply(jsonb)'
        )
      )
      ORDER BY routine.proname
   `));
   assert.deepEqual(catalog, [
+    {
+      name: "grainline_listing_service_quality_score_apply",
+      securityDefiner: true,
+      volatility: "v",
+      config: ["search_path=pg_catalog"],
+      runtimeExecute: true,
+      staffExecute: false,
+      publicExecute: false,
+    },
     {
       name: "grainline_seller_service_quality_score_batch",
       securityDefiner: true,
@@ -115,6 +127,39 @@ export async function proveSellerProfileQualityScoreAuthorities({ database, sell
     assert.equal(Number(rows[0].photoCount), 1);
     assert.equal(rows[0].hasAltText, true);
 
+    const applied = rowsOf(await database.query(
+      `SELECT public.grainline_listing_service_quality_score_apply($1::jsonb)
+         AS count`,
+      [JSON.stringify([
+        { id: activeListingId, score: 0.95 },
+        { id: hiddenListingId, score: 0.8 },
+      ])],
+    ));
+    assert.equal(
+      Number(applied[0].count),
+      2,
+      "quality-score apply updates the exact bounded batch",
+    );
+    await assert.rejects(
+      database.query(
+        `SELECT public.grainline_listing_service_quality_score_apply($1::jsonb)`,
+        [JSON.stringify([
+          { id: activeListingId, score: 0.7 },
+          { id: activeListingId, score: 0.8 },
+        ])],
+      ),
+      /Listing quality-score ids must be unique/u,
+      "quality-score apply rejects duplicate listing ids",
+    );
+    await assert.rejects(
+      database.query(
+        `SELECT public.grainline_listing_service_quality_score_apply($1::jsonb)`,
+        [JSON.stringify([{ id: activeListingId, score: 1.21 }])],
+      ),
+      /Listing quality-score item is invalid/u,
+      "quality-score apply rejects out-of-range scores",
+    );
+
     const zeroed = rowsOf(await database.query(
       `SELECT public.grainline_seller_service_quality_score_zero_ineligible()
          AS count`,
@@ -131,7 +176,7 @@ export async function proveSellerProfileQualityScoreAuthorities({ database, sell
       ORDER BY id`,
     [[activeListingId, hiddenListingId]],
   )), [
-    { id: activeListingId, qualityScore: 0.4 },
+    { id: activeListingId, qualityScore: 0.95 },
     { id: hiddenListingId, qualityScore: 0 },
   ]);
 

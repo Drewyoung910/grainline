@@ -21,6 +21,10 @@ export type LockedListingStock = {
   id: string; title: string; stockQuantity: number | null; listingType: "IN_STOCK" | "MADE_TO_ORDER";
   status: string; isPrivate: boolean; archivedAt: Date | null; rejectionReason: string | null;
 };
+export type AppliedListingStock = {
+  id: string; title: string; stockQuantity: number | null; status: string;
+  previousStockQuantity: number | null; previousStatus: string;
+};
 const ACTION = "MANUAL_LISTING_STOCK_ADJUSTMENT";
 
 export function validStockMutationIdentity(value: StockMutationIdentity) {
@@ -31,12 +35,51 @@ export function validStockMutationIdentity(value: StockMutationIdentity) {
 
 export async function lockListingStock(client: Client, scope: Pick<Scope, "listingId" | "sellerId">) {
   const [listing] = await client.$queryRaw<LockedListingStock[]>`
-    SELECT id, title, "stockQuantity", "listingType"::text AS "listingType",
-      status::text AS status, "isPrivate", "archivedAt", "rejectionReason"
-    FROM "Listing" WHERE id = ${scope.listingId} AND "sellerId" = ${scope.sellerId}
-    FOR UPDATE
+    SELECT *
+      FROM public.grainline_listing_owner_stock_lock(
+        ${scope.listingId}::text,
+        ${scope.sellerId}::text
+      )
   `;
   return listing ?? null;
+}
+
+export async function applyListingStockMutation(
+  client: Client,
+  input: {
+    listingId: string;
+    sellerId: string;
+    applyDelta: boolean;
+    stockDelta: number;
+    quantity: number;
+  },
+) {
+  if (
+    typeof input.applyDelta !== "boolean"
+    || !Number.isSafeInteger(input.stockDelta)
+    || input.stockDelta < -1_000_000
+    || input.stockDelta > 1_000_000
+    || !Number.isSafeInteger(input.quantity)
+    || input.quantity < 0
+    || input.quantity > 1_000_000
+    || (!input.applyDelta && input.stockDelta !== 0)
+  ) {
+    throw new StockMutationConflict("Invalid stock operation. Refresh inventory.");
+  }
+  const rows = await client.$queryRaw<AppliedListingStock[]>`
+    SELECT *
+      FROM public.grainline_listing_owner_stock_apply(
+        ${input.listingId}::text,
+        ${input.sellerId}::text,
+        ${input.applyDelta}::boolean,
+        ${input.stockDelta}::integer,
+        ${input.quantity}::integer
+      )
+  `;
+  if (rows.length > 1) {
+    throw new Error("Listing stock authority returned duplicate rows");
+  }
+  return rows[0] ?? null;
 }
 
 export async function prepareListingStockMutation(

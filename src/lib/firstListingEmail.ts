@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { renderFirstListingCongratsEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import { listingOwnerCounts } from "@/lib/listingOwnerAccess";
 
 /**
  * Call only after a public listing has actually gone live. A listing held for
@@ -21,14 +22,8 @@ export async function sendFirstListingCongratsIfFirst({
   listing: { id: string; title: string; priceCents: number; currency: string | null };
 }) {
   try {
-    const publishedCount = await prisma.listing.count({
-      where: {
-        sellerId: sellerProfileId,
-        isPrivate: false,
-        status: { in: ["ACTIVE", "SOLD", "SOLD_OUT", "HIDDEN"] },
-      },
-    });
-    if (publishedCount !== 1) return;
+    const counts = await listingOwnerCounts(sellerUserId);
+    if (counts.publishedPublicCount !== 1) return;
 
     const recipient = await userEmailDeliveryRecipient(prisma, { userId: sellerUserId });
     if (!recipient) return;

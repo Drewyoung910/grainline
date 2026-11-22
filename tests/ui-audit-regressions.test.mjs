@@ -215,8 +215,11 @@ describe("guards behind the browser checks", () => {
 
   it("keeps a seller's listing page payload to what the stock control needs", () => {
     const page = source("src/app/dashboard/listings/page.tsx");
+    const inventory = source("src/app/dashboard/inventory/page.tsx");
     assert.match(page, /listing=\{\{ id: l\.id, stockQuantity: l\.stockQuantity \}\}/);
-    assert.match(source("src/app/dashboard/inventory/page.tsx"), /archivedAt: null/);
+    assert.match(inventory, /listingOwnerSummaryRows\(me\.id, \{/);
+    assert.match(inventory, /includeArchived: false/);
+    assert.doesNotMatch(inventory, /prisma\.listing\./);
   });
 
   it("keeps existing map pins alive through source and viewport updates", () => {

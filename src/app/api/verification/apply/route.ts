@@ -1,7 +1,6 @@
 // src/app/api/verification/apply/route.ts
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import {
@@ -19,6 +18,7 @@ import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateA
 import { getSellerVerificationOrderSales } from "@/lib/orderEligibilityAuthority";
 import { sellerOwnerGuildApplicationState } from "@/lib/sellerOwnerPrivateAccess";
 import { applyOwnerGuildMemberVerification } from "@/lib/makerVerificationAccess";
+import { listingOwnerCounts } from "@/lib/listingOwnerAccess";
 
 export const runtime = "nodejs";
 
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     }
 
     const [activeListings, totalSalesCents, longCaseCount] = await Promise.all([
-      prisma.listing.count({ where: { sellerId: seller.id, status: "ACTIVE", isPrivate: false } }),
+      listingOwnerCounts(me.id).then((counts) => counts.activePublicCount),
       getSellerVerificationOrderSales({
         actorUserId: me.id,
         sellerProfileId: seller.id,

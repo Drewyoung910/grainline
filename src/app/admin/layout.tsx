@@ -14,6 +14,7 @@ import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { readSupportRequestStaffState } from "@/lib/supportRequestAccess";
 import { makerVerificationStaffPendingCount } from "@/lib/makerVerificationAccess";
 import { userReportStaffOpenCount } from "@/lib/userReportAccess";
+import { sellerProfileStaffListingReviewQueue } from "@/lib/sellerProfileStaffAccess";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
@@ -34,14 +35,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <AdminPinGate />;
   }
 
+  const staffClient = getOrderStaffReadClient();
   const [openCaseCountResult, reviewNeededOrders, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount, openReportCount] = await Promise.all([
     getStaffActiveCaseCount(user.id),
-    readStaffOrderPage(user.id, "REVIEW_NEEDED", 1, 1, getOrderStaffReadClient()),
-    makerVerificationStaffPendingCount(getOrderStaffReadClient(), user.id),
+    readStaffOrderPage(user.id, "REVIEW_NEEDED", 1, 1, staffClient),
+    makerVerificationStaffPendingCount(staffClient, user.id),
     prisma.blogComment.count({ where: { approved: false } }),
-    prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
+    sellerProfileStaffListingReviewQueue(staffClient, {
+      actorId: user.id,
+      limit: 1,
+    }).then((queue) => queue.totalPending),
     readSupportRequestStaffState(user.id, 1, 0, 0).then((state) => state.activeCount),
-    userReportStaffOpenCount(getOrderStaffReadClient(), user.id),
+    userReportStaffOpenCount(staffClient, user.id),
   ]);
   if (openCaseCountResult === null || reviewNeededOrders === null) redirect("/");
   const openCaseCount = openCaseCountResult;

@@ -75,6 +75,8 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(lock.packages?.["node_modules/browserslist"]?.version, "4.28.8");
     assert.equal(pkg.overrides?.["deepmerge-ts"], "8.0.2");
     assert.equal(lock.packages?.["node_modules/deepmerge-ts"]?.version, "8.0.2");
+    assert.equal(pkg.overrides?.effect, "3.22.1");
+    assert.equal(lock.packages?.["node_modules/effect"]?.version, "3.22.1");
     assert.equal(pkg.overrides?.browserslist, "4.28.8");
     assert.equal(lock.packages?.["node_modules/browserslist"]?.version, "4.28.8");
     assert.equal(pkg.overrides?.mysql2, "3.24.2");
@@ -101,6 +103,8 @@ describe("dependency hygiene guardrails", () => {
     assert.match(auditScript, /Full dependency audit failed/);
     assert.match(auditScript, /GHSA-vfj7-8cjw-p6xm/);
     assert.match(auditScript, /2026-11-21T00:00:00\.000Z/);
+    assert.match(auditScript, /GHSA-fc5q-39xc-vjpf/);
+    assert.match(auditScript, /2026-11-24T00:00:00\.000Z/);
     assert.equal(pkg.overrides?.["brace-expansion"], undefined);
     assert.equal(
       lock.packages?.["node_modules/brace-expansion"]?.version,
@@ -177,6 +181,98 @@ describe("dependency hygiene guardrails", () => {
         new Date("2026-11-20T23:59:59.999Z"),
       ).blocking.map(([name]) => name),
       ["remoteParser"],
+    );
+  });
+
+  it("temporarily admits only the exact unpatched build and lint chains", () => {
+    const earlierAdvisory = {
+      source: 1240992,
+      severity: "high",
+      url: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    };
+    const advisory = {
+      source: 1249999,
+      severity: "high",
+      url: "https://github.com/advisories/GHSA-fc5q-39xc-vjpf",
+    };
+    const report = {
+      vulnerabilities: {
+        picomatch: { severity: "high", via: [advisory] },
+        fdir: { severity: "high", via: ["picomatch"] },
+        micromatch: {
+          severity: "high",
+          via: [earlierAdvisory, "picomatch"],
+        },
+        "fast-glob": { severity: "high", via: ["micromatch"] },
+        "@next/eslint-plugin-next": {
+          severity: "high",
+          via: ["fast-glob"],
+        },
+        "eslint-config-next": {
+          severity: "high",
+          via: ["@next/eslint-plugin-next"],
+        },
+        "@typescript-eslint/typescript-estree": {
+          severity: "high",
+          via: ["picomatch"],
+        },
+        "eslint-import-resolver-typescript": {
+          severity: "high",
+          via: ["picomatch"],
+        },
+        tinyglobby: { severity: "high", via: ["picomatch"] },
+        "@rollup/pluginutils": { severity: "high", via: ["picomatch"] },
+        "@rollup/plugin-commonjs": {
+          severity: "high",
+          via: ["@rollup/pluginutils", "fdir", "picomatch"],
+        },
+        "@sentry/nextjs": {
+          severity: "high",
+          via: ["@rollup/plugin-commonjs"],
+        },
+      },
+    };
+    const accepted = partitionFullBlockingEntries(
+      report,
+      new Date("2026-11-20T23:59:59.999Z"),
+    );
+    assert.equal(accepted.blocking.length, 0);
+    assert.deepEqual(
+      accepted.excepted.map(({ packageName }) => packageName).sort(),
+      [
+        "@next/eslint-plugin-next",
+        "@rollup/plugin-commonjs",
+        "@rollup/pluginutils",
+        "@sentry/nextjs",
+        "@typescript-eslint/typescript-estree",
+        "eslint-config-next",
+        "eslint-import-resolver-typescript",
+        "fast-glob",
+        "fdir",
+        "micromatch",
+        "picomatch",
+        "tinyglobby",
+      ],
+    );
+    assert.equal(
+      partitionFullBlockingEntries(
+        report,
+        new Date("2026-11-21T00:00:00.000Z"),
+      ).blocking.length,
+      4,
+    );
+
+    const unrelated = structuredClone(report);
+    unrelated.vulnerabilities.remoteGlobApi = {
+      severity: "high",
+      via: [advisory],
+    };
+    assert.deepEqual(
+      partitionFullBlockingEntries(
+        unrelated,
+        new Date("2026-11-20T23:59:59.999Z"),
+      ).blocking.map(([name]) => name),
+      ["remoteGlobApi"],
     );
   });
 

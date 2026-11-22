@@ -24,6 +24,72 @@ test("Order checkout receipt authority is one exact compatible successor pair", 
   assert.equal(result.productionTouched, false);
 });
 
+test("CI isolates Listing through the historical Order release chain and full suite", () => {
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  const isolate = workflow.indexOf(
+    "Temporarily isolate Listing domain from historical Order release guards",
+  );
+  const verify = workflow.indexOf(
+    "Verify compatible Order checkout receipt authority release",
+  );
+  const participantDetail = workflow.indexOf(
+    "Verify compatible Order participant detail projection release",
+  );
+  const zeroDirect = workflow.indexOf(
+    "Prove exact zero-direct release catalog with the native PostgreSQL driver",
+  );
+  const zeroDirectStructure = workflow.indexOf(
+    "Prove zero-direct schema and role drift rejection with exact rollback",
+  );
+  const correctionPackage = workflow.indexOf(
+    "Prove correction release ledger and body restart states",
+  );
+  const participantAuthority = workflow.indexOf(
+    "Prove compatible Order participant authority",
+  );
+  const historicalGrantBoundary = workflow.indexOf(
+    "Admit re-applied User helper during historical grant audits",
+  );
+  const restore = workflow.indexOf(
+    "Restore Listing domain after historical Order release guards",
+  );
+  const currentTreeTypecheck = workflow.indexOf(
+    "      - run: npx tsc --noEmit",
+  );
+  const tests = workflow.indexOf("      - name: Tests\n");
+  const restoreSuccessors = workflow.indexOf(
+    "Restore and prove the reviewed successors",
+  );
+  assert.ok(isolate >= 0 && isolate < verify);
+  assert.ok(verify < participantDetail && participantDetail < restore);
+  assert.ok(
+    participantDetail < zeroDirect
+      && zeroDirect < zeroDirectStructure
+      && zeroDirectStructure < correctionPackage
+      && correctionPackage < participantAuthority
+      && participantAuthority < historicalGrantBoundary
+      && historicalGrantBoundary < restore,
+  );
+  assert.ok(currentTreeTypecheck < tests && tests < restore);
+  assert.ok(restore < restoreSuccessors);
+  const isolatedBlock = workflow.slice(isolate, restore);
+  assert.match(
+    isolatedBlock,
+    /listing-domain[\s\S]*mv[\s\S]*prisma\/migrations\/\$preparation/u,
+  );
+  assert.match(isolatedBlock, /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=/u);
+  const restoredBlock = workflow.slice(
+    restore,
+    restoreSuccessors,
+  );
+  assert.match(
+    restoredBlock,
+    /listing-domain[\s\S]*mv[\s\S]*prisma\/migrations\/\$preparation/u,
+  );
+  assert.match(restoredBlock, /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=/u);
+
+});
+
 test("Order checkout receipt authority fails closed on migration byte drift", () => {
   const root = mkdtempSync(path.join(tmpdir(), "grainline-order-receipt-release-"));
   try {
