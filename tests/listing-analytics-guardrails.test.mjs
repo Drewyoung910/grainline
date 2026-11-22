@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -36,7 +37,7 @@ describe("listing analytics guardrails", () => {
   });
 
   it("skips signed-in seller self-traffic before listing analytics counters are written", () => {
-    const migration = source("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql");
+    const migration = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     for (const [path, counter] of [
       ["src/app/api/listings/[id]/view/route.ts", "viewCount"],
       ["src/app/api/listings/[id]/click/route.ts", "clickCount"],

@@ -86,9 +86,12 @@ import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
-const LISTING_DOMAIN_PREPARATION_MIGRATION =
+const LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION =
   "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  listingDomainPreparationMigrationPath();
 const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_remove_transition",
@@ -1690,6 +1693,14 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_complete",
       "grainline_seller_owner_public_state_bind",
       "grainline_user_public_seller_state_sync",
+      ...(existsSync(LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION)
+        ? [
+            "grainline_listing_actor_transaction_source_core",
+            "grainline_listing_children_replace_core",
+            "grainline_listing_detail_source_core",
+            "grainline_listing_materials_guard",
+          ]
+        : []),
       ...(existsSync(REVIEW_VOTE_PREPARATION_MIGRATION)
         ? [
             "grainline_review_vote_insert_guard",
@@ -2324,7 +2335,7 @@ describe("database grant inventory guardrails", () => {
     const appliedStaffIdentities = staffReadFunctionIdentitiesForInventory(applied);
     assert.equal(appliedStaffIdentities.includes(
       "grainline_seller_staff_listing_review_transition(text,text,text,text)",
-    ), false);
+    ), true);
     assert.equal(appliedStaffIdentities.includes(
       "grainline_seller_staff_listing_review_transition(text,text,text,text,timestamp without time zone)",
     ), true);
@@ -4252,7 +4263,7 @@ describe("database grant inventory guardrails", () => {
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
     const listingDomainAuthorityPrepared = existsSync(
-      LISTING_DOMAIN_PREPARATION_MIGRATION,
+      LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION,
     ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
       source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,

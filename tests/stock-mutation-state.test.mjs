@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const {
   LOW_STOCK_DEDUP_WINDOW_MS,
@@ -89,7 +90,7 @@ describe("stock mutation state", () => {
   it("keeps manual stock SQL status flips constrained to active and sold-out listings", () => {
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
     const stockAuthority = source("src/lib/listingStockMutation.ts");
-    const preparation = source("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql");
+    const preparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     const statusCase = preparation.slice(
       preparation.indexOf("CREATE FUNCTION public.grainline_listing_owner_stock_apply"),
       preparation.indexOf("CREATE FUNCTION public.grainline_listing_owner_action_state"),

@@ -18,7 +18,9 @@ test("listing edit reuses owner authorities without SellerProfile table access",
   );
   assert.doesNotMatch(source, /prisma\.sellerProfile\./u);
   assert.doesNotMatch(source, /seller:\s*\{\s*(?:select|include|userId|user):/u);
-  assert.match(source, /where:\s*\{\s*id:\s*listingId,\s*sellerId:\s*sellerCore\.sellerProfileId/u);
+  assert.match(source, /listingOwnerEditor\(actor\.id, listingId\)/u);
+  assert.match(source, /if \(!listing\) return \{ ok: false, error: "Not allowed" \}/u);
+  assert.doesNotMatch(source, /prisma\.listing\.(?:findFirst|findUnique)/u);
   assert.match(source, /listingCount:\s*sellerReview\.totalListingCount/u);
   assert.match(source, /sellerName:\s*sellerCore\.displayName/u);
 });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const {
   parseBoundedDecimalParam,
@@ -128,10 +129,7 @@ describe("query parameter parsing helpers", () => {
 
   it("keeps admin queues capped and stably ordered", () => {
     const review = readFileSync("src/app/admin/review/page.tsx", "utf8");
-    const listingPreparation = readFileSync(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-      "utf8",
-    );
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     const verification = readFileSync("src/app/admin/verification/page.tsx", "utf8");
     const sellerGuildStaffPrivateAccess = readFileSync(
       "src/lib/sellerGuildStaffPrivateAccess.ts",

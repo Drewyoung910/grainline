@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -336,9 +337,7 @@ describe("post-launch UI follow-ups", () => {
     const newPage = source("src/app/dashboard/listings/new/page.tsx");
     const customPage = source("src/app/dashboard/listings/custom/page.tsx");
     const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = source(listingDomainPreparationMigrationPath());
 
     assert.match(helper, /export async function backfillEmptyAltTexts/);
     assert.match(helper, /withDbUserContext\(actorUserId/);
@@ -783,9 +782,7 @@ describe("post-launch UI follow-ups", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
     const customerPhotoAccess = source("src/lib/listingReviewHistoryAccess.ts");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = source(listingDomainPreparationMigrationPath());
     const sitemap = source("src/app/sitemap.ts");
 
     assert.match(sellerPage, /listingPublicCustomerPhotoPage\(/);

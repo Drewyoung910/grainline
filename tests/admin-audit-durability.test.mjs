@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
@@ -45,9 +46,7 @@ describe("admin audit durability", () => {
     }
 
     const listingRemoval = source("src/app/api/admin/listings/[id]/route.ts");
-    const listingRemovalTransition = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingRemovalTransition = source(listingDomainPreparationMigrationPath());
     assert.match(listingRemoval, /sellerProfileStaffListingRemovalTransition\(/);
     assert.match(listingRemoval, /if \(!transition\.applied \|\| !transition\.auditId\)/);
     assert.match(

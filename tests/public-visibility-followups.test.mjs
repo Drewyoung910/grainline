@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -83,9 +84,7 @@ describe("public visibility follow-ups", () => {
     const sellerShopPage = read("src/app/seller/[id]/shop/page.tsx");
     const tagPage = read("src/app/tag/[slug]/page.tsx");
     const catalogAccess = read("src/lib/listingPublicCatalogAccess.ts");
-    const listingPreparation = read(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
 
     for (const [path, source] of [
       ["homepage", homePage],
@@ -161,9 +160,7 @@ describe("public visibility follow-ups", () => {
 
   it("resolves analytics ownership to local ids and fails closed for missing local users", () => {
     const analyticsAccess = read("src/lib/listingAnalyticsAccess.ts");
-    const listingPreparation = read(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     for (const routePath of [
       "src/app/api/listings/[id]/click/route.ts",
       "src/app/api/listings/[id]/view/route.ts",

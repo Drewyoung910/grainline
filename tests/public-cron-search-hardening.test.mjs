@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -137,7 +138,7 @@ describe("cron and public route hardening", () => {
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
     const listingCatalogAccess = source("src/lib/listingPublicCatalogAccess.ts");
     const listingPreparation = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      listingDomainPreparationMigrationPath(),
     );
     const blogPage = source("src/app/blog/page.tsx");
     const popularTagsRoute = source("src/app/api/search/popular-tags/route.ts");

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -242,7 +243,7 @@ describe("seller operational route hardening", () => {
     const listingAuthority = source("src/lib/listingOwnerAccess.ts");
     assert.match(listingAuthority, /grainline_listing_owner_rating_buckets\(/);
     const listingPreparation = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      listingDomainPreparationMigrationPath(),
     );
     assert.match(listingPreparation, /review\."createdAt" >= range_start/);
     assert.match(listingPreparation, /p_end_exclusive AND review\."createdAt" < range_end/);

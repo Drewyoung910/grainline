@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const { listingDeleteDisposition } = await import("../src/lib/listingDeleteState.ts");
 
@@ -102,10 +103,7 @@ describe("listing delete lifecycle", () => {
 
   it("enforces archivedAt in stale edit locks and every listing-detail visibility path", () => {
     const stockMutation = readFileSync("src/lib/listingStockMutation.ts", "utf8");
-    const listingPreparation = readFileSync(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-      "utf8",
-    );
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     const visibility = readFileSync("src/lib/listingVisibility.ts", "utf8");
     const listingPage = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
@@ -164,9 +165,7 @@ describe("security lifecycle follow-ups", () => {
   it("removes seller-derived state and seller-authored replies during account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const listingDeletion = source("src/lib/listingAccountDeletionAccess.ts");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = source(listingDomainPreparationMigrationPath());
 
     assert.match(deletion, /sellerMetrics\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /sellerRatingSummary\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);

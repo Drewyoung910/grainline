@@ -739,6 +739,10 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_user_public_seller_state_sync",
   "grainline_blog_post_author_public_state_bind",
   "grainline_listing_seller_public_state_bind",
+  "grainline_listing_actor_transaction_source_core",
+  "grainline_listing_children_replace_core",
+  "grainline_listing_detail_source_core",
+  "grainline_listing_materials_guard",
   "grainline_blog_comment_author_public_state_bind",
   "grainline_user_public_blog_state_sync",
   "grainline_seller_public_blog_state_sync",
@@ -1273,8 +1277,7 @@ export function staffReadFunctionIdentitiesForInventory(
     if (identity === oldReviewIdentity) {
       return inventory?.listingDomainPreparationApplied === undefined
         ? true
-        : !inventory.listingDomainPreparationApplied
-          && inventory.listingDomainStaffReviewPredecessorApplied;
+        : inventory.listingDomainStaffReviewPredecessorApplied;
     }
     if (identity === newReviewIdentity) {
       return inventory?.listingDomainPreparationApplied === undefined
