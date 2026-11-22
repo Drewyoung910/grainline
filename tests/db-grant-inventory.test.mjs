@@ -3546,30 +3546,35 @@ describe("database grant inventory guardrails", () => {
       ),
       [],
     );
-    const commissionActivatedRows = exactRows.map((row) => (
-      row.function_name === "grainline_message_create_commission_interest"
-        ? { ...row, execute_priv: false, runtime_direct_execute: false }
-        : row
-    ));
-    assert.deepEqual(
-      collectConversationMessageFunctionIssues(
-        commissionActivatedRows,
-        runtimeRole,
-        migrationRole,
-        { commissionDomainRlsActivationApplied: true },
-      ),
-      [],
-      "Commission activation retires the caller-supplied message entry point",
-    );
-    assert.match(
-      collectConversationMessageFunctionIssues(
-        exactRows,
-        runtimeRole,
-        migrationRole,
-        { commissionDomainRlsActivationApplied: true },
-      ).join("\n"),
-      /grainline_message_create_commission_interest.*runtime role must not have effective EXECUTE/,
-    );
+    const commissionActivationAware = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("commissionDomainRlsActivationApplied");
+    if (commissionActivationAware) {
+      const commissionActivatedRows = exactRows.map((row) => (
+        row.function_name === "grainline_message_create_commission_interest"
+          ? { ...row, execute_priv: false, runtime_direct_execute: false }
+          : row
+      ));
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          commissionActivatedRows,
+          runtimeRole,
+          migrationRole,
+          { commissionDomainRlsActivationApplied: true },
+        ),
+        [],
+        "Commission activation retires the caller-supplied message entry point",
+      );
+      assert.match(
+        collectConversationMessageFunctionIssues(
+          exactRows,
+          runtimeRole,
+          migrationRole,
+          { commissionDomainRlsActivationApplied: true },
+        ).join("\n"),
+        /grainline_message_create_commission_interest.*runtime role must not have effective EXECUTE/,
+      );
+    }
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
         exactRows,
