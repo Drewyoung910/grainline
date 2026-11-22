@@ -88,6 +88,8 @@ import {
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
+const LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
 const LISTING_DOMAIN_PREPARATION_MIGRATION =
   listingDomainPreparationMigrationPath();
 const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
@@ -4216,7 +4218,7 @@ describe("database grant inventory guardrails", () => {
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
     const listingDomainAuthorityPrepared = existsSync(
-      LISTING_DOMAIN_PREPARATION_MIGRATION,
+      LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION,
     ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
       source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
