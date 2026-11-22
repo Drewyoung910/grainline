@@ -2490,6 +2490,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
     ...(sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+    ...(inventory?.commissionDomainRlsActivationApplied === true
+      ? COMMISSION_DOMAIN_TABLES
+      : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -3078,13 +3081,22 @@ export function collectConversationMessageFunctionIssues(
   const accountDeletionActive = accountDeletionSideEffectRlsActivationExpected(
     inventory,
   );
+  const commissionDomainActivated =
+    inventory?.commissionDomainRlsActivationApplied === true;
   const expectedFunctions = conversationMessageAuthorityFunctionsForState({
     blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
     blockActivationApplied: blockRlsActivationExpected(inventory),
   }).flatMap(
     (entry) => {
       if (entry.name !== "grainline_message_redact_for_account_deletion") {
-        return [entry];
+        return [{
+          ...entry,
+          runtimeExecute:
+            entry.name === "grainline_message_create_commission_interest"
+            && commissionDomainActivated
+              ? false
+              : entry.runtimeExecute,
+        }];
       }
       const legacy = {
         ...entry,
@@ -3666,6 +3678,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? userReportRlsForceExpected(inventory)
         : tableName === SELLER_FAQ_TABLE
           ? sellerFaqRlsForceExpected(inventory)
+        : COMMISSION_DOMAIN_TABLE_NAME_SET.has(tableName)
+          ? inventory?.commissionDomainRlsActivationApplied === true
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE

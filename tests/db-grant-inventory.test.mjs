@@ -1534,7 +1534,24 @@ describe("database grant inventory guardrails", () => {
         [],
         "the applied-ledger emergency rollback must leave the global audit fail-closed until a new forward migration",
       );
+      assert.equal(
+        policylessServiceRlsTableNames(commissionDomainActivatedInventory)
+          .includes(tableName),
+        true,
+      );
     }
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        COMMISSION_DOMAIN_TABLES.map((tableName) => ({
+          table_name: tableName,
+          rls_enabled: true,
+          rls_forced: true,
+          policy_count: 0,
+        })),
+        commissionDomainActivatedInventory,
+      ),
+      [],
+    );
     for (const functionName of COMMISSION_DOMAIN_RETIRED_RUNTIME_FUNCTION_NAMES) {
       assert.equal(
         runtimePrivateFunctionNames(commissionDomainPredecessorInventory)
@@ -3528,6 +3545,30 @@ describe("database grant inventory guardrails", () => {
         migrationRole,
       ),
       [],
+    );
+    const commissionActivatedRows = exactRows.map((row) => (
+      row.function_name === "grainline_message_create_commission_interest"
+        ? { ...row, execute_priv: false, runtime_direct_execute: false }
+        : row
+    ));
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        commissionActivatedRows,
+        runtimeRole,
+        migrationRole,
+        { commissionDomainRlsActivationApplied: true },
+      ),
+      [],
+      "Commission activation retires the caller-supplied message entry point",
+    );
+    assert.match(
+      collectConversationMessageFunctionIssues(
+        exactRows,
+        runtimeRole,
+        migrationRole,
+        { commissionDomainRlsActivationApplied: true },
+      ).join("\n"),
+      /grainline_message_create_commission_interest.*runtime role must not have effective EXECUTE/,
     );
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
