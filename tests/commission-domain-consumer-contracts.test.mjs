@@ -63,6 +63,11 @@ test("Commission ban restoration uses a separate snapshot-bound capability", () 
     migration,
     /snapshot_hash :=[\s\S]*DELETE FROM public\."OrderStaffCapability"[\s\S]*"payloadHash" = snapshot_hash/u,
   );
+  assert.doesNotMatch(
+    migration,
+    /pg_catalog\.coalesce/u,
+    "COALESCE is SQL syntax, not a pg_catalog function",
+  );
   assert.match(
     migration,
     /target\.id = p_target_user_id\s+AND target\.banned = false/u,
