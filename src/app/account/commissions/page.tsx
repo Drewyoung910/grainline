@@ -13,6 +13,7 @@ import {
 } from "@/lib/commissionInterestResidualAccess";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import type { CommissionStatus } from "@prisma/client";
+import { ownerCommissionRequestPage } from "@/lib/commissionRequestAccess";
 
 export const metadata: Metadata = { title: "My Commission Requests", robots: { index: false, follow: false } };
 
@@ -39,21 +40,7 @@ export default async function MyCommissionsPage() {
   const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in");
 
-  const requestRows = await prisma.commissionRequest.findMany({
-    where: { buyerId: me.id },
-    orderBy: { createdAt: "desc" },
-    take: 30,
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      status: true,
-      createdAt: true,
-    },
-  });
+  const requestRows = await ownerCommissionRequestPage(me.id, 30);
   const interestSummaries: ReadonlyMap<string, OwnerCommissionInterestSummary> = requestRows.length > 0
     ? await ownerCommissionInterestSummaries(me.id, requestRows.map(({ id }) => id), 3)
     : new Map<string, OwnerCommissionInterestSummary>();

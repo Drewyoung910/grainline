@@ -12,13 +12,12 @@ import {
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { logSecurityEvent } from "@/lib/security";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createCommissionInterestMessage } from "@/lib/commissionInterestMessageAccess";
 import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
-import { userBlockPairIsBlocked } from "@/lib/blockAccess";
+import { publicCommissionRequestDetail } from "@/lib/commissionRequestAccess";
 
 export async function POST(
   req: NextRequest,
@@ -57,36 +56,16 @@ export async function POST(
     );
   }
 
-  const commissionRequest = await prisma.commissionRequest.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      buyerId: true,
-      title: true,
-      description: true,
-      status: true,
-      expiresAt: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      timeline: true,
-      buyerAccountActive: true,
-    },
-  });
+  const commissionRequest = await publicCommissionRequestDetail(me.id, id);
   if (!commissionRequest)
     return privateJson({ error: "Not found" }, { status: 404 });
-  if (!commissionRequest.buyerAccountActive) {
-    return privateJson({ error: "Not found" }, { status: 404 });
-  }
-  if (
-    commissionRequest.status !== "OPEN" ||
-    commissionIsExpired(commissionRequest)
-  ) {
+  if (commissionRequest.status !== "OPEN") {
     return privateJson(
       { error: "Commission request is no longer open" },
       { status: 400 },
     );
   }
-  if (commissionRequest.buyerId === me.id) {
+  if (commissionRequest.isOwner) {
     logSecurityEvent("spam_attempt", {
       userId: me.id,
       route: "/api/commission/interest",
@@ -95,13 +74,6 @@ export async function POST(
     return privateJson(
       { error: "Cannot express interest in your own request" },
       { status: 400 },
-    );
-  }
-
-  if (await userBlockPairIsBlocked(me.id, commissionRequest.buyerId)) {
-    return privateJson(
-      { error: "Unable to express interest." },
-      { status: 403 },
     );
   }
 

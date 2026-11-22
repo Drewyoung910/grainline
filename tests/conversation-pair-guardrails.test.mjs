@@ -50,6 +50,7 @@ describe("conversation participant pair guardrails", () => {
     assert.doesNotMatch(commissionInterest, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(commissionInterest, /createCommissionInterestMessage/);
     assert.match(commissionInterestAccess, /createActorCommissionInterest\(input\)/);
-    assert.match(authority, /public\.grainline_message_create_commission_interest/);
+    assert.match(authority, /public\.grainline_commission_interest_actor_create/);
+    assert.match(authority, /withDbUserContext\(sellerUserId/);
   });
 });

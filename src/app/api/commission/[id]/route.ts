@@ -7,17 +7,17 @@ import { prisma } from "@/lib/db";
 import { userClerkGate, userIdByClerkId } from "@/lib/userIdentityAccess";
 import { CommissionStatus } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { getBlockedIdsFor } from "@/lib/blocks";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
 import {
   publicCommissionInterestCards,
   publicCommissionInterestCounts,
 } from "@/lib/commissionInterestCount";
-import { commissionInterestNotificationTargets } from "@/lib/commissionInterestResidualAccess";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { openCommissionMutationWhere } from "@/lib/commissionState";
+import {
+  publicCommissionRequestDetail,
+  transitionOwnerCommissionRequest,
+} from "@/lib/commissionRequestAccess";
 import { commissionStatusRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import {
   isInvalidJsonBodyError,
@@ -31,7 +31,6 @@ const CommissionPatchSchema = z.object({
 });
 
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
-const COMMISSION_INTEREST_NOTIFY_LIMIT = 10000;
 const COMMISSION_STATUS_BODY_MAX_BYTES = 8 * 1024;
 
 export async function GET(
@@ -49,29 +48,7 @@ export async function GET(
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const { blockedUserIds } = await getBlockedIdsFor(meId);
-
-  const request = await prisma.commissionRequest.findFirst({
-    where: openCommissionWhere({
-      id,
-      ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
-    }),
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      timeline: true,
-      referenceImageUrls: true,
-      status: true,
-      expiresAt: true,
-      createdAt: true,
-      buyerName: true,
-      buyerImageUrl: true,
-    },
-  });
+  const request = await publicCommissionRequestDetail(meId, id);
 
   if (!request) return privateJson({ error: "Not found" }, { status: 404 });
 
@@ -79,11 +56,20 @@ export async function GET(
     publicCommissionInterestCounts([request.id], meId),
     publicCommissionInterestCards(request.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT),
   ]);
-  const { buyerName, buyerImageUrl, ...requestBody } = request;
   return privateJson({
-    ...requestBody,
+    id: request.id,
+    title: request.title,
+    description: request.description,
+    category: request.category,
+    budgetMinCents: request.budgetMinCents,
+    budgetMaxCents: request.budgetMaxCents,
+    timeline: request.timeline,
+    referenceImageUrls: request.referenceImageUrls,
+    status: request.status,
+    expiresAt: request.expiresAt,
+    createdAt: request.createdAt,
     interestedCount: interestCounts.get(request.id) ?? 0,
-    buyer: { name: buyerName, imageUrl: buyerImageUrl },
+    buyer: { name: request.buyerName, imageUrl: request.buyerImageUrl },
     interests: interests.map((interest) => ({
       createdAt: interest.createdAt,
       sellerProfile: interest.sellerProfile,
@@ -106,24 +92,6 @@ export async function PATCH(
   if (!me) return privateJson({ error: "User not found" }, { status: 401 });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
 
-  const request = await prisma.commissionRequest.findUnique({
-    where: { id },
-    select: {
-      buyerId: true,
-      status: true,
-      expiresAt: true,
-      title: true,
-    },
-  });
-  if (!request) return privateJson({ error: "Not found" }, { status: 404 });
-  if (request.buyerId !== me.id) return privateJson({ error: "Forbidden" }, { status: 403 });
-  if (request.status !== CommissionStatus.OPEN) {
-    return privateJson({ error: "Commission request is no longer open" }, { status: 400 });
-  }
-  if (commissionIsExpired(request)) {
-    return privateJson({ error: "Commission request has expired" }, { status: 400 });
-  }
-
   let patchParsed;
   try {
     patchParsed = CommissionPatchSchema.parse(await readBoundedJson(req, COMMISSION_STATUS_BODY_MAX_BYTES));
@@ -140,19 +108,18 @@ export async function PATCH(
     throw e;
   }
   const { status } = patchParsed;
-  const interestedSellerUserIds = await commissionInterestNotificationTargets(
+  const transition = await transitionOwnerCommissionRequest(
+    me.id,
     id,
-    COMMISSION_INTEREST_NOTIFY_LIMIT,
+    status,
   );
-  if ((status as CommissionStatus) === CommissionStatus.FULFILLED && interestedSellerUserIds.length === 0) {
+  if (transition.outcome === "not_found") {
+    return privateJson({ error: "Not found" }, { status: 404 });
+  }
+  if (transition.outcome === "needs_interest") {
     return privateJson({ error: "A commission request needs at least one interested maker before it can be fulfilled." }, { status: 400 });
   }
-
-  const result = await prisma.commissionRequest.updateMany({
-    where: openCommissionMutationWhere(id, new Date(), { buyerId: me.id }),
-    data: { status: status as CommissionStatus },
-  });
-  if (result.count === 0) {
+  if (transition.outcome === "not_open") {
     return privateJson({ error: "Commission request is no longer open" }, { status: 409 });
   }
   const updated = { id, status: status as CommissionStatus };
@@ -162,7 +129,7 @@ export async function PATCH(
   after(async () => {
     try {
       await mapWithConcurrency(
-        interestedSellerUserIds,
+        transition.sellerUserIds,
         10,
         (interestedSellerUserId) =>
           createNotification({
@@ -170,8 +137,8 @@ export async function PATCH(
             type: "COMMISSION_INTEREST",
             title: isFulfilled ? "Commission request fulfilled" : "Commission request closed",
             body: isFulfilled
-              ? `The request "${request.title}" has been fulfilled. Thanks for your interest!`
-              : `The request "${request.title}" has been closed by the buyer.`,
+              ? `The request "${transition.title}" has been fulfilled. Thanks for your interest!`
+              : `The request "${transition.title}" has been closed by the buyer.`,
             link: isFulfilled ? `/commission/${id}` : `/commission`,
             dedupScope: id,
             relatedUserId: me.id,
@@ -186,7 +153,7 @@ export async function PATCH(
         extra: {
           commissionRequestId: id,
           status,
-          interestedSellerCount: interestedSellerUserIds.length,
+          interestedSellerCount: transition.sellerUserIds.length,
         },
       });
     }

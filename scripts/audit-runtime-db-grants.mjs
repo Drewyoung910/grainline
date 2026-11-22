@@ -138,6 +138,8 @@ const EMAIL_SERVICE_PREPARATION_RELEASE =
   privateTablePreparation("email_service_v1");
 const LISTING_DOMAIN_PREPARATION_RELEASE =
   privateTablePreparation("listing_domain_v1");
+const COMMISSION_DOMAIN_PREPARATION_RELEASE =
+  privateTablePreparation("commission_domain_v1");
 const BLOCK_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("block_v1");
 const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
@@ -170,6 +172,15 @@ export const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze(
 );
 export const LISTING_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES = Object.freeze(
   LISTING_DOMAIN_PREPARATION_RELEASE.functions
+    .filter((entry) => !entry.predecessorSourceSha256)
+    .map((entry) => entry.name),
+);
+export const COMMISSION_DOMAIN_PREPARATION_MIGRATION =
+  COMMISSION_DOMAIN_PREPARATION_RELEASE.migration;
+export const COMMISSION_DOMAIN_PREPARATION_MIGRATION_SHA256 =
+  COMMISSION_DOMAIN_PREPARATION_RELEASE.migrationSha256;
+export const COMMISSION_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES = Object.freeze(
+  COMMISSION_DOMAIN_PREPARATION_RELEASE.functions
     .filter((entry) => !entry.predecessorSourceSha256)
     .map((entry) => entry.name),
 );
@@ -1065,6 +1076,26 @@ export function withAppliedListingDomainPreparation(
       featuredTogglePredecessorApplied,
     listingDomainMessageListPredecessorApplied:
       messageListPredecessorApplied,
+  };
+}
+
+const COMMISSION_DOMAIN_PREPARATION_NEW_FUNCTION_NAME_SET = new Set(
+  COMMISSION_DOMAIN_PREPARATION_NEW_FUNCTION_NAMES,
+);
+
+export function withAppliedCommissionDomainPreparation(
+  inventory,
+  preparationApplied,
+) {
+  const functions = preparationApplied
+    ? [...(inventory?.functions ?? [])]
+    : (inventory?.functions ?? []).filter(
+      (name) => !COMMISSION_DOMAIN_PREPARATION_NEW_FUNCTION_NAME_SET.has(name),
+    );
+  return {
+    ...inventory,
+    functions: sortedUnique(functions),
+    commissionDomainPreparationApplied: preparationApplied,
   };
 }
 
@@ -2107,6 +2138,14 @@ export async function readListingDomainPreparationState(client) {
     migration: LISTING_DOMAIN_PREPARATION_MIGRATION,
     checksum: LISTING_DOMAIN_PREPARATION_MIGRATION_SHA256,
     label: "Listing domain compatible preparation",
+  });
+}
+
+export async function readCommissionDomainPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: COMMISSION_DOMAIN_PREPARATION_MIGRATION,
+    checksum: COMMISSION_DOMAIN_PREPARATION_MIGRATION_SHA256,
+    label: "Commission domain compatible preparation",
   });
 }
 
@@ -3991,6 +4030,9 @@ export async function auditLiveDatabase({
   const listingDomainRlsActivation =
     await readListingDomainRlsActivationState(client);
   issues.push(...listingDomainRlsActivation.issues);
+  const commissionDomainPreparation =
+    await readCommissionDomainPreparationState(client);
+  issues.push(...commissionDomainPreparation.issues);
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -4101,7 +4143,8 @@ export async function auditLiveDatabase({
     },
   );
   const liveAuthorityInventory = {
-    ...withAppliedListingDomainPreparation(
+    ...withAppliedCommissionDomainPreparation(
+      withAppliedListingDomainPreparation(
       withAppliedEmailServicePreparation(
         liveEmailDeliveryAuthorityInventory,
         emailServicePreparation.applied,
@@ -4115,6 +4158,8 @@ export async function auditLiveDatabase({
         messageListPredecessorApplied:
           listingDomainMessageListPredecessor.applied,
       },
+      ),
+      commissionDomainPreparation.applied,
     ),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
@@ -4141,6 +4186,7 @@ export async function auditLiveDatabase({
     userReportRlsActivationApplied: userReportRlsActivation.applied,
     sellerFaqRlsActivationApplied: sellerFaqRlsActivation.applied,
     listingDomainRlsActivationApplied: listingDomainRlsActivation.applied,
+    commissionDomainPreparationApplied: commissionDomainPreparation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,
