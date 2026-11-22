@@ -1656,10 +1656,14 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_complete",
       "grainline_seller_owner_public_state_bind",
       "grainline_user_public_seller_state_sync",
-      "grainline_listing_actor_transaction_source_core",
-      "grainline_listing_children_replace_core",
-      "grainline_listing_detail_source_core",
-      "grainline_listing_materials_guard",
+      ...(existsSync(LISTING_DOMAIN_PREPARATION_LIVE_MIGRATION)
+        ? [
+            "grainline_listing_actor_transaction_source_core",
+            "grainline_listing_children_replace_core",
+            "grainline_listing_detail_source_core",
+            "grainline_listing_materials_guard",
+          ]
+        : []),
       ...(existsSync(REVIEW_VOTE_PREPARATION_MIGRATION)
         ? [
             "grainline_review_vote_insert_guard",
