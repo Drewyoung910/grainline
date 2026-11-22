@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
-import { databaseFullChainPostgresTestPath } from "./helpers/isolated-test-source-paths.mjs";
+import {
+  databaseFullChainPostgresTestPath,
+  orderStaffReadRoleProvisionTestPath,
+} from "./helpers/isolated-test-source-paths.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -22,7 +25,7 @@ test("staff Listing references and verification counts use isolated bounded auth
     readFile(new URL("src/app/admin/reports/page.tsx", root), "utf8"),
     readFile(new URL("src/app/admin/verification/page.tsx", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
-    readFile(new URL("scripts/provision-order-staff-read-role.sql", root), "utf8"),
+    readFile(orderStaffReadRoleProvisionTestPath(), "utf8"),
     readFile(databaseFullChainPostgresTestPath(), "utf8"),
     readFile(new URL("tools/database-full-chain/scenarios/listing-domain-staff-references.mjs", root), "utf8"),
   ]);

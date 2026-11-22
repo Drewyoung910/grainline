@@ -22,3 +22,11 @@ export function dbGrantInventoryTestPath() {
     "database grant inventory",
   );
 }
+
+export function orderStaffReadRoleProvisionTestPath() {
+  return requiredTestSourcePath(
+    "ORDER_STAFF_READ_ROLE_PROVISION_TEST_PATH",
+    "scripts/provision-order-staff-read-role.sql",
+    "order staff read role provisioning",
+  );
+}

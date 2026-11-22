@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
-import { databaseFullChainPostgresTestPath } from "./helpers/isolated-test-source-paths.mjs";
+import {
+  databaseFullChainPostgresTestPath,
+  orderStaffReadRoleProvisionTestPath,
+} from "./helpers/isolated-test-source-paths.mjs";
 
 import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
 
@@ -37,7 +40,7 @@ test("Listing review and customer-photo history use bounded reusable authorities
     readFile(new URL("src/app/seller/[id]/customer-photos/page.tsx", root), "utf8"),
     readFile(new URL("src/lib/accountDeletion.ts", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
-    readFile(new URL("scripts/provision-order-staff-read-role.sql", root), "utf8"),
+    readFile(orderStaffReadRoleProvisionTestPath(), "utf8"),
     readFile(databaseFullChainPostgresTestPath(), "utf8"),
   ]);
 
