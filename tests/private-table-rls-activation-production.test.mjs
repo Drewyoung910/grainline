@@ -9,6 +9,7 @@ import {
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
 import {
+  functionSourceFromMigration,
   privateTableFunctionExecuteRoles,
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
@@ -115,6 +116,14 @@ function policyRows(selectedRelease) {
 }
 
 function functionRows(selectedRelease = release, selectedVerified = verified, active = false) {
+  const retainedSourceFiles = {
+    grainline_message_create_commission_interest:
+      "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+    grainline_direct_upload_sync_commission_request:
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
+    grainline_seller_service_commission_interest_targets:
+      "prisma/migrations/20261020235500_prepare_seller_profile_commission_interest_residual_authorities/migration.sql",
+  };
   const entries = selectedRelease.preparation.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
@@ -124,6 +133,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
     source: selectedVerified.preparation.functionSources.get(entry.name),
   }));
   for (const retained of selectedRelease.functionChanges.retained) {
+    const sourceFile = retainedSourceFiles[retained.name];
     entries.push({
       name: retained.name,
       arguments: retained.arguments,
@@ -131,7 +141,9 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
         ? retained.activatedExecuteRole
         : retained.predecessorExecuteRole,
       securityDefiner: retained.securityDefiner,
-      source: "retained source",
+      source: sourceFile
+        ? functionSourceFromMigration(readFileSync(sourceFile, "utf8"), retained.name)
+        : "retained source",
     });
   }
   if (active) {
@@ -385,6 +397,43 @@ test("inspector proves the four-table Listing catalog as one activation", async 
         active.postures[tableName].nonOwnerColumnAclCount,
         selectedRelease.activatedRuntimeColumns[tableName].length,
       );
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector proves the two-table Commission domain as one activation", async () => {
+  const selectedReleaseId = "commission_domain_v1";
+  const selectedRelease = privateTableRlsActivation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "commission-domain-activation-"));
+  try {
+    const preEnv = environment(directory, "preflight", undefined, selectedReleaseId);
+    const ready = await inspectPrivateTableRlsActivationProduction(
+      preEnv,
+      { Client: fakeClientClass({ active: false, selectedRelease, selectedVerified }) },
+    );
+    assert.equal(ready.state, "ready");
+    assert.deepEqual(ready.tables, selectedRelease.tables);
+
+    const postEnv = environment(
+      directory,
+      "postflight",
+      preEnv.PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH,
+      selectedReleaseId,
+    );
+    const active = await inspectPrivateTableRlsActivationProduction(
+      postEnv,
+      { Client: fakeClientClass({ active: true, selectedRelease, selectedVerified }) },
+    );
+    assert.equal(active.state, "active");
+    assert.equal(Object.keys(active.postures).length, 2);
+    assert.equal(active.policies.length, 0);
+    for (const tableName of selectedRelease.tables) {
+      assert.equal(active.postures[tableName].rlsEnabled, true);
+      assert.equal(active.postures[tableName].rlsForced, true);
+      assert.equal(active.postures[tableName].nonOwnerTableAclCount, 0);
     }
   } finally {
     rmSync(directory, { recursive: true, force: true });

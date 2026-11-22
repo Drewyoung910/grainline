@@ -6566,4 +6566,98 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- The activation migration retires three legacy entry points as well as all
+-- direct table CRUD. Derive this transition from the exact reviewed migration
+-- ledger plus the complete two-table posture. A database-first emergency
+-- rollback intentionally keeps the successful ledger row but restores the
+-- clean predecessor posture, which this block preserves on later provisioning
+-- runs instead of silently undoing the rollback.
+-- BEGIN COMMISSION_DOMAIN_PROVISIONING_DECISION
+WITH ledger AS (
+  SELECT
+    COUNT(*)::integer AS row_count,
+    COUNT(*) FILTER (
+      WHERE checksum =
+        'b84685453deef07f43cce445982eb6f0859ac9ee59442b5d4f0302d87525664f'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+    )::integer AS success_count,
+    COUNT(*) FILTER (
+      WHERE checksum <>
+        'b84685453deef07f43cce445982eb6f0859ac9ee59442b5d4f0302d87525664f'
+         OR (
+           rolled_back_at IS NULL
+           AND (
+             finished_at IS NULL
+             OR applied_steps_count NOT IN (0, 1)
+           )
+         )
+    )::integer AS invalid_count
+  FROM public._prisma_migrations
+  WHERE migration_name = '20261113020000_activate_commission_domain_rls'
+), table_state AS (
+  SELECT relation.relname,
+         relation.relrowsecurity,
+         relation.relforcerowsecurity,
+         COUNT(policy.oid)::integer AS policy_count
+    FROM pg_catalog.pg_class AS relation
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = relation.relnamespace
+    LEFT JOIN pg_catalog.pg_policy AS policy
+      ON policy.polrelid = relation.oid
+   WHERE namespace.nspname = 'public'
+     AND relation.relname IN ('CommissionRequest', 'CommissionInterest')
+     AND relation.relkind = 'r'
+   GROUP BY relation.relname, relation.relrowsecurity,
+            relation.relforcerowsecurity
+), posture AS (
+  SELECT COUNT(*) = 2
+           AND bool_and(relrowsecurity AND relforcerowsecurity AND policy_count = 0)
+           AS active,
+         COUNT(*) = 2
+           AND bool_and(NOT relrowsecurity AND NOT relforcerowsecurity
+                        AND policy_count = 0)
+           AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT 'Commission activation ledger or table posture drifted; refusing runtime-role provisioning'
+           AS message
+    FROM ledger CROSS JOIN posture
+   WHERE invalid_count <> 0
+      OR success_count > 1
+      OR (active AND success_count <> 1)
+      OR (NOT active AND NOT clean_predecessor)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT success_count = 1 AND active FROM ledger CROSS JOIN posture), false)
+    AS grainline_commission_domain_rls_active;
+-- END COMMISSION_DOMAIN_PROVISIONING_DECISION
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_commission_domain_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_commission_domain_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_commission_domain_rls_active
+REVOKE ALL ON TABLE
+  public."CommissionRequest", public."CommissionInterest"
+  FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION
+  public.grainline_message_create_commission_interest(text, text, text, text, text),
+  public.grainline_direct_upload_sync_commission_request(text, text),
+  public.grainline_seller_service_commission_interest_targets(text, integer)
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_commission_domain_rls_active
+
 COMMIT;

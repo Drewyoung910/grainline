@@ -133,6 +133,8 @@ const listingDomainActivationMigration =
   "20261102060000_activate_listing_domain_rls";
 const commissionDomainPreparationMigration =
   "20261113010000_prepare_commission_domain_authorities";
+const commissionDomainActivationMigration =
+  "20261113020000_activate_commission_domain_rls";
 const serviceReferenceLeastPrivilegeMigration =
   "20261101020000_narrow_service_reference_runtime_privileges";
 const emailServiceLeastPrivilegeMigration =
@@ -931,6 +933,28 @@ test("Listing domain candidates are isolated and restored around historical guar
   assert.ok(workflow.indexOf(predecessorReplay) < workflow.indexOf(restoreName));
 });
 
+test("Commission domain preparation and activation are isolated and restored together", () => {
+  const isolateName =
+    "Isolate Commission domain source packages until historical release guards pass";
+  const predecessorReplay =
+    "Prepare SellerProfile public predecessor schema for historical audit replay";
+  const restoreName =
+    "Restore Commission domain source packages after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of [
+    commissionDomainPreparationMigration,
+    commissionDomainActivationMigration,
+  ]) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.match(isolate, /COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH/u);
+  assert.match(isolate, /COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH/u);
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(predecessorReplay));
+  assert.ok(workflow.indexOf(predecessorReplay) < workflow.indexOf(restoreName));
+});
+
 test("service and reference least privilege is proved, isolated, and restored around historical guards", () => {
   const verifyName = "Verify service and reference least-privilege source package";
   const isolateName = "Isolate service and reference least-privilege migration until historical release guards pass";
@@ -1301,6 +1325,24 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const commissionDomainActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      commissionDomainActivationMigration,
+    );
+    if (!existsSync(commissionDomainActivationTarget)) {
+      cpSync(
+        path.join(
+          process.cwd(),
+          "prisma",
+          "migrations",
+          commissionDomainActivationMigration,
+        ),
+        commissionDomainActivationTarget,
+        { recursive: true },
+      );
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
@@ -1462,8 +1504,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     ].map((migration) => `prisma/migrations/${migration}/migration.sql`).filter(
       (relative) => existsSync(path.join(root, relative)),
     );
-    const commissionDomainPreparationPath =
-      `prisma/migrations/${commissionDomainPreparationMigration}/migration.sql`;
+    const commissionDomainCandidatePaths = [
+      commissionDomainPreparationMigration,
+      commissionDomainActivationMigration,
+    ].map((migration) => `prisma/migrations/${migration}/migration.sql`);
     const serviceReferenceLeastPrivilegePath =
       `prisma/migrations/${serviceReferenceLeastPrivilegeMigration}/migration.sql`;
     const emailServiceLeastPrivilegePath =
@@ -1505,7 +1549,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       sellerFaqPreparationPath,
       sellerFaqActivationPath,
       ...listingDomainCandidatePaths,
-      commissionDomainPreparationPath,
+      ...commissionDomainCandidatePaths,
       serviceReferenceLeastPrivilegePath,
       emailServiceLeastPrivilegePath,
       favoritePreparationPath,
@@ -1555,7 +1599,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate UserReport source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SellerFaq source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate Listing domain source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
-    execFileSync("bash", ["-c", bashBody("Isolate Commission domain preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate Commission domain source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate service and reference least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email service least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1594,7 +1638,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.ok(listingDomainCandidatePaths.every(
       (relative) => !existsSync(path.join(root, relative)),
     ));
-    assert.equal(existsSync(path.join(root, commissionDomainPreparationPath)), false);
+    assert.ok(commissionDomainCandidatePaths.every(
+      (relative) => !existsSync(path.join(root, relative)),
+    ));
     assert.equal(existsSync(path.join(root, serviceReferenceLeastPrivilegePath)), false);
     assert.equal(existsSync(path.join(root, emailServiceLeastPrivilegePath)), false);
     assert.equal(existsSync(path.join(root, favoritePreparationPath)), false);
@@ -1673,7 +1719,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore UserReport source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerFaq source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore Listing domain source packages after historical release guards")], { cwd: root, env: scriptEnv });
-    execFileSync("bash", ["-c", bashBody("Restore Commission domain preparation after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore Commission domain source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore service and reference least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email service least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });

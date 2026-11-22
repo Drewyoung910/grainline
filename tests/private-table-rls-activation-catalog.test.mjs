@@ -130,6 +130,40 @@ test("Listing activation pins an ancestral compatible application", () => {
   ));
 });
 
+test("Commission activation binds both tables and exact predecessor retirements", () => {
+  const commission = privateTableRlsActivation("commission_domain_v1");
+  const source = verifyPrivateTableRlsActivationSource("commission_domain_v1");
+  assert.deepEqual(commission.tables, ["CommissionRequest", "CommissionInterest"]);
+  assert.equal(commission.mode, "policyless_domain_combined_enable_force");
+  assert.deepEqual(commission.policies, []);
+  assert.deepEqual(
+    commission.functionChanges.retained.map((entry) => ({
+      identity: `${entry.name}(${entry.arguments.replace(/,\s+/gu, ",")})`,
+      before: entry.predecessorExecuteRole,
+      after: entry.activatedExecuteRole,
+    })),
+    [
+      {
+        identity: "grainline_message_create_commission_interest(text,text,text,text,text)",
+        before: "runtime",
+        after: "none",
+      },
+      {
+        identity: "grainline_direct_upload_sync_commission_request(text,text)",
+        before: "runtime",
+        after: "none",
+      },
+      {
+        identity: "grainline_seller_service_commission_interest_targets(text,integer)",
+        before: "runtime",
+        after: "none",
+      },
+    ],
+  );
+  assert.equal(source.migrationDigest, commission.migrationSha256);
+  assert.equal(source.rollbackDigest, commission.rollbackSha256);
+});
+
 test("batch source verification prefers each release's staged paths", () => {
   const sourceByRelease = Object.fromEntries(
     privateTableRlsActivationReleaseIds("owner_social_verification_v1")

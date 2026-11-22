@@ -44,6 +44,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
   listing_domain_v1: "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -54,6 +55,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
   listing_domain_v1: "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 const LISTING_DOMAIN_TABLES = Object.freeze([
@@ -363,6 +365,56 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
   }),
+  commission_domain_v1: Object.freeze({
+    preparationReleaseId: "commission_domain_v1",
+    minimumCompatibleAppCommit: "df86093585b4cf6487632c4b0605541f2c5a7a5c",
+    migration: "20261113020000_activate_commission_domain_rls",
+    migrationSha256: "b84685453deef07f43cce445982eb6f0859ac9ee59442b5d4f0302d87525664f",
+    rollbackPath: "docs/rls-drafts/commission-domain-activation-rollback.sql",
+    rollbackSha256: "66bda831ef54d1b9d6ec6ce1d330b2a083ece0eba9599fe555ecd7f88eacc66f",
+    table: "CommissionRequest",
+    tables: Object.freeze(["CommissionRequest", "CommissionInterest"]),
+    mode: "policyless_domain_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/commission-domain-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: Object.freeze({
+      retained: Object.freeze([
+        Object.freeze({
+          name: "grainline_message_create_commission_interest",
+          arguments: "text, text, text, text, text",
+          sourceMd5: "8247283d3e79765eceac777d091b0dd0",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+        Object.freeze({
+          name: "grainline_direct_upload_sync_commission_request",
+          arguments: "text, text",
+          sourceMd5: "ade11756e28500c0c17f053c6e0a5b65",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+        Object.freeze({
+          name: "grainline_seller_service_commission_interest_targets",
+          arguments: "text, integer",
+          sourceMd5: "ea3bea27379b693177990a09cc5f2651",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+      ]),
+      replacements: Object.freeze([]),
+      additions: Object.freeze([]),
+    }),
+  }),
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
@@ -538,6 +590,82 @@ export function verifyPrivateTableRlsActivationSource(
     ))
   ) {
     throw stopped("source-test catalog is invalid");
+  }
+  if (release.mode === "policyless_domain_combined_enable_force") {
+    if (
+      !Array.isArray(release.tables)
+      || release.tables.length < 2
+      || new Set(release.tables).size !== release.tables.length
+      || !release.tables.includes(release.table)
+      || release.policies.length !== 0
+      || release.activatedRuntimePrivileges.length !== 0
+      || release.activatedStaffPrivileges.length !== 0
+      || release.activatedPublicPrivileges.length !== 0
+      || release.functionChanges.replacements.length !== 0
+      || release.functionChanges.additions.length !== 0
+    ) {
+      throw stopped("policyless-domain activation catalog is invalid");
+    }
+    const activationLock = activation.sql.match(
+      /LOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE/iu,
+    )?.[1] ?? "";
+    const rollbackLock = rollback.sql.match(
+      /LOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE/iu,
+    )?.[1] ?? "";
+    for (const table of release.tables) {
+      const tablePattern = `public\\."${escapeRegExp(table)}"`;
+      if (
+        !activationLock.includes(`public."${table}"`)
+        || !rollbackLock.includes(`public."${table}"`)
+        || !new RegExp(`ALTER\\s+TABLE\\s+${tablePattern}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`, "iu").test(activation.sql)
+        || !new RegExp(`ALTER\\s+TABLE\\s+${tablePattern}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`, "iu").test(activation.sql)
+        || !new RegExp(`ALTER\\s+TABLE\\s+${tablePattern}\\s+NO\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`, "iu").test(rollback.sql)
+        || !new RegExp(`ALTER\\s+TABLE\\s+${tablePattern}\\s+DISABLE\\s+ROW\\s+LEVEL\\s+SECURITY`, "iu").test(rollback.sql)
+      ) {
+        throw stopped(`policyless-domain table transition drifted for ${table}`);
+      }
+    }
+    if (
+      /\bCREATE\s+POLICY\b/iu.test(activation.sql)
+      || /\b(?:NO\s+FORCE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(activation.sql)
+      || /\b(?:ENABLE|FORCE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(
+        rollback.sql.replace(/NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/giu, ""),
+      )
+      || /\bCREATE\s+POLICY\b/iu.test(rollback.sql)
+      || /\bDROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER|POLICY)\b/iu.test(activation.sql)
+      || /\bDROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER|POLICY)\b/iu.test(rollback.sql)
+    ) {
+      throw stopped("policyless-domain activation or rollback is destructive");
+    }
+    for (const entry of preparation.release.functions) {
+      const literal = signatureLiteral(entry).replaceAll("'", "''");
+      if (!activation.sql.includes(`'${literal}'`)) {
+        throw stopped(`reviewed operation ${literal} is absent from activation preflight`);
+      }
+    }
+    for (const change of release.functionChanges.retained) {
+      const literal = signatureLiteral(change);
+      if (
+        !activation.sql.includes(literal)
+        || !rollback.sql.includes(literal)
+        || !/^[0-9a-f]{32}$/u.test(change.sourceMd5)
+        || typeof change.securityDefiner !== "boolean"
+        || change.predecessorExecuteRole !== "runtime"
+        || change.activatedExecuteRole !== "none"
+      ) {
+        throw stopped(`retained function transition drifted for ${literal}`);
+      }
+    }
+    return Object.freeze({
+      releaseId,
+      release,
+      preparation,
+      migrationPath: activation.path,
+      migrationDigest: activation.digest,
+      rollbackPath: rollback.path,
+      rollbackDigest: rollback.digest,
+      activeFunctionSources: new Map(),
+    });
   }
   if (release.mode === "public_catalog_combined_enable_force") {
     if (

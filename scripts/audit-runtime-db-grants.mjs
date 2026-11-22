@@ -147,6 +147,8 @@ const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_faq_v1");
 const LISTING_DOMAIN_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("listing_domain_v1");
+const COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("commission_domain_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
@@ -223,6 +225,19 @@ export const LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION =
   LISTING_DOMAIN_RLS_ACTIVATION_RELEASE.migration;
 export const LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256 =
   LISTING_DOMAIN_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION =
+  COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE.migration;
+export const COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256 =
+  COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const COMMISSION_DOMAIN_TABLES = Object.freeze(
+  [...COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE.tables],
+);
+const COMMISSION_DOMAIN_TABLE_NAME_SET = new Set(COMMISSION_DOMAIN_TABLES);
+export const COMMISSION_DOMAIN_RETIRED_RUNTIME_FUNCTION_NAMES = Object.freeze(
+  COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE.functionChanges.retained.map(
+    (entry) => entry.name,
+  ),
+);
 export const LISTING_DOMAIN_TABLES = Object.freeze(
   [...LISTING_DOMAIN_RLS_ACTIVATION_RELEASE.tables],
 );
@@ -1924,6 +1939,8 @@ export function runtimePrivateFunctionNames(inventory) {
     typeof inventory?.blockRlsActivationApplied === "boolean"
       ? inventory.blockRlsActivationApplied
       : blockRlsActivationExpected(inventory);
+  const commissionDomainActivated =
+    inventory?.commissionDomainRlsActivationApplied === true;
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1933,6 +1950,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !sellerProfilePrivatePredecessorPrepared
     && !followActivated
     && !blockActivated
+    && !commissionDomainActivated
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -1964,6 +1982,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(blockActivated
       ? BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(commissionDomainActivated
+      ? COMMISSION_DOMAIN_RETIRED_RUNTIME_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -2199,6 +2220,14 @@ export async function readListingDomainRlsActivationState(client) {
     migration: LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION,
     checksum: LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
     label: "Listing domain RLS activation",
+  });
+}
+
+export async function readCommissionDomainRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION,
+    checksum: COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "Commission domain RLS activation",
   });
 }
 
@@ -3514,6 +3543,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && inventory?.listingDomainRlsActivationApplied === true
     )
     || (
+      COMMISSION_DOMAIN_TABLE_NAME_SET.has(tableName)
+      && inventory?.commissionDomainRlsActivationApplied === true
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -4027,6 +4060,9 @@ export async function auditLiveDatabase({
   const listingDomainRlsActivation =
     await readListingDomainRlsActivationState(client);
   issues.push(...listingDomainRlsActivation.issues);
+  const commissionDomainRlsActivation =
+    await readCommissionDomainRlsActivationState(client);
+  issues.push(...commissionDomainRlsActivation.issues);
   const commissionDomainPreparation =
     await readCommissionDomainPreparationState(client);
   issues.push(...commissionDomainPreparation.issues);
@@ -4183,6 +4219,7 @@ export async function auditLiveDatabase({
     userReportRlsActivationApplied: userReportRlsActivation.applied,
     sellerFaqRlsActivationApplied: sellerFaqRlsActivation.applied,
     listingDomainRlsActivationApplied: listingDomainRlsActivation.applied,
+    commissionDomainRlsActivationApplied: commissionDomainRlsActivation.applied,
     commissionDomainPreparationApplied: commissionDomainPreparation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([

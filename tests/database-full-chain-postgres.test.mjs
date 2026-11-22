@@ -189,6 +189,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   [USER_REPORT_RLS_MIGRATION, "user_report_v1"],
   [SELLER_FAQ_RLS_MIGRATION, "seller_faq_v1"],
   ["20261102060000_activate_listing_domain_rls", "listing_domain_v1"],
+  ["20261113020000_activate_commission_domain_rls", "commission_domain_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -1194,6 +1195,7 @@ test(
         connectionString: proofDatabaseUrl,
         database: adapter,
         seller: fixture,
+        repositoryRoot,
       });
       await proveSellerProfileBlockFollowCleanup({
         database: adapter,
