@@ -6886,6 +6886,10 @@ describe("database grant inventory guardrails", () => {
       );
       assert.match(
         provision,
+        /listing_domain_activation[\s\S]*20261102060000_activate_listing_domain_rls[\s\S]*column_grants[\s\S]*SELECT applied FROM listing_domain_activation[\s\S]*'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'/,
+      );
+      assert.match(
+        provision,
         /listing_domain_table_acl_state[\s\S]*acl\.privilege_type NOT IN \('SELECT', 'INSERT', 'UPDATE', 'DELETE'\)[\s\S]*NOT COALESCE\([\s\S]*table_acl\.drifted[\s\S]*false/,
       );
       assert.match(
