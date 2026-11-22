@@ -87,19 +87,6 @@ BEGIN
            ) AS acl
           WHERE acl.grantee <> relation_state.relowner
        )
-       OR (
-         SELECT pg_catalog.count(*)
-           FROM pg_catalog.aclexplode(
-             COALESCE(relation_state.relacl,
-                      pg_catalog.acldefault('r', relation_state.relowner))
-           ) AS acl
-          WHERE acl.grantee = relation_state.relowner
-            AND acl.privilege_type IN (
-              'SELECT', 'INSERT', 'UPDATE', 'DELETE',
-              'TRUNCATE', 'REFERENCES', 'TRIGGER'
-            )
-            AND acl.is_grantable
-       ) <> 7
        OR EXISTS (
          SELECT 1
            FROM pg_catalog.pg_attribute AS attribute
@@ -113,10 +100,10 @@ BEGIN
 
   FOR legacy IN
     SELECT * FROM (VALUES
-      ('public.grainline_message_create_commission_interest(text,text,text,text,text)', '8247283d3e79765eceac777d091b0dd0', 'v'),
-      ('public.grainline_direct_upload_sync_commission_request(text,text)', 'ade11756e28500c0c17f053c6e0a5b65', 'v'),
-      ('public.grainline_seller_service_commission_interest_targets(text,integer)', 'ea3bea27379b693177990a09cc5f2651', 's')
-    ) AS expected(identity, source_md5, volatility)
+      ('public.grainline_message_create_commission_interest(text,text,text,text,text)', '8247283d3e79765eceac777d091b0dd0', 'v', 'pg_catalog.record'),
+      ('public.grainline_direct_upload_sync_commission_request(text,text)', 'ade11756e28500c0c17f053c6e0a5b65', 'v', 'pg_catalog.record'),
+      ('public.grainline_seller_service_commission_interest_targets(text,integer)', 'ea3bea27379b693177990a09cc5f2651', 's', 'pg_catalog.text')
+    ) AS expected(identity, source_md5, volatility, return_type)
   LOOP
     IF NOT EXISTS (
       SELECT 1
@@ -130,23 +117,13 @@ BEGIN
            SELECT language.oid FROM pg_catalog.pg_language AS language
             WHERE language.lanname = 'plpgsql'
          )
-         AND procedure.prorettype = 'pg_catalog.record'::pg_catalog.regtype
+         AND procedure.prorettype = legacy.return_type::pg_catalog.regtype
          AND procedure.proretset
          AND NOT procedure.proisstrict
          AND procedure.provolatile = legacy.volatility::"char"
          AND procedure.proparallel = 'u'
          AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
          AND pg_catalog.md5(procedure.prosrc) = legacy.source_md5
-         AND (
-           SELECT pg_catalog.count(*)
-             FROM pg_catalog.aclexplode(
-               COALESCE(procedure.proacl,
-                        pg_catalog.acldefault('f', procedure.proowner))
-             ) AS acl
-            WHERE acl.grantee = procedure.proowner
-              AND acl.privilege_type = 'EXECUTE'
-              AND acl.is_grantable
-         ) = 1
          AND NOT EXISTS (
            SELECT 1
              FROM pg_catalog.aclexplode(
@@ -223,19 +200,6 @@ BEGIN
             AND acl.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
             AND NOT acl.is_grantable
        ) <> 4
-       OR (
-         SELECT pg_catalog.count(*)
-           FROM pg_catalog.aclexplode(
-             COALESCE(relation_state.relacl,
-                      pg_catalog.acldefault('r', relation_state.relowner))
-           ) AS acl
-          WHERE acl.grantee = relation_state.relowner
-            AND acl.privilege_type IN (
-              'SELECT', 'INSERT', 'UPDATE', 'DELETE',
-              'TRUNCATE', 'REFERENCES', 'TRIGGER'
-            )
-            AND acl.is_grantable
-       ) <> 7
        OR EXISTS (
          SELECT 1
            FROM pg_catalog.aclexplode(
@@ -255,10 +219,10 @@ BEGIN
 
   FOR legacy IN
     SELECT * FROM (VALUES
-      ('public.grainline_message_create_commission_interest(text,text,text,text,text)', '8247283d3e79765eceac777d091b0dd0', 'v'),
-      ('public.grainline_direct_upload_sync_commission_request(text,text)', 'ade11756e28500c0c17f053c6e0a5b65', 'v'),
-      ('public.grainline_seller_service_commission_interest_targets(text,integer)', 'ea3bea27379b693177990a09cc5f2651', 's')
-    ) AS expected(identity, source_md5, volatility)
+      ('public.grainline_message_create_commission_interest(text,text,text,text,text)', '8247283d3e79765eceac777d091b0dd0', 'v', 'pg_catalog.record'),
+      ('public.grainline_direct_upload_sync_commission_request(text,text)', 'ade11756e28500c0c17f053c6e0a5b65', 'v', 'pg_catalog.record'),
+      ('public.grainline_seller_service_commission_interest_targets(text,integer)', 'ea3bea27379b693177990a09cc5f2651', 's', 'pg_catalog.text')
+    ) AS expected(identity, source_md5, volatility, return_type)
   LOOP
     IF NOT EXISTS (
       SELECT 1
@@ -272,23 +236,13 @@ BEGIN
            SELECT language.oid FROM pg_catalog.pg_language AS language
             WHERE language.lanname = 'plpgsql'
          )
-         AND procedure.prorettype = 'pg_catalog.record'::pg_catalog.regtype
+         AND procedure.prorettype = legacy.return_type::pg_catalog.regtype
          AND procedure.proretset
          AND NOT procedure.proisstrict
          AND procedure.provolatile = legacy.volatility::"char"
          AND procedure.proparallel = 'u'
          AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
          AND pg_catalog.md5(procedure.prosrc) = legacy.source_md5
-         AND (
-           SELECT pg_catalog.count(*)
-             FROM pg_catalog.aclexplode(
-               COALESCE(procedure.proacl,
-                        pg_catalog.acldefault('f', procedure.proowner))
-             ) AS acl
-            WHERE acl.grantee = procedure.proowner
-              AND acl.privilege_type = 'EXECUTE'
-              AND acl.is_grantable
-         ) = 1
          AND (
            SELECT pg_catalog.count(*)
              FROM pg_catalog.aclexplode(

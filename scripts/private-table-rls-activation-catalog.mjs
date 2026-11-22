@@ -371,7 +371,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     migration: "20261113020000_activate_commission_domain_rls",
     migrationSha256: "b84685453deef07f43cce445982eb6f0859ac9ee59442b5d4f0302d87525664f",
     rollbackPath: "docs/rls-drafts/commission-domain-activation-rollback.sql",
-    rollbackSha256: "66bda831ef54d1b9d6ec6ce1d330b2a083ece0eba9599fe555ecd7f88eacc66f",
+    rollbackSha256: "1c3c261fba15245cd505183d063a9000453d941aec7261f7cd298a8570c2b2d5",
     table: "CommissionRequest",
     tables: Object.freeze(["CommissionRequest", "CommissionInterest"]),
     mode: "policyless_domain_combined_enable_force",

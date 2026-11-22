@@ -280,6 +280,30 @@ SELECT 'wrong branch';
   assert.ok(statements.every((sql) => !sql.includes("wrong branch")));
 });
 
+test("ported psql subset ignores marker comments before gset like psql", async () => {
+  const statements = [];
+  const database = {
+    query: async (sql) => {
+      statements.push(sql.trim());
+      if (sql.includes("AS ready")) {
+        return { rows: [{ ready: true }], fields: [{ name: "ready" }] };
+      }
+      return { rows: [], fields: [] };
+    },
+  };
+
+  const result = await runPsqlScript(
+    database,
+    String.raw`SELECT TRUE AS ready;
+-- END RELEASE_PROVISIONING_DECISION
+\gset`,
+  );
+
+  assert.equal(result.vars.ready, "t");
+  assert.equal(statements.length, 2);
+  assert.ok(statements.every((sql) => sql.includes("AS ready")));
+});
+
 test("PostgreSQL 16 adapter rejects non-disposable targets and other server majors", () => {
   assert.doesNotThrow(() =>
     assertDisposablePostgres16Target(

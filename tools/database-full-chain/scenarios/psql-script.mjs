@@ -31,6 +31,41 @@ function parseBool(raw) {
   throw new Error(`psql: unrecognized value "${raw}" for boolean`);
 }
 
+function hasExecutableSql(text) {
+  let index = 0;
+  while (index < text.length) {
+    if (/\s/u.test(text[index])) {
+      index++;
+      continue;
+    }
+    if (text[index] === '-' && text[index + 1] === '-') {
+      const newline = text.indexOf('\n', index + 2);
+      index = newline === -1 ? text.length : newline + 1;
+      continue;
+    }
+    if (text[index] === '/' && text[index + 1] === '*') {
+      let depth = 1;
+      index += 2;
+      while (index < text.length && depth > 0) {
+        if (text[index] === '/' && text[index + 1] === '*') {
+          depth++;
+          index += 2;
+          continue;
+        }
+        if (text[index] === '*' && text[index + 1] === '/') {
+          depth--;
+          index += 2;
+          continue;
+        }
+        index++;
+      }
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
 // Substitute :var forms in a meta-command argument string and split args.
 function parseMetaArgs(argStr, vars) {
   const args = [];
@@ -112,14 +147,14 @@ export async function runPsqlScript(db, scriptText, initialVars = {}, opts = {})
   const flushStatement = async () => {
     const sql = buf;
     buf = '';
-    if (!sql.trim()) return;
+    if (!hasExecutableSql(sql)) return;
     if (!isActive()) return;
     lastQuery = sql;
     await execSql(sql);
   };
 
   const takeQueryForG = () => {
-    if (buf.trim()) { const q = buf; buf = ''; lastQuery = q; return q; }
+    if (hasExecutableSql(buf)) { const q = buf; buf = ''; lastQuery = q; return q; }
     buf = '';
     if (!lastQuery) throw new Error('psql: \\g* with no previous query');
     return lastQuery;

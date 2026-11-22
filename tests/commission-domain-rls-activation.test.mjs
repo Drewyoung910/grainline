@@ -133,8 +133,11 @@ test("Commission rollback restores authorities before disabling RLS", () => {
   assert.match(rollback, /pg_catalog\.aclexplode/u);
   assert.match(rollback, /pg_catalog\.md5\(procedure\.prosrc\) = legacy\.source_md5/u);
   assert.match(rollback, /procedure\.proconfig = ARRAY\['search_path=pg_catalog'\]::text\[\]/u);
-  assert.match(rollback, /acl\.grantee = relation_state\.relowner[\s\S]*acl\.is_grantable[\s\S]*\) <> 7/u);
-  assert.match(rollback, /acl\.grantee = procedure\.proowner[\s\S]*acl\.privilege_type = 'EXECUTE'[\s\S]*acl\.is_grantable/u);
+  assert.match(rollback, /acl\.grantee <> relation_state\.relowner/u);
+  assert.match(rollback, /procedure\.prorettype = legacy\.return_type::pg_catalog\.regtype/u);
+  assert.match(rollback, /'pg_catalog\.text'/u);
+  assert.doesNotMatch(rollback, /acl\.grantee = relation_state\.relowner[\s\S]*acl\.is_grantable/u);
+  assert.doesNotMatch(rollback, /acl\.grantee = procedure\.proowner[\s\S]*acl\.is_grantable/u);
   assert.match(rollback, /acl\.grantee = runtime_oid[\s\S]*acl\.privilege_type IN \('SELECT', 'INSERT', 'UPDATE', 'DELETE'\)[\s\S]*\) <> 4/u);
   assert.match(rollback, /global release audit deliberately[\s\S]*remains fail-closed/u);
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER|POLICY)/iu);
