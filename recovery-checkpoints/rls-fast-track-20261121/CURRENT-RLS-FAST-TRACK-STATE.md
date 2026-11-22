@@ -33,6 +33,8 @@ Verified on 2026-11-22:
 
 Main checkout HEAD: `1217b732118241804d3985e2b10a76379f9a4892`.
 
+The main checkout also contains a stale, untracked/ignored local copy of this checkpoint at the same relative path. It was intentionally left untouched. Do not use that local copy for takeover; read the committed copy from the pushed #768 branch as described below.
+
 The RLS work remains in isolated `/private/tmp` worktrees and all code heads below are pushed to GitHub.
 
 ## Exact pushed chain
@@ -175,6 +177,6 @@ It is safe to switch to a fresh Codex/VS Code chat only after:
 - all four remote PR heads and checks are reverified; and
 - the dirty main checkout is reverified untouched.
 
-The new chat will not inherit this conversation automatically. Its first instruction should be:
+The new chat will not inherit this conversation automatically. Because the dirty main checkout's local copy is stale, its first instruction should be:
 
-> Read `/Users/drewyoung/grainline/recovery-checkpoints/rls-fast-track-20261121/CURRENT-RLS-FAST-TRACK-STATE.md` completely. Verify the four PR heads and current CI state, preserve the dirty main checkout, then resume at Strict next actions step 1. Do not merge, deploy, or run a Production migration without separate explicit authorization.
+> Preserve the dirty main checkout. Read the authoritative pushed checkpoint completely with `git show github/codex/commission-domain-activation-20261119:recovery-checkpoints/rls-fast-track-20261121/CURRENT-RLS-FAST-TRACK-STATE.md` (fetch that branch first if needed); do not rely on the stale untracked local copy under `/Users/drewyoung/grainline`. Verify the four PR heads and current CI state, then resume at Strict next actions step 1. Do not merge, deploy, or run a Production migration without separate explicit authorization.
