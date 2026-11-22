@@ -104,7 +104,11 @@ describe("Guild metrics state", () => {
     assert.doesNotMatch(orderAuthority, /"isPrivate"\s*=\s*false/);
     assert.doesNotMatch(orderAuthority, /JOIN public\."Listing"/);
 
-    assert.match(verificationPage, /prisma\.listing\.count\(\{[\s\S]*sellerId: verification\.sellerProfileId[\s\S]*status: "ACTIVE"[\s\S]*isPrivate: false/);
+    assert.match(
+      verificationPage,
+      /listingStaffSellerActivePublicCount\([\s\S]*sellerProfileId: verification\.sellerProfileId/,
+    );
+    assert.doesNotMatch(verificationPage, /prisma\.listing\.count\(/);
   });
 });
 

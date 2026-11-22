@@ -141,7 +141,10 @@ describe("public location source boundaries", () => {
 
   it("evaluates anonymous browse membership against a coarse public point", () => {
     const browse = source("src/app/browse/page.tsx");
-    assert.match(browse, /sellerPublicBrowseNearbySellerIds\(/);
+    assert.match(browse, /listingPublicCatalogPage\(/);
+    assert.match(browse, /locationLat: latFilter!/);
+    assert.match(browse, /locationLng: lngFilter!/);
+    assert.match(browse, /locationRadiusMiles: radiusFilter!/);
     assert.doesNotMatch(browse, /FROM "SellerProfile" sp/);
     assert.doesNotMatch(browse, /sp\.lat::float8|sp\.lng::float8|sp\."radiusMeters"/);
     assert.doesNotMatch(browse, /publicLatSql|publicLngSql|gridCellCenterSql/);

@@ -5,14 +5,8 @@ import test from "node:test";
 const source = readFileSync("src/app/api/search/suggestions/route.ts", "utf8");
 
 test("listing suggestions delegate seller eligibility to an exact listing authority", () => {
-  const listingSuggestionSource = source.slice(
-    source.indexOf("async function listingFuzzySuggestionRows"),
-    source.indexOf("async function blogFuzzySuggestionRows"),
-  );
-  assert.match(listingSuggestionSource, /grainline_seller_public_follower_listing_target/u);
-  assert.doesNotMatch(listingSuggestionSource, /JOIN "SellerProfile"/u);
-  assert.equal(
-    listingSuggestionSource.match(/grainline_seller_public_follower_listing_target/gu)?.length,
-    1,
-  );
+  assert.match(source, /listingPublicTitleSuggestions\(meDbId, q\)/u);
+  assert.match(source, /listingPublicCatalogPage\([\s\S]*\{ listingIds \}/u);
+  assert.match(source, /sellerPublicListingCards\(viewerUserId, listingIds\)/u);
+  assert.doesNotMatch(source, /JOIN "SellerProfile"|prisma\.listing\./u);
 });

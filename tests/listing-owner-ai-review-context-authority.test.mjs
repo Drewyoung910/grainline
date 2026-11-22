@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const root = new URL("../", import.meta.url);
 
 test("listing AI review uses one actor-bound owner context", async () => {
   const [migration, access, aiReview, shopActions, editPage, newPage, customPage, provision] =
     await Promise.all([
-      readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
+      readFile(new URL(listingDomainPreparationMigrationPath(), root), "utf8"),
       readFile(new URL("src/lib/listingOwnerAccess.ts", root), "utf8"),
       readFile(new URL("src/lib/ai-review.ts", root), "utf8"),
       readFile(new URL("src/app/seller/[id]/shop/actions.ts", root), "utf8"),

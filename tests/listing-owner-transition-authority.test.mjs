@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
-const migrationPath = new URL(
-  "../prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-  import.meta.url,
-);
+const migrationPath = listingDomainPreparationMigrationPath();
 const accessPath = new URL("../src/lib/listingOwnerAccess.ts", import.meta.url);
 const dashboardActionsPath = new URL(
   "../src/app/dashboard/listings/actions.ts",

@@ -1045,6 +1045,11 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("git", ["clone", "--quiet", "--shared", "--no-checkout", process.cwd(), root], { env: { PATH: process.env.PATH } });
     mkdirSync(holding);
     mkdirSync(path.join(root, "tests"));
+    mkdirSync(path.join(root, "tests", "helpers"));
+    cpSync(
+      "tests/helpers/listing-domain-preparation-migration-path.mjs",
+      path.join(root, "tests", "helpers", "listing-domain-preparation-migration-path.mjs"),
+    );
     mkdirSync(path.join(root, "docs"));
     cpSync("scripts", path.join(root, "scripts"), { recursive: true });
     symlinkSync(path.join(process.cwd(), "node_modules"), path.join(root, "node_modules"), "dir");
@@ -1655,7 +1660,16 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
     execFileSync(process.execPath, ["--test", "tests/db-grant-inventory.test.mjs"], {
       cwd: root,
-      env: { PATH: process.env.PATH },
+      env: {
+        PATH: process.env.PATH,
+        LISTING_DOMAIN_PREPARATION_MIGRATION_PATH: path.join(
+          holding,
+          "listing-domain",
+          "migrations",
+          listingDomainPreparationMigration,
+          "migration.sql",
+        ),
+      },
       stdio: "pipe",
     });
     execFileSync("bash", ["-c", bashBody("Restore User policyless FORCE source package")], { cwd: root, env: scriptEnv });

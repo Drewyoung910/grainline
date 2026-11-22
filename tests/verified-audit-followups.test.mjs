@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, it } from "node:test";
 import { commissionDomainPreparationMigrationPath } from "./helpers/commission-domain-preparation-migration-path.mjs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -311,9 +312,7 @@ describe("verified audit follow-up guardrails", () => {
       listingPublicCatalog,
       /grainline_listing_public_title_suggestions\(\$\{query\}::text\)/,
     );
-    const listingPreparation = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPreparation = source(listingDomainPreparationMigrationPath());
     const titleSuggestionAuthority = listingPreparation.slice(
       listingPreparation.indexOf(
         "CREATE FUNCTION public.grainline_listing_public_title_suggestions(",

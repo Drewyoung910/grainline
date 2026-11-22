@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const route = readFileSync("src/app/api/admin/listings/[id]/route.ts", "utf8");
 const access = readFileSync("src/lib/sellerProfileStaffAccess.ts", "utf8");
 const reviewPage = readFileSync("src/app/admin/review/page.tsx", "utf8");
 const removeButton = readFileSync("src/components/admin/DeleteListingButton.tsx", "utf8");
 const migration = readFileSync(
-  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  listingDomainPreparationMigrationPath(),
   "utf8",
 );
 

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const migration = readFileSync(
-  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  listingDomainPreparationMigrationPath(),
   "utf8",
 );
 const editorPage = readFileSync(

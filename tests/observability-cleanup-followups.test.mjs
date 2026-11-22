@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const { activeSellerProfileWhere, visibleSellerProfileWhere } = await import("../src/lib/sellerVisibility.ts");
 
@@ -11,9 +12,7 @@ function source(path) {
 describe("observability cleanup follow-ups", () => {
   it("keeps listing view and click counters scoped to public sellable listings", () => {
     const analyticsAccess = source("src/lib/listingAnalyticsAccess.ts");
-    const listingPreparation = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     for (const path of [
       "src/app/api/listings/[id]/view/route.ts",
       "src/app/api/listings/[id]/click/route.ts",
