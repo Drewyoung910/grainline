@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
+import { databaseFullChainPostgresTestPath } from "./helpers/isolated-test-source-paths.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -12,7 +13,7 @@ test("listing detail uses bounded actor and staff sources", async () => {
     readFile(new URL("src/app/listing/[id]/page.tsx", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
     readFile(new URL("tools/database-full-chain/scenarios/listing-domain-detail-authorities.mjs", root), "utf8"),
-    readFile(new URL("tests/database-full-chain-postgres.test.mjs", root), "utf8"),
+    readFile(databaseFullChainPostgresTestPath(), "utf8"),
   ]);
 
   const coreStart = migration.indexOf(

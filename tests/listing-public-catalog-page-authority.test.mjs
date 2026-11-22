@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
+import { databaseFullChainPostgresTestPath } from "./helpers/isolated-test-source-paths.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -14,7 +15,7 @@ test("tag and metro pages share one bounded public catalog authority", async () 
     readFile(new URL("src/app/browse/[metroSlug]/[category]/page.tsx", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
     readFile(new URL("tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs", root), "utf8"),
-    readFile(new URL("tests/database-full-chain-postgres.test.mjs", root), "utf8"),
+    readFile(databaseFullChainPostgresTestPath(), "utf8"),
   ]);
 
   const start = migration.indexOf(

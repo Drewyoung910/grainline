@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
+import { dbGrantInventoryTestPath } from "./helpers/isolated-test-source-paths.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -10,7 +11,7 @@ test("seller rating summary refresh uses one derived Listing-domain authority", 
     readFile(new URL(listingDomainPreparationMigrationPath(), root), "utf8"),
     readFile(new URL("src/lib/sellerRatingSummary.ts", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
-    readFile(new URL("tests/db-grant-inventory.test.mjs", root), "utf8"),
+    readFile(dbGrantInventoryTestPath(), "utf8"),
     readFile(new URL("tools/database-full-chain/scenarios/listing-domain-owner-mutations.mjs", root), "utf8"),
   ]);
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
+import { databaseFullChainPostgresTestPath } from "./helpers/isolated-test-source-paths.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -21,7 +22,7 @@ test("ordinary and reserved listing creation use one actor-bound composite autho
     readFile(new URL("src/app/dashboard/listings/custom/page.tsx", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
     readFile(new URL("tools/database-full-chain/scenarios/listing-domain-owner-mutations.mjs", root), "utf8"),
-    readFile(new URL("tests/database-full-chain-postgres.test.mjs", root), "utf8"),
+    readFile(databaseFullChainPostgresTestPath(), "utf8"),
   ]);
 
   const authorityStart = migration.indexOf(
