@@ -1351,11 +1351,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(commissionDomainActivationTarget)) {
       cpSync(
-        path.join(
-          process.cwd(),
-          "prisma",
-          "migrations",
+        privateTableActivationMigrationSourcePath(
           commissionDomainActivationMigration,
+          "COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
         ),
         commissionDomainActivationTarget,
         { recursive: true },
