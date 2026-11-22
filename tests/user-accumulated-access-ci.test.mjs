@@ -482,6 +482,24 @@ function sellerFaqPreparationMigrationSourcePath() {
     : stagedPath;
 }
 
+function commissionDomainPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    commissionDomainPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath =
+    process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated Commission domain preparation migration",
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
+}
+
 function privateTableActivationMigrationSourcePath(migration, envName) {
   const livePath = path.join("prisma", "migrations", migration);
   if (existsSync(livePath)) return livePath;
@@ -1296,12 +1314,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(commissionDomainPreparationTarget)) {
       cpSync(
-        path.join(
-          process.cwd(),
-          "prisma",
-          "migrations",
-          commissionDomainPreparationMigration,
-        ),
+        commissionDomainPreparationMigrationSourcePath(),
         commissionDomainPreparationTarget,
         { recursive: true },
       );
