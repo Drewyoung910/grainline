@@ -196,11 +196,27 @@ jobs:
             printf '%s\t%s\t%s\n' "$release_id" "$migration" "$state" >> "$state_file"
           done
           pending_csv="$(IFS=,; echo "${pending[*]}")"
+          mapfile -t later_pending < <(
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID="$selection" \
+              node scripts/private-table-preparation-catalog.mjs \
+                --later-pending-migrations
+          )
+          later_pending_csv=""
+          if [ "${#later_pending[@]}" -gt 0 ]; then
+            later_pending_csv="$(IFS=,; echo "${later_pending[*]}")"
+          fi
+          if [ -n "$pending_csv" ] && [ -n "$later_pending_csv" ]; then
+            expected_pending_csv="$pending_csv,$later_pending_csv"
+          else
+            expected_pending_csv="$pending_csv$later_pending_csv"
+          fi
           echo "pending=$pending_csv" >> "$GITHUB_OUTPUT"
-      - name: Require only the reviewed preparation migrations pending
+          echo "expected_pending=$expected_pending_csv" >> "$GITHUB_OUTPUT"
+          echo "later_pending=$later_pending_csv" >> "$GITHUB_OUTPUT"
+      - name: Require only the reviewed preparation and later migrations pending
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.expected_pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Reconfirm exact main at the owner-write boundary
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
@@ -260,13 +276,15 @@ jobs:
             PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH="$RUNNER_TEMP/private-table-preparation-${GITHUB_SHA}-${release_id}-preflight.json" \
               node scripts/private-table-preparation-production-inspect.mjs
           done < "$RUNNER_TEMP/private-table-preparation-state.tsv"
-      - name: Require no migrations pending after preparation
+      - name: Require only reviewed later migrations pending after preparation
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          REVIEWED_PENDING_MIGRATIONS: ""
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.later_pending }}
         run: |
           node scripts/assert-reviewed-pending-migrations.mjs
-          npx prisma migrate status
+          if [ -z "$REVIEWED_PENDING_MIGRATIONS" ]; then
+            npx prisma migrate status
+          fi
       - name: Audit global runtime grants after preparation
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
