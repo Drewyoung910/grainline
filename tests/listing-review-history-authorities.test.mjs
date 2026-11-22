@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
 
@@ -23,7 +24,7 @@ test("Listing review and customer-photo history use bounded reusable authorities
     staffProvision,
     fullChain,
   ] = await Promise.all([
-    readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
+    readFile(new URL(listingDomainPreparationMigrationPath(), root), "utf8"),
     readFile(new URL("src/lib/listingReviewHistoryAccess.ts", root), "utf8"),
     readFile(new URL("src/app/account/reviews/page.tsx", root), "utf8"),
     readFile(new URL("src/app/api/account/export/route.ts", root), "utf8"),

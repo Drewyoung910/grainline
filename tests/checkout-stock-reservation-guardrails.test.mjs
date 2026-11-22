@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const {
   checkoutStockReservationRepairAction,
@@ -17,7 +18,7 @@ const sourceConsistencySql = source(
 const authorityClient = source("src/lib/checkoutStockReservationAuthority.ts");
 const paidCheckoutSql = source("docs/rls-drafts/order-paid-checkout-authority.sql");
 const listingPreparation = source(
-  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  listingDomainPreparationMigrationPath(),
 );
 
 describe("durable checkout stock reservation guardrails", () => {

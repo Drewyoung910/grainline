@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 import { emailServiceLeastPrivilegeMigrationPath } from "./helpers/email-service-least-privilege-migration-path.mjs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
@@ -335,9 +336,7 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs seller listing title and body fields on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const access = source("src/lib/listingAccountDeletionAccess.ts");
-    const authority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const authority = source(listingDomainPreparationMigrationPath());
 
     assert.match(deletion, /redactListingsForAccountDeletion\(tx,/u);
     assert.doesNotMatch(deletion, /tx\.listing\.updateMany/u);
@@ -353,9 +352,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("removes retained seller-defined listing variant text on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const authority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const authority = source(listingDomainPreparationMigrationPath());
     const functionStart = authority.indexOf(
       "CREATE FUNCTION public.grainline_listing_account_deletion_redact(",
     );

@@ -39,11 +39,13 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(customPage, /startActorConversation\(me\.id, reservedForUserId, null\)/);
     assert.match(customPage, /availableConversation\.conversationId !== conversationId/);
     assert.match(customPage, /if \(!readyLink\.messageDelivered\)/);
-    assert.match(customPage, /status: ListingStatus\.DRAFT/);
+    assert.match(customPage, /createListingOwner\(seller\.userId, \{[\s\S]*status: ListingStatus\.PENDING_REVIEW/);
     assert.match(customPage, /readyLink=unavailable/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
+    assert.match(adminReview, /async function deliverCustomOrderReadyLink/);
+    assert.match(adminReview, /sendCustomOrderReadyLink\(\{\s*listingId: listing\.id,\s*sellerUserId: listing\.seller\.userId,\s*\}\)/);
     assert.equal(
-      (adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId: listing\.id,\s*sellerUserId: listing\.seller\.userId,\s*\}\)/g) ?? []).length,
+      (adminReview.match(/await deliverCustomOrderReadyLink\(listing\)/g) ?? []).length,
       2,
     );
     assert.match(adminReview, /if \(!transition\.applied\) \{[\s\S]*listing\.status === 'ACTIVE' &&[\s\S]*listing\.customOrderConversationId &&[\s\S]*listing\.reservedForUserId/);
@@ -59,7 +61,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.doesNotMatch(heldPath, /sendCustomOrderReadyLink/);
     assert.match(
       activatedPath,
-      /if \(listing\.isPrivate && listing\.reservedForUserId && listing\.customOrderConversationId\) \{\s*await sendCustomOrderReadyLink\(\{\s*listingId,\s*sellerUserId: listing\.seller\.userId,\s*\}\);\s*\}/,
+      /if \(listing\.isPrivate && listing\.reservedForUserId && listing\.customOrderConversationId\) \{[\s\S]*sendCustomOrderReadyLink\(\{\s*listingId,\s*sellerUserId: listing\.seller\.userId,\s*\}\)/,
     );
     assert.ok(
       activatedPath.indexOf("status: \"ACTIVE\"") < activatedPath.indexOf("await sendCustomOrderReadyLink"),

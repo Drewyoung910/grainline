@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -15,7 +16,7 @@ test("staff Listing references and verification counts use isolated bounded auth
     runner,
     fullChainScenario,
   ] = await Promise.all([
-    readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
+    readFile(new URL(listingDomainPreparationMigrationPath(), root), "utf8"),
     readFile(new URL("src/lib/listingStaffAccess.ts", root), "utf8"),
     readFile(new URL("src/app/admin/reports/page.tsx", root), "utf8"),
     readFile(new URL("src/app/admin/verification/page.tsx", root), "utf8"),

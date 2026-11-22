@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import yaml from "js-yaml";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
 
@@ -79,9 +80,7 @@ describe("User public review and commission state source boundary", () => {
       assert.match(source, /listingPublicCustomerPhotoPage\(/);
     }
     const customerPhotoAccess = read("src/lib/listingReviewHistoryAccess.ts");
-    const listingPreparation = read(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPreparation = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
     assert.match(customerPhotoAccess, /grainline_listing_public_customer_photo_page/);
     assert.match(listingPreparation, /CREATE FUNCTION public\.grainline_listing_public_customer_photo_page/);
     assert.match(listingPreparation, /review\."reviewerAccountActive" = true/);

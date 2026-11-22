@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const root = new URL("../", import.meta.url);
 
 test("listing detail uses bounded actor and staff sources", async () => {
   const [migration, access, page, provision, scenario, runner] = await Promise.all([
-    readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
+    readFile(new URL(listingDomainPreparationMigrationPath(), root), "utf8"),
     readFile(new URL("src/lib/listingDetailAccess.ts", root), "utf8"),
     readFile(new URL("src/app/listing/[id]/page.tsx", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),

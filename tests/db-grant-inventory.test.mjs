@@ -86,9 +86,10 @@ import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const LISTING_DOMAIN_PREPARATION_MIGRATION =
-  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+  listingDomainPreparationMigrationPath();
 const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_remove_transition",
