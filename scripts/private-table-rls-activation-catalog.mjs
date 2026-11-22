@@ -367,7 +367,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
   }),
   commission_domain_v1: Object.freeze({
     preparationReleaseId: "commission_domain_v1",
-    minimumCompatibleAppCommit: "df86093585b4cf6487632c4b0605541f2c5a7a5c",
+    minimumCompatibleAppCommit: "8b6b34c4ba3bfe3a85dd3e352176d4c7e9a6c9eb",
     migration: "20261113020000_activate_commission_domain_rls",
     migrationSha256: "b84685453deef07f43cce445982eb6f0859ac9ee59442b5d4f0302d87525664f",
     rollbackPath: "docs/rls-drafts/commission-domain-activation-rollback.sql",
