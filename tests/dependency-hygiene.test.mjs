@@ -75,6 +75,8 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(lock.packages?.["node_modules/browserslist"]?.version, "4.28.8");
     assert.equal(pkg.overrides?.["deepmerge-ts"], "8.0.2");
     assert.equal(lock.packages?.["node_modules/deepmerge-ts"]?.version, "8.0.2");
+    assert.equal(pkg.overrides?.effect, "3.22.1");
+    assert.equal(lock.packages?.["node_modules/effect"]?.version, "3.22.1");
     assert.equal(pkg.overrides?.browserslist, "4.28.8");
     assert.equal(lock.packages?.["node_modules/browserslist"]?.version, "4.28.8");
     assert.equal(pkg.overrides?.mysql2, "3.24.2");
