@@ -11,6 +11,7 @@ import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
   functionSourceFromMigration,
   privateTablePreparation,
+  privateTablePreparationLaterPendingMigrations,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "../scripts/private-table-preparation-catalog.mjs";
@@ -558,6 +559,17 @@ test("all generic preparation releases admit only their exact manual ledger row"
   }
 });
 
+test("email-service preparation preserves the reviewed later Listing preparation", () => {
+  assert.deepEqual(
+    privateTablePreparationLaterPendingMigrations("email_service_v1"),
+    ["20261102050000_prepare_listing_domain_authorities"],
+  );
+  assert.deepEqual(
+    privateTablePreparationLaterPendingMigrations("listing_domain_v1"),
+    [],
+  );
+});
+
 test("Production workflow is exact-main bound and fails on another red push workflow", async () => {
   assert.ok(parsed.on.workflow_dispatch);
   assert.deepEqual(
@@ -581,6 +593,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.match(workflow, /private-table-preparation-catalog\.mjs --release-ids/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --migrations/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --tests/u);
+  assert.match(workflow, /--later-pending-migrations/u);
   assert.match(workflow, /tests\/block-preparation-production\.test\.mjs/u);
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
@@ -602,6 +615,8 @@ test("Production workflow keeps preparation additive, restart-safe, and sole-pen
   assert.match(workflow, /\[ "\$state" = pending \] \|\| \[ "\$state" = applied_unrecorded \]/u);
   assert.match(workflow, /private-table-preparation-state\.tsv/u);
   assert.match(workflow, /PRIVATE_TABLE_PREPARATION_PHASE=postflight/u);
+  assert.match(workflow, /steps\.preflight\.outputs\.expected_pending/u);
+  assert.match(workflow, /steps\.preflight\.outputs\.later_pending/u);
   assert.match(workflow, /audit:db-grants -- --require-direct-url/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   const sourceCheck = workflow.indexOf("Verify reviewed preparation source before owner access");

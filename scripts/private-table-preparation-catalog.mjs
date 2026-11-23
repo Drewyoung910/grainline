@@ -777,6 +777,12 @@ export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
   ]),
 });
 
+const PRIVATE_TABLE_PREPARATION_LATER_PENDING = Object.freeze({
+  email_service_v1: Object.freeze([
+    "20261102050000_prepare_listing_domain_authorities",
+  ]),
+});
+
 function stopped(message) {
   return new Error(`private-table preparation stopped: ${message}`);
 }
@@ -811,6 +817,12 @@ export function privateTablePreparationReleaseIds(selectionId) {
     throw stopped("batch migrations are not ordered");
   }
   return batch;
+}
+
+export function privateTablePreparationLaterPendingMigrations(selectionId) {
+  privateTablePreparationReleaseIds(selectionId);
+  return PRIVATE_TABLE_PREPARATION_LATER_PENDING[selectionId]
+    ?? Object.freeze([]);
 }
 
 export function privateTablePreparationMigrationPath(release) {
@@ -937,6 +949,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       process.stdout.write(`${releaseIds.join("\n")}\n`);
     } else if (process.argv[2] === "--migrations") {
       process.stdout.write(`${verified.map((entry) => entry.release.migration).join("\n")}\n`);
+    } else if (process.argv[2] === "--later-pending-migrations") {
+      const migrations = privateTablePreparationLaterPendingMigrations(selectionId);
+      if (migrations.length > 0) process.stdout.write(`${migrations.join("\n")}\n`);
     } else {
       if (verified.length !== 1) throw stopped("batch output requires an explicit mode");
       process.stdout.write(`${verified[0].release.migration}\n`);
