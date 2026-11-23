@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useCallback, useEffect, type WheelEvent } from "react";
+import { useRef, useCallback, useEffect } from "react";
 
 type Props = {
   children: React.ReactNode;
@@ -57,18 +57,27 @@ export default function ScrollFadeRow({
     return () => ro.disconnect();
   }, [updateEdgeState, children]);
 
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    // Native horizontal trackpad gestures already work. Translate a regular
-    // mouse wheel only while the row can move in that direction; at either
-    // end the page resumes vertical scrolling normally.
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || event.deltaY === 0) return;
-    const canMove = event.deltaY > 0
-      ? el.scrollLeft + el.clientWidth < el.scrollWidth - 2
-      : el.scrollLeft > 2;
-    if (!canMove) return;
-    event.preventDefault();
-    el.scrollLeft += event.deltaY;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      // Native horizontal trackpad gestures already work. Translate a regular
+      // mouse wheel only while the row can move in that direction; at either
+      // end the page resumes vertical scrolling normally. This must be a
+      // non-passive native listener: React's delegated wheel listener cannot
+      // reliably cancel the page scroll in Chromium.
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || event.deltaY === 0) return;
+      const canMove = event.deltaY > 0
+        ? el.scrollLeft + el.clientWidth < el.scrollWidth - 2
+        : el.scrollLeft > 2;
+      if (!canMove) return;
+      event.preventDefault();
+      el.scrollLeft += event.deltaY;
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
   }, []);
 
   // Back-compat: mobileOnly === "sm" hide breakpoint.
@@ -83,7 +92,6 @@ export default function ScrollFadeRow({
     <div
       ref={ref}
       onScroll={updateEdgeState}
-      onWheel={handleWheel}
       className={`${fadeClass} scrollbar-hidden ${className}`}
     >
       {children}
