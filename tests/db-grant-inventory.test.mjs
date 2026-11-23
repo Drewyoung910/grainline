@@ -564,6 +564,10 @@ const {
   LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES = Object.freeze({}),
   LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION,
   LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
+  COMMISSION_DOMAIN_TABLES = Object.freeze([]),
+  COMMISSION_DOMAIN_RETIRED_RUNTIME_FUNCTION_NAMES = Object.freeze([]),
+  COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION,
+  COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
   FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
@@ -661,6 +665,7 @@ const {
   readListingDomainFeaturedTogglePredecessorState,
   readListingDomainMessageListPredecessorState,
   readListingDomainRlsActivationState,
+  readCommissionDomainRlsActivationState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -1149,6 +1154,23 @@ describe("database grant inventory guardrails", () => {
       rlsPolicyTables: LISTING_DOMAIN_TABLES,
       listingDomainRlsActivationApplied: true,
     };
+    const commissionDomainPredecessorInventory = {
+      tables: COMMISSION_DOMAIN_TABLES,
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+      commissionDomainRlsActivationApplied: false,
+    };
+    const commissionDomainActivatedInventory = {
+      ...commissionDomainPredecessorInventory,
+      rlsEnableTables: COMMISSION_DOMAIN_TABLES,
+      rlsForceTables: COMMISSION_DOMAIN_TABLES,
+      commissionDomainRlsActivationApplied: true,
+    };
+    const commissionDomainEmergencyRollbackInventory = {
+      ...commissionDomainPredecessorInventory,
+      commissionDomainRlsActivationApplied: true,
+    };
     const savedBlogPostPredecessorInventory = {
       rlsPolicyTables: [],
       savedBlogPostOwnerPrivilegesProvisioned: false,
@@ -1493,6 +1515,59 @@ describe("database grant inventory guardrails", () => {
       assert.deepEqual(
         requiredRuntimeColumnPrivileges(tableName, listingDomainActivatedInventory),
         LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName],
+      );
+    }
+    for (const tableName of COMMISSION_DOMAIN_TABLES) {
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, commissionDomainPredecessorInventory),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, commissionDomainActivatedInventory),
+        [],
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          tableName,
+          commissionDomainEmergencyRollbackInventory,
+        ),
+        [],
+        "the applied-ledger emergency rollback must leave the global audit fail-closed until a new forward migration",
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(commissionDomainActivatedInventory)
+          .includes(tableName),
+        true,
+      );
+    }
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        COMMISSION_DOMAIN_TABLES.map((tableName) => ({
+          table_name: tableName,
+          rls_enabled: true,
+          rls_forced: true,
+          policy_count: 0,
+        })),
+        commissionDomainActivatedInventory,
+      ),
+      [],
+    );
+    for (const functionName of COMMISSION_DOMAIN_RETIRED_RUNTIME_FUNCTION_NAMES) {
+      assert.equal(
+        runtimePrivateFunctionNames(commissionDomainPredecessorInventory)
+          .includes(functionName),
+        false,
+      );
+      assert.equal(
+        runtimePrivateFunctionNames(commissionDomainActivatedInventory)
+          .includes(functionName),
+        true,
+      );
+      assert.equal(
+        runtimePrivateFunctionNames(commissionDomainEmergencyRollbackInventory)
+          .includes(functionName),
+        true,
+        "the applied ledger keeps retired Commission functions forbidden after emergency rollback",
       );
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
@@ -3471,6 +3546,35 @@ describe("database grant inventory guardrails", () => {
       ),
       [],
     );
+    const commissionActivationAware = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("commissionDomainRlsActivationApplied");
+    if (commissionActivationAware) {
+      const commissionActivatedRows = exactRows.map((row) => (
+        row.function_name === "grainline_message_create_commission_interest"
+          ? { ...row, execute_priv: false, runtime_direct_execute: false }
+          : row
+      ));
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          commissionActivatedRows,
+          runtimeRole,
+          migrationRole,
+          { commissionDomainRlsActivationApplied: true },
+        ),
+        [],
+        "Commission activation retires the caller-supplied message entry point",
+      );
+      assert.match(
+        collectConversationMessageFunctionIssues(
+          exactRows,
+          runtimeRole,
+          migrationRole,
+          { commissionDomainRlsActivationApplied: true },
+        ).join("\n"),
+        /grainline_message_create_commission_interest.*runtime role must not have effective EXECUTE/,
+      );
+    }
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
         exactRows,
@@ -4287,6 +4391,9 @@ describe("database grant inventory guardrails", () => {
     const listingDomainRlsActivationPresent = existsSync(
       "prisma/migrations/20261102060000_activate_listing_domain_rls/migration.sql",
     );
+    const commissionDomainRlsActivationPresent = existsSync(
+      "prisma/migrations/20261113020000_activate_commission_domain_rls/migration.sql",
+    );
     const reviewVoteRlsActivationPresent = existsSync(
       REVIEW_VOTE_ACTIVATION_MIGRATION,
     ) && REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.every((functionName) =>
@@ -4589,6 +4696,7 @@ describe("database grant inventory guardrails", () => {
           ? blockedCheckoutRefundWitnessFunctionNames.length
             + 3 // reasserted checkout create/existing/postpayment PUBLIC/runtime revokes
           : 0)
+        + (commissionDomainRlsActivationPresent ? 2 : 0)
         + (blockedPairCheckoutCompletionMigrationPresent ? 1 : 0)
         + (clerkWebhookAuthorityPrepared
           ? clerkWebhookAuthorityFunctionNames.length
@@ -5131,6 +5239,9 @@ describe("database grant inventory guardrails", () => {
         ...(clerkWebhookEventRlsActivationExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
           : []),
+        ...(commissionDomainRlsActivationPresent
+          ? ["CommissionInterest", "CommissionRequest"]
+          : []),
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
@@ -5202,6 +5313,9 @@ describe("database grant inventory guardrails", () => {
         "CheckoutStockReservation",
         ...(clerkWebhookEventRlsForceExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
+          : []),
+        ...(commissionDomainRlsActivationPresent
+          ? ["CommissionInterest", "CommissionRequest"]
           : []),
         "Conversation",
         "DirectUpload",
@@ -5824,6 +5938,11 @@ describe("database grant inventory guardrails", () => {
         readListingDomainRlsActivationState,
         LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION,
         LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
+      ],
+      [
+        readCommissionDomainRlsActivationState,
+        COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION,
+        COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
       ],
     ].filter(([reader]) => typeof reader === "function")) {
       assert.deepEqual(
@@ -6866,6 +6985,9 @@ describe("database grant inventory guardrails", () => {
     const listingDomainActivationProvisioningPresent = provision.includes(
       "grainline_listing_domain_activation_applied",
     );
+    const commissionDomainProvisioningPresent = provision.includes(
+      "grainline_commission_domain_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6878,7 +7000,8 @@ describe("database grant inventory guardrails", () => {
         + Number(followProvisioningPresent)
         + Number(reviewVoteProvisioningPresent)
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
-        + Number(listingDomainActivationProvisioningPresent),
+        + Number(listingDomainActivationProvisioningPresent)
+        + Number(commissionDomainProvisioningPresent),
     );
     if (listingDomainActivationProvisioningPresent) {
       const listingDomainProvisioningBlock = provision.match(

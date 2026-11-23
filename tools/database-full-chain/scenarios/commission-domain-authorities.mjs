@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import pg from "pg";
+
+import { runPsqlScript } from "./psql-script.mjs";
 
 const PREPARATION_FUNCTIONS = Object.freeze([
   "grainline_commission_account_deletion_prepare",
@@ -191,10 +195,206 @@ async function proveInterestTransitionSerialization({
   }
 }
 
+async function readCommissionActivationPosture(database) {
+  return rowsOf(await database.query(`
+    SELECT relation.relname AS table_name,
+           relation.relrowsecurity AS rls_enabled,
+           relation.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = relation.oid) AS policy_count
+      FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = relation.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND relation.relname IN ('CommissionInterest', 'CommissionRequest')
+     ORDER BY relation.relname
+  `));
+}
+
+async function rollbackRuntimeQuery(database, actorId, sql, params = []) {
+  await database.query("SET LOCAL ROLE grainline_app_runtime");
+  await database.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+    [actorId ?? ""],
+  );
+  try {
+    return await database.query(sql, params);
+  } finally {
+    await database.query("RESET ROLE");
+  }
+}
+
+async function proveCommissionEmergencyRollback({
+  database,
+  repositoryRoot,
+  actorId,
+  sellerProfileId,
+}) {
+  const rollback = readFileSync(
+    join(repositoryRoot, "docs/rls-drafts/commission-domain-activation-rollback.sql"),
+    "utf8",
+  );
+  const provisioning = readFileSync(
+    join(
+      repositoryRoot,
+      "scripts/provision-runtime-db-role.sql",
+    ),
+    "utf8",
+  );
+  const provisioningDecision = provisioning.match(
+    /-- BEGIN COMMISSION_DOMAIN_PROVISIONING_DECISION\n([\s\S]*?)\n-- END COMMISSION_DOMAIN_PROVISIONING_DECISION/u,
+  )?.[1];
+  assert.ok(provisioningDecision, "Commission provisioning decision SQL is missing");
+  const rollbackBody = rollback
+    .replace(/\nBEGIN;\s*/u, "\n")
+    .replace(/\s*COMMIT;\s*$/u, "");
+  assert.notEqual(rollbackBody, rollback, "rollback transaction wrapper was not isolated");
+  const activePosture = ["CommissionInterest", "CommissionRequest"].map(
+    (tableName) => ({
+      table_name: tableName,
+      rls_enabled: true,
+      rls_forced: true,
+      runtime_select: false,
+      runtime_insert: false,
+      runtime_update: false,
+      runtime_delete: false,
+      policy_count: 0,
+    }),
+  );
+  const predecessorPosture = activePosture.map((row) => ({
+    ...row,
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+  }));
+
+  assert.deepEqual(await readCommissionActivationPosture(database), activePosture);
+  await database.query("BEGIN");
+  try {
+    await runPsqlScript(database, rollbackBody);
+    assert.deepEqual(await readCommissionActivationPosture(database), predecessorPosture);
+
+    assert.deepEqual(rowsOf(await database.query(`
+      SELECT pg_catalog.count(*) FILTER (
+               WHERE checksum =
+                 'b84685453deef07f43cce445982eb6f0859ac9ee59442b5d4f0302d87525664f'
+                 AND finished_at IS NOT NULL
+                 AND rolled_back_at IS NULL
+                 AND applied_steps_count IN (0, 1)
+             )::integer AS success_count
+        FROM public._prisma_migrations
+       WHERE migration_name = '20261113020000_activate_commission_domain_rls'
+    `)), [{ success_count: 1 }], "emergency rollback must retain the applied ledger row");
+
+    assert.deepEqual(rowsOf(await database.query(provisioningDecision)), [{
+      grainline_role_provisioning_failed: false,
+      grainline_role_provisioning_failure: "",
+      grainline_commission_domain_rls_active: false,
+    }], "provisioning must preserve the clean database-first rollback posture");
+
+    assert.deepEqual(rowsOf(await database.query(`
+      SELECT pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_message_create_commission_interest(text,text,text,text,text)',
+               'EXECUTE'
+             ) AS message_execute,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_direct_upload_sync_commission_request(text,text)',
+               'EXECUTE'
+             ) AS upload_execute,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_seller_service_commission_interest_targets(text,integer)',
+               'EXECUTE'
+             ) AS seller_execute
+    `)), [{ message_execute: true, upload_execute: true, seller_execute: true }]);
+
+    const requestId = `commission-rollback-${randomUUID()}`;
+    const interestId = `commission-interest-rollback-${randomUUID()}`;
+    assert.deepEqual(rowsOf(await rollbackRuntimeQuery(
+      database,
+      actorId,
+      `INSERT INTO public."CommissionRequest"
+         (id, "buyerId", "buyerAccountActive", title, description,
+          "referenceImageUrls", "isNational", "createdAt", "updatedAt")
+       VALUES ($1, $2, true, 'Rollback request', 'Rollback CRUD proof',
+               ARRAY[]::text[], true, pg_catalog.clock_timestamp(),
+               pg_catalog.clock_timestamp())
+       RETURNING id`,
+      [requestId, actorId],
+    )), [{ id: requestId }]);
+    assert.deepEqual(rowsOf(await rollbackRuntimeQuery(
+      database,
+      actorId,
+      `INSERT INTO public."CommissionInterest"
+         (id, "commissionRequestId", "sellerProfileId", "createdAt")
+       VALUES ($1, $2, $3, pg_catalog.clock_timestamp())
+       RETURNING id`,
+      [interestId, requestId, sellerProfileId],
+    )), [{ id: interestId }]);
+    assert.deepEqual(rowsOf(await rollbackRuntimeQuery(
+      database,
+      actorId,
+      `SELECT request.id AS request_id, interest.id AS interest_id
+         FROM public."CommissionRequest" AS request
+         JOIN public."CommissionInterest" AS interest
+           ON interest."commissionRequestId" = request.id
+        WHERE request.id = $1`,
+      [requestId],
+    )), [{ request_id: requestId, interest_id: interestId }]);
+    assert.deepEqual(rowsOf(await rollbackRuntimeQuery(
+      database,
+      actorId,
+      `UPDATE public."CommissionRequest"
+          SET title = 'Rollback request updated',
+              "updatedAt" = pg_catalog.clock_timestamp()
+        WHERE id = $1 RETURNING title`,
+      [requestId],
+    )), [{ title: "Rollback request updated" }]);
+    assert.deepEqual(rowsOf(await rollbackRuntimeQuery(
+      database,
+      actorId,
+      `DELETE FROM public."CommissionInterest" WHERE id = $1 RETURNING id`,
+      [interestId],
+    )), [{ id: interestId }]);
+    assert.deepEqual(rowsOf(await rollbackRuntimeQuery(
+      database,
+      actorId,
+      `DELETE FROM public."CommissionRequest" WHERE id = $1 RETURNING id`,
+      [requestId],
+    )), [{ id: requestId }]);
+  } finally {
+    await database.query("ROLLBACK").catch(() => {});
+  }
+  assert.deepEqual(
+    await readCommissionActivationPosture(database),
+    activePosture,
+    "the rollback proof must restore the full-chain database without rerunning activation",
+  );
+}
+
 export async function proveCommissionDomainPreparedAuthorities({
   database,
   seller,
   connectionString,
+  repositoryRoot,
 }) {
   const suffix = `commission_domain_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const now = "2026-11-01 12:00:00";
@@ -242,23 +442,23 @@ export async function proveCommissionDomainPreparedAuthorities({
   )), [
     {
       relname: "CommissionInterest",
-      rlsEnabled: false,
-      rlsForced: false,
-      runtimeSelect: true,
-      runtimeInsert: true,
-      runtimeUpdate: true,
-      runtimeDelete: true,
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeSelect: false,
+      runtimeInsert: false,
+      runtimeUpdate: false,
+      runtimeDelete: false,
     },
     {
       relname: "CommissionRequest",
-      rlsEnabled: false,
-      rlsForced: false,
-      runtimeSelect: true,
-      runtimeInsert: true,
-      runtimeUpdate: true,
-      runtimeDelete: true,
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeSelect: false,
+      runtimeInsert: false,
+      runtimeUpdate: false,
+      runtimeDelete: false,
     },
-  ], "preparation must preserve predecessor CRUD while RLS remains off");
+  ], "activation must preserve all reviewed Commission workflows through fixed authorities");
 
   const functionRows = rowsOf(await database.query(
     `SELECT routine.proname AS name,
@@ -977,4 +1177,11 @@ export async function proveCommissionDomainPreparedAuthorities({
     (error) => error?.code === "22023",
     "banned owners must not mutate CommissionRequest geography",
   );
+
+  await proveCommissionEmergencyRollback({
+    database,
+    repositoryRoot,
+    actorId: outsiderId,
+    sellerProfileId: seller.sellerProfileId,
+  });
 }

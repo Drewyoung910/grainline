@@ -78,7 +78,7 @@ export async function proveSellerProfilePublicCommissionInterestAuthority({
       securityDefiner: true,
       volatility: "s",
       config: ["search_path=pg_catalog"],
-      runtimeExecute: true,
+      runtimeExecute: false,
       publicExecute: false,
     },
   ]);
@@ -166,10 +166,13 @@ export async function proveSellerProfilePublicCommissionInterestAuthority({
         displayName: null,
       },
     ]);
-    assert.deepEqual(rowsOf(await database.query(`
-      SELECT "userId"
-        FROM public.grainline_seller_service_commission_interest_targets($1, 10000)
-    `, [requestId])), [{ userId: seller.userId }]);
+    await assert.rejects(
+      database.query(`
+        SELECT "userId"
+          FROM public.grainline_seller_service_commission_interest_targets($1, 10000)
+      `, [requestId]),
+      /permission denied/u,
+    );
     await database.query(
       "SELECT pg_catalog.set_config('app.user_id', $1, false)",
       [seller.userId],
