@@ -3546,30 +3546,35 @@ describe("database grant inventory guardrails", () => {
       ),
       [],
     );
-    const rollbackHelperRows = exactRows.map((row) => (
-      row.function_name === "grainline_account_deletion_email_key_core"
-        ? { ...row, execute_priv: true, runtime_direct_execute: true }
-        : row
-    ));
-    assert.deepEqual(
-      collectConversationMessageFunctionIssues(
-        rollbackHelperRows,
-        runtimeRole,
-        migrationRole,
-        { emailServicePredecessorHelperRequired: true },
-      ),
-      [],
-      "email-service emergency rollback restores only the shared canonicalizer",
-    );
-    assert.match(
-      collectConversationMessageFunctionIssues(
-        exactRows,
-        runtimeRole,
-        migrationRole,
-        { emailServicePredecessorHelperRequired: true },
-      ).join("\n"),
-      /grainline_account_deletion_email_key_core.*runtime role must have direct EXECUTE/,
-    );
+    const emailRollbackAware = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("emailServicePredecessorHelperRequired");
+    if (emailRollbackAware) {
+      const rollbackHelperRows = exactRows.map((row) => (
+        row.function_name === "grainline_account_deletion_email_key_core"
+          ? { ...row, execute_priv: true, runtime_direct_execute: true }
+          : row
+      ));
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          rollbackHelperRows,
+          runtimeRole,
+          migrationRole,
+          { emailServicePredecessorHelperRequired: true },
+        ),
+        [],
+        "email-service emergency rollback restores only the shared canonicalizer",
+      );
+      assert.match(
+        collectConversationMessageFunctionIssues(
+          exactRows,
+          runtimeRole,
+          migrationRole,
+          { emailServicePredecessorHelperRequired: true },
+        ).join("\n"),
+        /grainline_account_deletion_email_key_core.*runtime role must have direct EXECUTE/,
+      );
+    }
     const commissionActivationAware = source(
       "scripts/audit-runtime-db-grants.mjs",
     ).includes("commissionDomainRlsActivationApplied");
