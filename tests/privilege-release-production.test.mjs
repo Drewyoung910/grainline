@@ -158,7 +158,7 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
   );
   assert.equal(
     emailRelease.preparationMigration.sha256,
-    "a00d71f078a8e2cb38d376292592011861904b77a9ba282e186669a8d142e803",
+    "0cf146d85e0fd79a1c7849e27e4a909564b35447ee23573de42e79066b621695",
   );
   assert.equal(
     emailRelease.minimumCompatibleAppCommit,
@@ -215,6 +215,11 @@ test("email activation pins every function body installed by its preparation", (
   const preparation = verifyPrivateTablePreparationSource(
     "email_service_v1",
     rootDir,
+  );
+  assert.equal(
+    emailRelease.preparationMigration.sha256,
+    preparation.release.migrationSha256,
+    "activation preparation ledger pin drifted from the reviewed source package",
   );
   for (const entry of preparation.release.functions) {
     const argumentsSql = entry.arguments.replace(/,\s+/gu, ",");
