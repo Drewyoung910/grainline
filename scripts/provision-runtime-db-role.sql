@@ -711,7 +711,7 @@ WITH email_service_least_privilege_ledger AS (
   SELECT
     pg_catalog.count(*)::integer AS row_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = '3f051cd8825e68ba8f70da15dc362e4028b2159dc08e2897c5db2f265bbd3c32'
+      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)
@@ -721,7 +721,7 @@ WITH email_service_least_privilege_ledger AS (
         ) = 0
     )::integer AS exact_active_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = '3f051cd8825e68ba8f70da15dc362e4028b2159dc08e2897c5db2f265bbd3c32'
+      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)
@@ -731,7 +731,7 @@ WITH email_service_least_privilege_ledger AS (
         ) > 0
     )::integer AS exact_emergency_rollback_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = '3f051cd8825e68ba8f70da15dc362e4028b2159dc08e2897c5db2f265bbd3c32'
+      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NOT NULL
         AND applied_steps_count IN (0, 1)
@@ -759,7 +759,11 @@ SELECT
   COALESCE((
     SELECT exact_active_count = 1
     FROM email_service_least_privilege_ledger
-  ), false) AS grainline_email_service_least_privilege_applied;
+  ), false) AS grainline_email_service_least_privilege_applied,
+  COALESCE((
+    SELECT exact_emergency_rollback_count + exact_rolled_back_count = 1
+    FROM email_service_least_privilege_ledger
+  ), false) AS grainline_email_service_predecessor_helper_required;
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
@@ -4745,6 +4749,16 @@ SELECT format(
      )
    );
 \gexec
+
+-- Emergency rollback durably restores direct indexed writes. Re-grant this
+-- shared helper only for the exact rollback ledger posture, after the generic
+-- Conversation/Message convergence above has restored its owner-only default.
+\if :grainline_email_service_predecessor_helper_required
+GRANT EXECUTE ON FUNCTION
+  public.grainline_account_deletion_email_key_core(text)
+TO :"runtime_role";
+\endif
+\unset grainline_email_service_predecessor_helper_required
 \unset conversation_message_rls_active
 
 WITH saved_search_rpc(function_signature) AS (

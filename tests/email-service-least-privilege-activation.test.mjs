@@ -91,7 +91,7 @@ test("email service activation is grant-only, atomic, and bounded", () => {
   );
   assert.match(
     migration,
-    /Email service owner-only canonicalization helper drifted/u,
+    /Email service canonicalization helper posture drifted/u,
   );
   assert.match(migration, /\nCOMMIT;\s*$/u);
   assert.doesNotMatch(
@@ -193,7 +193,7 @@ test("recurring provisioning and the global grant audit preserve activation", ()
   );
   assert.match(
     provision,
-    /3f051cd8825e68ba8f70da15dc362e4028b2159dc08e2897c5db2f265bbd3c32/u,
+    /e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e/u,
   );
   assert.match(provision, /exact_rolled_back_count/u);
   assert.match(provision, /exact_emergency_rollback_count/u);
@@ -204,6 +204,10 @@ test("recurring provisioning and the global grant audit preserve activation", ()
   assert.match(
     provision,
     /\\if :grainline_email_service_least_privilege_applied[\s\S]*REVOKE ALL ON TABLE[\s\S]*NewsletterSubscriber[\s\S]*EmailFailureCount[\s\S]*\\gexec/u,
+  );
+  assert.match(
+    provision,
+    /\\if :grainline_email_service_predecessor_helper_required[\s\S]*GRANT EXECUTE ON FUNCTION[\s\S]*grainline_account_deletion_email_key_core\(text\)[\s\S]*TO :"runtime_role"/u,
   );
 });
 

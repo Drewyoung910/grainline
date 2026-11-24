@@ -28,6 +28,9 @@ DECLARE
   staff_oid oid;
   expected_signature text;
   role_state record;
+  activation_row_count integer;
+  exact_emergency_rollback_count integer;
+  helper_runtime_execute boolean;
 BEGIN
   SELECT role.oid INTO runtime_oid
     FROM pg_catalog.pg_roles AS role
@@ -159,21 +162,46 @@ BEGIN
 
   -- Conversation/Message authority and recurring role convergence keep this
   -- shared canonicalizer owner-only. The prepared fixed operations execute it
-  -- as their owner, so activation must preserve rather than widen that ACL.
+  -- as their owner, so first activation must preserve that ACL. An exact
+  -- emergency rollback restores the helper only while predecessor CRUD is
+  -- restored; reactivation accepts and closes that one ledger-bound posture.
+  SELECT
+    pg_catalog.count(*)::integer,
+    pg_catalog.count(*) FILTER (
+      WHERE finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+        AND pg_catalog.strpos(
+          COALESCE(logs, ''),
+          'GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1'
+        ) > 0
+    )::integer
+    INTO activation_row_count, exact_emergency_rollback_count
+    FROM public._prisma_migrations
+   WHERE migration_name =
+     '20261101090000_activate_email_service_least_privilege';
+  IF activation_row_count <> 0
+     AND (activation_row_count <> 1 OR exact_emergency_rollback_count <> 1) THEN
+    RAISE EXCEPTION 'Email service activation ledger posture drifted';
+  END IF;
+
+  helper_runtime_execute := pg_catalog.has_function_privilege(
+    runtime_oid,
+    'public.grainline_account_deletion_email_key_core(text)',
+    'EXECUTE'
+  );
   IF pg_catalog.to_regprocedure(
        'public.grainline_account_deletion_email_key_core(text)'
      ) IS NULL
      OR pg_catalog.has_function_privilege(
-       runtime_oid,
-       'public.grainline_account_deletion_email_key_core(text)',
-       'EXECUTE'
-     )
-     OR pg_catalog.has_function_privilege(
        staff_oid,
        'public.grainline_account_deletion_email_key_core(text)',
        'EXECUTE'
+     )
+     OR helper_runtime_execute IS DISTINCT FROM (
+       exact_emergency_rollback_count = 1
      ) THEN
-    RAISE EXCEPTION 'Email service owner-only canonicalization helper drifted';
+    RAISE EXCEPTION 'Email service canonicalization helper posture drifted';
   END IF;
 
   FOREACH expected_signature IN ARRAY ARRAY[

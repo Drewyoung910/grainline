@@ -1273,7 +1273,7 @@ export async function proveEmailServiceLeastPrivilegeRollback({ database }) {
   assert.equal(ledger.length, 1, "rollback must retain one exact activation ledger row");
   assert.equal(
     ledger[0].checksum,
-    "3f051cd8825e68ba8f70da15dc362e4028b2159dc08e2897c5db2f265bbd3c32",
+    "e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e",
   );
   assert.ok(ledger[0].finished_at);
   assert.equal(
