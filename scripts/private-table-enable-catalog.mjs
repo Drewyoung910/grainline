@@ -11,6 +11,7 @@ import {
 } from "./private-table-preparation-catalog.mjs";
 
 const RELEASE_ID_PATTERN = /^[a-z][a-z0-9_]{2,63}$/u;
+const TABLE_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,62}$/u;
 
 export const PRIVATE_TABLE_ENABLE_CONFIRMATION = "enable-reviewed-private-table-rls";
 
@@ -42,6 +43,43 @@ export function privateTableEnableMigrationPath(release) {
   return `prisma/migrations/${release.migration}/migration.sql`;
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+export function verifyPrivateTableEnableSqlShape(sql, release) {
+  if (typeof sql !== "string" || !release || typeof release !== "object") {
+    throw stopped("migration is not the reviewed policyless ENABLE shape");
+  }
+  const table = release.table;
+  if (typeof table !== "string" || !TABLE_NAME_PATTERN.test(table)) {
+    throw stopped("reviewed table name is invalid");
+  }
+  const tableReference = `public\\s*\\.\\s*"${escapeRegExp(table)}"`;
+  const enablesTable = new RegExp(
+    `ALTER\\s+TABLE\\s+${tableReference}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+    "iu",
+  );
+  const leavesForceDisabled = new RegExp(
+    `ALTER\\s+TABLE\\s+${tableReference}\\s+NO\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+    "iu",
+  );
+  const revokesTable = new RegExp(
+    `REVOKE\\s+ALL\\s+ON\\s+TABLE\\s+${tableReference}`,
+    "iu",
+  );
+  if (
+    !enablesTable.test(sql)
+    || !leavesForceDisabled.test(sql)
+    || !revokesTable.test(sql)
+    || /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu.test(sql.replace(/NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/giu, ""))
+    || /CREATE\s+POLICY/iu.test(sql)
+    || /DROP\s+(?:TABLE|COLUMN|FUNCTION)/iu.test(sql)
+  ) {
+    throw stopped("migration is not the reviewed policyless ENABLE shape");
+  }
+}
+
 export function verifyPrivateTableEnableSource(releaseId, rootDir = process.cwd()) {
   const release = privateTableEnable(releaseId);
   const preparation = verifyPrivateTablePreparationSource(
@@ -53,16 +91,7 @@ export function verifyPrivateTableEnableSource(releaseId, rootDir = process.cwd(
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== release.migrationSha256) throw stopped("migration digest drifted");
   const sql = bytes.toString("utf8");
-  if (
-    !/ALTER\s+TABLE\s+public\."SupportRequest"\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu.test(sql)
-    || !/ALTER\s+TABLE\s+public\."SupportRequest"\s+NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/iu.test(sql)
-    || !/REVOKE\s+ALL\s+ON\s+TABLE\s+public\."SupportRequest"/iu.test(sql)
-    || /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu.test(sql.replace(/NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/giu, ""))
-    || /CREATE\s+POLICY/iu.test(sql)
-    || /DROP\s+(?:TABLE|COLUMN|FUNCTION)/iu.test(sql)
-  ) {
-    throw stopped("migration is not the reviewed policyless ENABLE shape");
-  }
+  verifyPrivateTableEnableSqlShape(sql, release);
   return Object.freeze({
     releaseId,
     release,
