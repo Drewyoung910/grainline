@@ -166,9 +166,10 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
   );
   assert.deepEqual(emailRelease.emptyTables, ["EmailFailureCount"]);
   assert.deepEqual(emailRelease.laterPendingMigrations, []);
-  assert.deepEqual(emailRelease.predecessorRuntimeFunctions, [
+  assert.deepEqual(emailRelease.ownerOnlyFunctions, [
     "public.grainline_account_deletion_email_key_core(text)",
   ]);
+  assert.deepEqual(emailRelease.predecessorRuntimeFunctions ?? [], []);
   assert.deepEqual(Object.keys(emailRelease.functions).sort(), [
     "public.grainline_email_account_deletion_suppression_clear(text)",
     "public.grainline_email_hard_suppression_apply(text,text,\"EmailSuppressionReason\",text,text,jsonb)",
@@ -234,7 +235,7 @@ test("email activation pins every function body installed by its preparation", (
   }
 });
 
-test("production inspector retires predecessor-only function authority with the table boundary", () => {
+test("production inspector distinguishes transitional and owner-only functions", () => {
   const inspectorSource = readFileSync(
     join(rootDir, "scripts", "privilege-release-production-inspect.mjs"),
     "utf8",
@@ -251,6 +252,7 @@ test("production inspector retires predecessor-only function authority with the 
       "public.retained()": digest,
     },
     predecessorRuntimeFunctions: ["public.compat(text)"],
+    ownerOnlyFunctions: ["public.owner_only(text)"],
   };
   const row = (signature, runtimeExecute) => ({
     signature,
@@ -265,6 +267,7 @@ test("production inspector retires predecessor-only function authority with the 
   const predecessorRows = [
     row("public.retained()", true),
     row("public.compat(text)", true),
+    row("public.owner_only(text)", false),
   ];
   const predecessor = classifyPrivilegeReleaseFunctions(
     predecessorRows,
@@ -273,9 +276,14 @@ test("production inspector retires predecessor-only function authority with the 
   );
   assert.equal(predecessor[0].predecessorOnly, true);
   assert.equal(predecessor[0].runtimeExecute, true);
+  assert.equal(
+    predecessor.find((entry) => entry.signature === "public.owner_only(text)")?.ownerOnly,
+    true,
+  );
 
   const successorRows = [
     row("public.compat(text)", false),
+    row("public.owner_only(text)", false),
     row("public.retained()", true),
   ];
   const successor = classifyPrivilegeReleaseFunctions(
@@ -292,6 +300,16 @@ test("production inspector retires predecessor-only function authority with the 
       "successor",
     ),
     /public\.compat\(text\) runtime EXECUTE drifted/u,
+  );
+  assert.throws(
+    () => classifyPrivilegeReleaseFunctions(
+      predecessorRows.map((entry) => entry.signature === "public.owner_only(text)"
+        ? { ...entry, runtime_execute: true }
+        : entry),
+      mockRelease,
+      "predecessor",
+    ),
+    /public\.owner_only\(text\) runtime EXECUTE drifted/u,
   );
 });
 

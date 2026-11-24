@@ -89,6 +89,10 @@ test("email service activation is grant-only, atomic, and bounded", () => {
     migration,
     /REVOKE ALL ON FUNCTION\s+public\.grainline_account_deletion_email_key_core\(text\)\s+FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime/u,
   );
+  assert.match(
+    migration,
+    /Email service owner-only canonicalization helper drifted/u,
+  );
   assert.match(migration, /\nCOMMIT;\s*$/u);
   assert.doesNotMatch(
     migration,
@@ -189,7 +193,7 @@ test("recurring provisioning and the global grant audit preserve activation", ()
   );
   assert.match(
     provision,
-    /4c9c30b2b95854f5dfe587532ecfb98a0698e54c2c50cf49cfdb4fdf0c8f02cf/u,
+    /3f051cd8825e68ba8f70da15dc362e4028b2159dc08e2897c5db2f265bbd3c32/u,
   );
   assert.match(provision, /exact_rolled_back_count/u);
   assert.match(provision, /exact_emergency_rollback_count/u);

@@ -157,15 +157,23 @@ BEGIN
     RAISE EXCEPTION 'EmailFailureCount must be empty before activation';
   END IF;
 
+  -- Conversation/Message authority and recurring role convergence keep this
+  -- shared canonicalizer owner-only. The prepared fixed operations execute it
+  -- as their owner, so activation must preserve rather than widen that ACL.
   IF pg_catalog.to_regprocedure(
        'public.grainline_account_deletion_email_key_core(text)'
      ) IS NULL
-     OR NOT pg_catalog.has_function_privilege(
+     OR pg_catalog.has_function_privilege(
        runtime_oid,
        'public.grainline_account_deletion_email_key_core(text)',
        'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       staff_oid,
+       'public.grainline_account_deletion_email_key_core(text)',
+       'EXECUTE'
      ) THEN
-    RAISE EXCEPTION 'Email service indexed-write compatibility helper is incomplete';
+    RAISE EXCEPTION 'Email service owner-only canonicalization helper drifted';
   END IF;
 
   FOREACH expected_signature IN ARRAY ARRAY[

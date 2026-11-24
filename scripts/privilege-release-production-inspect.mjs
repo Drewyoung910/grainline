@@ -96,12 +96,13 @@ function classify(rows, release) {
 export function classifyPrivilegeReleaseFunctions(rows, release, posture) {
   const retained = Object.keys(release.functions ?? {}).sort();
   const predecessorOnly = [...(release.predecessorRuntimeFunctions ?? [])].sort();
+  const ownerOnly = [...(release.ownerOnlyFunctions ?? [])].sort();
   assert.equal(
-    new Set([...retained, ...predecessorOnly]).size,
-    retained.length + predecessorOnly.length,
+    new Set([...retained, ...predecessorOnly, ...ownerOnly]).size,
+    retained.length + predecessorOnly.length + ownerOnly.length,
     "reviewed function catalogs overlap",
   );
-  const expected = [...retained, ...predecessorOnly].sort();
+  const expected = [...retained, ...predecessorOnly, ...ownerOnly].sort();
   const sortedRows = [...rows].sort((left, right) =>
     left.signature < right.signature ? -1 : left.signature > right.signature ? 1 : 0,
   );
@@ -121,16 +122,19 @@ export function classifyPrivilegeReleaseFunctions(rows, release, posture) {
     assert.equal(row.owner_bypasses_rls, true, `${row.signature} owner posture drifted`);
     assert.equal(row.public_execute, false, `${row.signature} is executable by PUBLIC`);
     const predecessorFunction = predecessorOnly.includes(row.signature);
-    const expectedRuntimeExecute = predecessorFunction
-      ? posture === "predecessor"
-      : true;
+    const ownerOnlyFunction = ownerOnly.includes(row.signature);
+    const expectedRuntimeExecute = ownerOnlyFunction
+      ? false
+      : predecessorFunction
+        ? posture === "predecessor"
+        : true;
     assert.equal(
       row.runtime_execute,
       expectedRuntimeExecute,
       `${row.signature} runtime EXECUTE drifted`,
     );
     const sourceSha256 = createHash("sha256").update(row.source).digest("hex");
-    if (!predecessorFunction) {
+    if (!predecessorFunction && !ownerOnlyFunction) {
       assert.equal(
         sourceSha256,
         release.functions[row.signature],
@@ -142,6 +146,7 @@ export function classifyPrivilegeReleaseFunctions(rows, release, posture) {
       sourceSha256,
       runtimeExecute: row.runtime_execute,
       predecessorOnly: predecessorFunction,
+      ownerOnly: ownerOnlyFunction,
     });
   });
 }
@@ -274,6 +279,7 @@ export async function inspectPrivilegeReleaseProduction(
     const functionSignatures = [
       ...Object.keys(release.functions ?? {}),
       ...(release.predecessorRuntimeFunctions ?? []),
+      ...(release.ownerOnlyFunctions ?? []),
     ].sort();
     const functionRows = functionSignatures.length === 0 ? [] : (await client.query(`
       WITH expected(signature) AS (
