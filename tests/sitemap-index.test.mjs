@@ -98,7 +98,11 @@ describe("sitemap index xml", () => {
   it("emits one <sitemap> per chunk and includes lastmod", () => {
     const xml = sitemapIndexXml("https://example.com", 3, "2026-05-01T00:00:00.000Z");
     assert.match(xml, /<\?xml version="1\.0" encoding="UTF-8"\?>/);
-    assert.match(xml, /<sitemapindex /);
+    assert.match(
+      xml,
+      /<sitemapindex xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/,
+    );
+    assert.doesNotMatch(xml, /schemas\/sitemap-0\.9/u);
     assert.match(xml, /<loc>https:\/\/example\.com\/sitemap\/0\.xml<\/loc>/);
     assert.match(xml, /<loc>https:\/\/example\.com\/sitemap\/1\.xml<\/loc>/);
     assert.match(xml, /<loc>https:\/\/example\.com\/sitemap\/2\.xml<\/loc>/);

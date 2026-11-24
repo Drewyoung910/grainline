@@ -122,7 +122,7 @@ export function sitemapIndexXml(baseUrl: string, chunkCount: number, lastmod: st
   </sitemap>`);
   }
   return `<?xml version="1.0" encoding="UTF-8"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap-0.9">
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${entries.join("\n")}
 </sitemapindex>
 `;
