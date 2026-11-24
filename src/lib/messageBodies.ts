@@ -39,6 +39,7 @@ export type ThreadMessageEventMessage = {
   body: string;
   kind?: string | null;
   isSystemMessage?: boolean | null;
+  contextListing?: { id: string; title: string } | null;
   createdAt: string;
   readAt?: string | null;
 };
@@ -50,6 +51,7 @@ const MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH = 200;
 const MAX_STRUCTURED_MESSAGE_BODY_LENGTH = 5000;
 const MAX_STRUCTURED_MESSAGE_CURRENCY_LENGTH = 10;
 const FILE_MESSAGE_CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
+const THREAD_MESSAGE_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
 function parseJsonRecord(raw: string): Record<string, unknown> | null {
   try {
@@ -71,6 +73,23 @@ function optionalCleanNullableString(value: unknown, maxLength: number): string 
   if (typeof value !== "string") return undefined;
   const cleaned = truncateText(sanitizeText(value).replace(FILE_MESSAGE_CONTROL_CHARS, ""), maxLength).trim();
   return cleaned || null;
+}
+
+function cleanThreadMessageBody(value: string): string {
+  return truncateText(
+    sanitizeText(value).replace(THREAD_MESSAGE_CONTROL_CHARS, ""),
+    MAX_STRUCTURED_MESSAGE_BODY_LENGTH,
+  ).trim();
+}
+
+function optionalContextListing(value: unknown): { id: string; title: string } | null | undefined {
+  if (value === null) return null;
+  if (value === undefined || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const obj = value as Record<string, unknown>;
+  const id = optionalString(obj.id);
+  const title = optionalCleanNullableString(obj.title, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH);
+  if (!id || id.length > 191 || !title) return undefined;
+  return { id, title };
 }
 
 function optionalNumber(value: unknown): number | undefined {
@@ -151,11 +170,12 @@ function parseThreadMessage(value: unknown): ThreadMessageEventMessage | null {
     id: obj.id,
     senderId: obj.senderId,
     recipientId: obj.recipientId,
-    body: optionalCleanNullableString(obj.body, MAX_STRUCTURED_MESSAGE_BODY_LENGTH) ?? "",
+    body: cleanThreadMessageBody(obj.body),
     kind: typeof obj.kind === "string" || obj.kind === null ? obj.kind : undefined,
     isSystemMessage: typeof obj.isSystemMessage === "boolean" || obj.isSystemMessage === null
       ? obj.isSystemMessage
       : undefined,
+    contextListing: optionalContextListing(obj.contextListing),
     createdAt: obj.createdAt,
     readAt: typeof obj.readAt === "string" || obj.readAt === null ? obj.readAt : undefined,
   };
