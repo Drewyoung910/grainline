@@ -193,7 +193,7 @@ test("recurring provisioning and the global grant audit preserve activation", ()
   );
   assert.match(
     provision,
-    /e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e/u,
+    /cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf/u,
   );
   assert.match(provision, /exact_rolled_back_count/u);
   assert.match(provision, /exact_emergency_rollback_count/u);
@@ -230,13 +230,19 @@ test("the grant audit accepts exact active, emergency, and rolled-back states", 
     finished_at: new Date(),
     applied_steps_count: 0,
   };
-  assert.deepEqual(await stateFor(null), { applied: false, issues: [] });
+  assert.deepEqual(await stateFor(null), {
+    applied: false,
+    predecessorHelperRequired: false,
+    issues: [],
+  });
   assert.deepEqual(await stateFor({ ...base, rolled_back_at: null }), {
     applied: true,
+    predecessorHelperRequired: false,
     issues: [],
   });
   assert.deepEqual(await stateFor({ ...base, rolled_back_at: new Date() }), {
     applied: false,
+    predecessorHelperRequired: true,
     issues: [],
   });
   assert.deepEqual(await stateFor({
@@ -245,6 +251,7 @@ test("the grant audit accepts exact active, emergency, and rolled-back states", 
     logs: EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER,
   }), {
     applied: false,
+    predecessorHelperRequired: true,
     issues: [],
   });
   const drifted = await stateFor({

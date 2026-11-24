@@ -12,7 +12,7 @@ export const PRIVILEGE_RELEASES = Object.freeze({
   email_service_v1: Object.freeze({
     migration: "20261101090000_activate_email_service_least_privilege",
     migrationSha256:
-      "e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e",
+      "cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf",
     preparationMigration: Object.freeze({
       name: "20261101080000_prepare_email_service_least_privilege",
       sha256:
@@ -23,7 +23,7 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     rollback: Object.freeze({
       path: "docs/rls-drafts/email-service-least-privilege-activation-rollback.sql",
       sha256:
-        "928d3944705cd24450ba12d7eb4b3cb712e713cbde2ed7d1d25c3695b58dfcd8",
+        "7abbcfe82169e5995d351695b2f37f51d563804d96ac74e93ec844a92178bcaa",
     }),
     sourceTests: Object.freeze([
       "tests/email-service-least-privilege-activation.test.mjs",

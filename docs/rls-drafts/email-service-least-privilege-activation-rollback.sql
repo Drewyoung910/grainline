@@ -48,7 +48,7 @@ BEGIN
   SELECT
     pg_catalog.count(*)::integer,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)
@@ -157,7 +157,7 @@ UPDATE public._prisma_migrations
  WHERE migration_name =
        '20261101090000_activate_email_service_least_privilege'
    AND checksum =
-       'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
+       'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
    AND finished_at IS NOT NULL
    AND rolled_back_at IS NULL
    AND applied_steps_count IN (0, 1)
@@ -174,7 +174,7 @@ BEGIN
   SELECT
     pg_catalog.count(*)::integer,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)

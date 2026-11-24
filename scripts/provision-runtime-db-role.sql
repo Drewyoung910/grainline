@@ -711,7 +711,7 @@ WITH email_service_least_privilege_ledger AS (
   SELECT
     pg_catalog.count(*)::integer AS row_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)
@@ -721,7 +721,7 @@ WITH email_service_least_privilege_ledger AS (
         ) = 0
     )::integer AS exact_active_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)
@@ -731,7 +731,7 @@ WITH email_service_least_privilege_ledger AS (
         ) > 0
     )::integer AS exact_emergency_rollback_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = 'e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e'
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NOT NULL
         AND applied_steps_count IN (0, 1)

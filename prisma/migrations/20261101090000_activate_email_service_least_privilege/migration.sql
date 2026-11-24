@@ -29,6 +29,7 @@ DECLARE
   expected_signature text;
   role_state record;
   activation_row_count integer;
+  exact_inflight_count integer;
   exact_emergency_rollback_count integer;
   helper_runtime_execute boolean;
 BEGIN
@@ -168,6 +169,12 @@ BEGIN
   SELECT
     pg_catalog.count(*)::integer,
     pg_catalog.count(*) FILTER (
+      WHERE finished_at IS NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count = 0
+        AND COALESCE(logs, '') = ''
+    )::integer,
+    pg_catalog.count(*) FILTER (
       WHERE finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)
@@ -176,12 +183,16 @@ BEGIN
           'GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1'
         ) > 0
     )::integer
-    INTO activation_row_count, exact_emergency_rollback_count
+    INTO activation_row_count, exact_inflight_count,
+         exact_emergency_rollback_count
     FROM public._prisma_migrations
    WHERE migration_name =
      '20261101090000_activate_email_service_least_privilege';
   IF activation_row_count <> 0
-     AND (activation_row_count <> 1 OR exact_emergency_rollback_count <> 1) THEN
+     AND (
+       activation_row_count <> 1
+       OR exact_inflight_count + exact_emergency_rollback_count <> 1
+     ) THEN
     RAISE EXCEPTION 'Email service activation ledger posture drifted';
   END IF;
 

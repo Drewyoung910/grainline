@@ -1388,7 +1388,7 @@ test(
           RETURNING id`,
           [
             EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION,
-            "e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e",
+            "cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf",
             EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER,
           ],
         );

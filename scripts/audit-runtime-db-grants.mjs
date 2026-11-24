@@ -311,7 +311,7 @@ export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256 =
 export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION =
   "20261101090000_activate_email_service_least_privilege";
 export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_SHA256 =
-  "e8d18736820db73dac0007af7f19d9738dd47b1af6c0d8c49af9d0ab2ec45a6e";
+  "cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf";
 export const EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER =
   "GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1";
 export const EMAIL_SERVICE_LEAST_PRIVILEGE_TABLES = Object.freeze([
@@ -2013,7 +2013,10 @@ export async function readCheckoutStockReservationSourceCutoverState(client) {
     "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
   );
   if (relation.rows[0]?.migration_table === null) {
-    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+    return Object.freeze({
+      applied: false,
+      issues: Object.freeze([]),
+    });
   }
 
   const result = await client.query(
@@ -2023,7 +2026,10 @@ export async function readCheckoutStockReservationSourceCutoverState(client) {
     [CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION],
   );
   if (result.rows.length === 0) {
-    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+    return Object.freeze({
+      applied: false,
+      issues: Object.freeze([]),
+    });
   }
 
   const row = result.rows[0];
@@ -2120,7 +2126,11 @@ export async function readEmailServiceLeastPrivilegeActivationState(client) {
     "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
   );
   if (relation.rows[0]?.migration_table === null) {
-    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+    return Object.freeze({
+      applied: false,
+      predecessorHelperRequired: false,
+      issues: Object.freeze([]),
+    });
   }
   const result = await client.query(
     `SELECT migration_name, checksum, finished_at, rolled_back_at,
@@ -2130,7 +2140,11 @@ export async function readEmailServiceLeastPrivilegeActivationState(client) {
     [EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION],
   );
   if (result.rows.length === 0) {
-    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+    return Object.freeze({
+      applied: false,
+      predecessorHelperRequired: false,
+      issues: Object.freeze([]),
+    });
   }
   const row = result.rows[0];
   const exact = result.rows.length === 1
@@ -2140,17 +2154,19 @@ export async function readEmailServiceLeastPrivilegeActivationState(client) {
   if (!exact) {
     return Object.freeze({
       applied: false,
+      predecessorHelperRequired: false,
       issues: Object.freeze([
         "email-service least-privilege activation migration ledger is partial or drifted",
       ]),
     });
   }
+  const emergencyRollback = row.rolled_back_at === null
+    && String(row.logs ?? "").includes(
+      EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER,
+    );
   return Object.freeze({
-    applied:
-      row.rolled_back_at === null
-      && !String(row.logs ?? "").includes(
-        EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER,
-      ),
+    applied: row.rolled_back_at === null && !emergencyRollback,
+    predecessorHelperRequired: emergencyRollback || row.rolled_back_at !== null,
     issues: Object.freeze([]),
   });
 }
@@ -3139,6 +3155,8 @@ export function collectConversationMessageFunctionIssues(
   );
   const commissionDomainActivated =
     inventory?.commissionDomainRlsActivationApplied === true;
+  const emailServicePredecessorHelperRequired =
+    inventory?.emailServicePredecessorHelperRequired === true;
   const expectedFunctions = conversationMessageAuthorityFunctionsForState({
     blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
     blockActivationApplied: blockRlsActivationExpected(inventory),
@@ -3148,10 +3166,13 @@ export function collectConversationMessageFunctionIssues(
         return [{
           ...entry,
           runtimeExecute:
-            entry.name === "grainline_message_create_commission_interest"
-            && commissionDomainActivated
-              ? false
-              : entry.runtimeExecute,
+            entry.name === "grainline_account_deletion_email_key_core"
+            && emailServicePredecessorHelperRequired
+              ? true
+              : entry.name === "grainline_message_create_commission_interest"
+                && commissionDomainActivated
+                ? false
+                : entry.runtimeExecute,
         }];
       }
       const legacy = {
@@ -4283,6 +4304,8 @@ export async function auditLiveDatabase({
       serviceReferenceLeastPrivilege.applied,
     emailServiceLeastPrivilegeActivationApplied:
       emailServiceLeastPrivilegeActivation.applied,
+    emailServicePredecessorHelperRequired:
+      emailServiceLeastPrivilegeActivation.predecessorHelperRequired,
     clerkWebhookEventRlsActivationApplied:
       clerkWebhookEventActivation.applied,
     clerkWebhookEventRlsForceApplied:
@@ -4879,7 +4902,13 @@ export async function auditLiveDatabase({
   for (const row of functionResult.rows) {
     const accountDeletionExecuteExpected =
       accountDeletionRuntimeExecuteExpected(row, liveAuthorityInventory);
-    const runtimeExecuteExpected = accountDeletionExecuteExpected
+    const emailServiceHelperExecuteExpected =
+      row.function_name === "grainline_account_deletion_email_key_core"
+      && String(row.args ?? "").replace(/\s+/gu, "") === "text"
+        ? liveAuthorityInventory.emailServicePredecessorHelperRequired === true
+        : null;
+    const runtimeExecuteExpected = emailServiceHelperExecuteExpected
+      ?? accountDeletionExecuteExpected
       ?? !runtimePrivateFunctionNameSet.has(row.function_name);
     if (runtimeExecuteExpected && !row.execute_priv) {
       issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
