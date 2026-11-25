@@ -141,6 +141,7 @@ test("catalog byte-seals the reviewed reusable privilege release", () => {
   assert.deepEqual(release.laterSourceMigrations, [
     "20261101080000_prepare_email_service_least_privilege",
     "20261101090000_activate_email_service_least_privilege",
+    "20261102010000_prepare_admin_audit_log_authorities",
     "20261102050000_prepare_listing_domain_authorities",
     "20261102060000_activate_listing_domain_rls",
     "20261113010000_prepare_commission_domain_authorities",
@@ -186,6 +187,7 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
   assert.deepEqual(emailRelease.emptyTables, ["EmailFailureCount"]);
   assert.deepEqual(emailRelease.laterPendingMigrations, []);
   assert.deepEqual(emailRelease.laterSourceMigrations, [
+    "20261102010000_prepare_admin_audit_log_authorities",
     "20261102050000_prepare_listing_domain_authorities",
     "20261102060000_activate_listing_domain_rls",
     "20261113010000_prepare_commission_domain_authorities",
