@@ -5,11 +5,12 @@ Date: 2026-11-02
 Status: fresh activation restack in isolated review. The compatible application
 conversion is zero-direct and adds 16 named operations plus a private insert
 fence. Its reusable manifest seals 16 new and 23 retained functions, two
-indexes and one trigger. Preparation PR #772 is based directly on current main;
-its exact-head PostgreSQL 16/17 CI and independent review remain acceptance
-gates. The separate policyless ENABLE-plus-FORCE restack must repeat focused
-and complete-chain proof after preparation is accepted and restacked onto the
-resulting exact main.
+indexes and one trigger. Preparation PR #772 passed exact-head PostgreSQL
+16/17 CI and the complete ordered gate, then merged as exact main
+`fb79cd52f8dbc533d9b3b02d2c35e047024b0bda`. The separate policyless
+ENABLE-plus-FORCE candidate is restacked directly onto that main; its focused
+local source, grant, workflow, isolation-replay, TypeScript and lint gates pass.
+Exact-head CI and review remain activation-source acceptance gates.
 This document authorizes no merge, deployment, Production database change, grant change, or
 RLS activation.
 
@@ -22,10 +23,10 @@ Rows contain private moderation reasons, provider-recovery evidence, account
 state snapshots, undo state, and identifiers used by other durable ledgers.
 
 The current public-main baseline is
-`6bd5e47ef36c51abaa4aaaa6d59f7dc7efc41a87`; the fresh preparation candidate is
-PR #772 on `codex/rls-queue-reconcile-20261125`. Current main already contains
-the accepted Listing, Commission and email-service releases. SellerBroadcast
-and SellerMetrics are not part of this release stack.
+`fb79cd52f8dbc533d9b3b02d2c35e047024b0bda`, which merged preparation PR #772.
+Current main already contains the accepted Listing, Commission, email-service
+and AdminAuditLog preparation releases. SellerBroadcast and SellerMetrics are
+not part of this release stack.
 
 The audited baseline had 20 executable direct AdminAuditLog accesses across
 six files; the current isolated candidate has zero. The complete PostgreSQL 17 schema has 23 installed functions whose

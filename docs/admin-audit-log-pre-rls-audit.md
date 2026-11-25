@@ -11,16 +11,18 @@ and 100,000-row query plans now pass. The reusable release catalog seals all
 16 new functions, 23 retained functions, two indexes and one trigger, and its
 real-catalog inspector proof passes. Compatibility, rollback and the complete
 local release-workflow proof now pass, including pending, applied-unrecorded and
-applied restart states with the actual Prisma ledger command. Exact-branch
-PostgreSQL 17 CI remains the preparation acceptance gate. No Production, merge,
-deployment, grant, or RLS action is authorized by this document.
+applied restart states with the actual Prisma ledger command. Preparation PR
+#772 passed exact-head PostgreSQL 16/17 CI and the complete ordered gate, then
+merged as exact main `fb79cd52f8dbc533d9b3b02d2c35e047024b0bda`. Production
+remains unchanged; this document authorizes no deployment, grant, migration, or
+RLS action.
 
 ## Baseline and method
 
 - Public-main source baseline:
-  `6bd5e47ef36c51abaa4aaaa6d59f7dc7efc41a87`.
-- Fresh isolated preparation candidate: PR #772 on
-  `codex/rls-queue-reconcile-20261125`.
+  `fb79cd52f8dbc533d9b3b02d2c35e047024b0bda`.
+- Accepted preparation: PR #772, with reviewed source head
+  `302ef040cfed43fa3b4ba8a6de3e4f09daa58f8e`.
 - Source inventory: all `src/` references to `AdminAuditLog` and the Prisma
   delegate, including raw SQL, generic-client aliases and transaction clients.
 - Database inventory: the complete 462-migration PostgreSQL 17 schema in the
