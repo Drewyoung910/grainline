@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import test from "node:test";
@@ -17,6 +23,9 @@ import {
   classifyPrivilegeReleaseFunctions,
   inspectPrivilegeReleaseProduction,
 } from "../scripts/privilege-release-production-inspect.mjs";
+import {
+  collectReviewedMigrationTailIssues,
+} from "../scripts/assert-reviewed-migration-tail.mjs";
 
 const releaseId = "service_reference_v1";
 const release = privilegeRelease(releaseId);
@@ -129,6 +138,14 @@ test("catalog byte-seals the reviewed reusable privilege release", () => {
   assert.deepEqual(release.laterPendingMigrations, [
     "20261101080000_prepare_email_service_least_privilege",
   ]);
+  assert.deepEqual(release.laterSourceMigrations, [
+    "20261101080000_prepare_email_service_least_privilege",
+    "20261101090000_activate_email_service_least_privilege",
+    "20261102050000_prepare_listing_domain_authorities",
+    "20261102060000_activate_listing_domain_rls",
+    "20261113010000_prepare_commission_domain_authorities",
+    "20261113020000_activate_commission_domain_rls",
+  ]);
   assert.equal(
     release.minimumCompatibleAppCommit,
     "b56e226d327347fe155aa07ded0bde999ca929be",
@@ -168,6 +185,12 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
   );
   assert.deepEqual(emailRelease.emptyTables, ["EmailFailureCount"]);
   assert.deepEqual(emailRelease.laterPendingMigrations, []);
+  assert.deepEqual(emailRelease.laterSourceMigrations, [
+    "20261102050000_prepare_listing_domain_authorities",
+    "20261102060000_activate_listing_domain_rls",
+    "20261113010000_prepare_commission_domain_authorities",
+    "20261113020000_activate_commission_domain_rls",
+  ]);
   assert.deepEqual(emailRelease.ownerOnlyFunctions, [
     "public.grainline_account_deletion_email_key_core(text)",
   ]);
@@ -211,6 +234,19 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
     NewsletterSubscriber: [],
     ResendWebhookEvent: [],
   });
+});
+
+test("email activation separates reviewed source tail from pending migrations", () => {
+  const emailRelease = privilegeRelease("email_service_v1");
+  const directoryNames = readdirSync(join(rootDir, "prisma", "migrations"), {
+    withFileTypes: true,
+  }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  assert.deepEqual(collectReviewedMigrationTailIssues({
+    directoryNames,
+    releaseMigrations: [emailRelease.migration],
+    laterPendingMigrations: emailRelease.laterSourceMigrations,
+  }), []);
+  assert.deepEqual(emailRelease.laterPendingMigrations, []);
 });
 
 test("email activation pins every function body installed by its preparation", () => {
@@ -396,6 +432,8 @@ test("workflow is exact-main, serialized, restart-safe, and evidence preserving"
   assert.match(source, /guard-production-migration-runner\.mjs/u);
   assert.match(source, /assert-reviewed-pending-migrations\.mjs/u);
   assert.match(source, /assert-reviewed-migration-tail\.mjs/u);
+  assert.match(source, /--later-source-migrations/u);
+  assert.match(source, /REVIEWED_LATER_MIGRATION_SOURCES/u);
   assert.match(source, /--later-pending-migrations/u);
   assert.match(source, /steps\.preflight\.outputs\.expected_pending/u);
   assert.match(source, /steps\.preflight\.outputs\.later_pending/u);
