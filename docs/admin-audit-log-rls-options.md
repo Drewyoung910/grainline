@@ -2,11 +2,11 @@
 
 Date: 2026-11-02
 
-Status: design selected. The isolated compatible application conversion is
-zero-direct and its 14-operation migration plus private insert fence passes
+Status: fresh preparation candidate in PR #772. The isolated compatible
+application conversion is zero-direct and its 16-operation migration plus private insert fence passes
 focused and complete-chain PostgreSQL 17 proof. Atomic deletion-plan creation
 and five deterministic concurrency scenarios pass, as do the 100,000-row
-plans. The reusable manifest and real-catalog inspector seal the 15 new and 23
+plans. The reusable manifest and real-catalog inspector seal the 16 new and 23
 retained functions, indexes and trigger. Deploy-order compatibility, the
 app-first rollback and the full local release-workflow restart sequence now pass
 on PostgreSQL 17. Preparation remains unaccepted until exact-branch PostgreSQL
@@ -22,12 +22,11 @@ employees, ordinary users, and automated actions attributed to a related user.
 Rows contain private moderation reasons, provider-recovery evidence, account
 state snapshots, undo state, and identifiers used by other durable ledgers.
 
-The audited public-main baseline is
-`12a4dfc492412ff52ff94d921e20e7026c4cff38`. The isolated serial RLS baseline
-is `2a10b3d354e766ef787249f790a19b4d3a92212b`; it contains the already-reviewed
-Block, UserReport, SellerFaq, SellerBroadcast, seller-analytics, Commission and
-email-service candidates. The AdminAuditLog design must compose after that
-serial chain without changing its release order.
+The current public-main baseline is
+`6bd5e47ef36c51abaa4aaaa6d59f7dc7efc41a87`; the fresh preparation candidate is
+PR #772 on `codex/rls-queue-reconcile-20261125`. Current main already contains
+the accepted Listing, Commission and email-service releases. SellerBroadcast
+and SellerMetrics are not part of this release stack.
 
 The audited baseline had 20 executable direct AdminAuditLog accesses across
 six files; the current isolated candidate has zero. The complete PostgreSQL 17 schema has 23 installed functions whose
@@ -183,7 +182,7 @@ families:
 7. retained current-function writers/readers, sealed by exact signature,
    owner, ACL, security mode, search path and source digest.
 
-The candidate adds 14 named operations plus one private insert-fence trigger
+The candidate adds 16 named operations plus one private insert-fence trigger
 and has zero direct source consumers.
 Its account-deletion retry format stores only an already-redacted patch plus
 source SHA-256 fingerprints; the apply operation preserves undo fields,
@@ -218,7 +217,7 @@ before any app rollback. A successfully applied migration ledger row remains
 applied; later reactivation requires a new reviewed forward migration.
 
 The preparation rollback has been executed on the complete disposable
-PostgreSQL 17 chain. It removed the 15 new functions, two indexes and one
+PostgreSQL 17 chain. It removed the 16 new functions, two indexes and one
 trigger, preserved the 28-row audit-data fingerprint, admitted predecessor
 runtime SELECT/INSERT/UPDATE/DELETE, and then admitted exact reapplication.
 The production build gate separately pins the new runtime, isolated-staff and

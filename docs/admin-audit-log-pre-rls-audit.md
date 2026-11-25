@@ -4,11 +4,11 @@ Date: 2026-11-02
 
 Status: domain audit complete; Option B selected in
 `docs/admin-audit-log-rls-options.md`. The isolated compatible source
-conversion is zero-direct and its 14-operation migration plus private insert
+conversion is zero-direct and its 16-operation migration plus private insert
 fence passes focused PGlite and complete-chain PostgreSQL 17 behavior/ACL
 proof. Durable in-transaction deletion plans, deterministic concurrency cases
 and 100,000-row query plans now pass. The reusable release catalog seals all
-15 new functions, 23 retained functions, two indexes and one trigger, and its
+16 new functions, 23 retained functions, two indexes and one trigger, and its
 real-catalog inspector proof passes. Compatibility, rollback and the complete
 local release-workflow proof now pass, including pending, applied-unrecorded and
 applied restart states with the actual Prisma ledger command. Exact-branch
@@ -18,9 +18,9 @@ deployment, grant, or RLS action is authorized by this document.
 ## Baseline and method
 
 - Public-main source baseline:
-  `12a4dfc492412ff52ff94d921e20e7026c4cff38`.
-- Isolated serial-chain baseline:
-  `2a10b3d354e766ef787249f790a19b4d3a92212b`.
+  `6bd5e47ef36c51abaa4aaaa6d59f7dc7efc41a87`.
+- Fresh isolated preparation candidate: PR #772 on
+  `codex/rls-queue-reconcile-20261125`.
 - Source inventory: all `src/` references to `AdminAuditLog` and the Prisma
   delegate, including raw SQL, generic-client aliases and transaction clients.
 - Database inventory: the complete 462-migration PostgreSQL 17 schema in the
@@ -299,7 +299,7 @@ scan, catalog drift, or rollback gap remains.
    staff page bounds, actor-self writes, automated listing evidence, ban
    repair, undo concurrency and deletion noninterference.
 3. **Passed for preparation:** the complete 462-migration PostgreSQL 17 schema proves
-   the 14 purpose-bound operations plus private trigger, exact role split,
+   the 16 purpose-bound operations plus private trigger, exact role split,
    current/legacy redaction, atomic completion and stale-fingerprint refusal.
    The reusable inspector also seals the exact retained 23-function catalog;
    the foreign-key seal remains an activation artifact.
@@ -313,7 +313,7 @@ scan, catalog drift, or rollback gap remains.
    migration, while the production build checks the exact runtime, staff and
    account-deletion function bodies and fails closed if the new app is built
    against the predecessor database. The app-first rollback removed only the
-   15 additive functions, two indexes and trigger on PostgreSQL 17; predecessor
+   16 additive functions, two indexes and trigger on PostgreSQL 17; predecessor
    CRUD then passed and the 28-row audit fingerprint was unchanged before the
    exact migration reapplied.
 7. **Passed:** exact preparation migration bytes, owners, grants, volatility,
