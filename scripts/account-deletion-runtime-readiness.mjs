@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import pg from "pg";
 import { pathToFileURL } from "node:url";
 import {
@@ -6,14 +7,38 @@ import {
   assertVercelRuntimeDatabaseIsolation,
 } from "./guard-runtime-db-env.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
+import {
+  privateTableFunctionExecuteRoles,
+  verifyPrivateTablePreparationSource,
+} from "./private-table-preparation-catalog.mjs";
 
 const { Client } = pg;
+
+const adminAuditPreparation = verifyPrivateTablePreparationSource(
+  "admin_audit_log_v1",
+  process.cwd(),
+);
+const adminAuditAccountDeletionFunctions = adminAuditPreparation.release.functions
+  .filter((entry) => privateTableFunctionExecuteRoles(entry).includes("account_deletion"))
+  .map((entry) => Object.freeze({
+    identity: `${entry.name}(${entry.arguments})`,
+    sourceSha256: createHash("sha256")
+      .update(adminAuditPreparation.functionSources.get(entry.name), "utf8")
+      .digest("hex"),
+  }));
 
 export const ACCOUNT_DELETION_RUNTIME_FUNCTIONS = Object.freeze([
   "grainline_account_deletion_side_effect_claim(text)",
   "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
   "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
+  ...adminAuditAccountDeletionFunctions.map((entry) => entry.identity),
 ]);
+export const ACCOUNT_DELETION_RUNTIME_SOURCE_SHA256 = Object.freeze(
+  Object.fromEntries(adminAuditAccountDeletionFunctions.map((entry) => [
+    entry.identity,
+    entry.sourceSha256,
+  ])),
+);
 export const ACCOUNT_DELETION_APPLICATION_FUNCTIONS = Object.freeze([
   "grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])",
 ]);
@@ -47,6 +72,16 @@ export function collectAccountDeletionRuntimeReadinessIssues(rows) {
     if (row?.table_crud !== true) issues.push("account-deletion table authority is not prepared");
     if (row?.function_exists !== true) issues.push(`${prefix} is not installed`);
     if (row?.function_execute !== true) issues.push(`${prefix} lacks effective EXECUTE`);
+    const expectedSourceSha256 = ACCOUNT_DELETION_RUNTIME_SOURCE_SHA256[prefix];
+    if (
+      expectedSourceSha256 !== undefined
+      && (
+        typeof row?.source !== "string"
+        || createHash("sha256").update(row.source, "utf8").digest("hex") !== expectedSourceSha256
+      )
+    ) {
+      issues.push(`${prefix} body drifted`);
+    }
   }
   return [...new Set(issues)];
 }
@@ -145,9 +180,12 @@ export async function verifyAccountDeletionRuntimeReadiness({
         pg_catalog.to_regprocedure(expected.function_identity) IS NOT NULL AS function_exists,
         COALESCE(pg_catalog.has_function_privilege(candidate.oid,
           pg_catalog.to_regprocedure(expected.function_identity), 'EXECUTE'), false)
-          AS function_execute
+          AS function_execute,
+        procedure.prosrc AS source
       FROM expected
       CROSS JOIN candidate
+      LEFT JOIN pg_catalog.pg_proc AS procedure
+        ON procedure.oid = pg_catalog.to_regprocedure(expected.function_identity)
       ORDER BY expected.function_identity
     `, [ACCOUNT_DELETION_RUNTIME_FUNCTIONS]);
     if (collectAccountDeletionRuntimeReadinessIssues(workerResult.rows).length > 0) {

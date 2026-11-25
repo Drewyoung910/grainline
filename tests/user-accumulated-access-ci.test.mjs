@@ -161,6 +161,10 @@ const reviewVoteCandidateMigrations = [
   reviewVotePreparationMigration,
   reviewVoteActivationMigration,
 ];
+const adminAuditLogCandidateMigrations = [
+  "20261102010000_prepare_admin_audit_log_authorities",
+  "20261102020000_activate_admin_audit_log_rls",
+];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -1118,6 +1122,22 @@ test("ReviewVote preparation is proved, isolated, and restored around historical
   const isolate = step(isolateName);
   const restore = step(restoreName);
   for (const migration of reviewVoteCandidateMigrations) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
+test("AdminAuditLog candidates are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify AdminAuditLog source packages";
+  const isolateName = "Isolate AdminAuditLog candidates until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore AdminAuditLog candidates after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of adminAuditLogCandidateMigrations) {
     assert.match(isolate, new RegExp(migration));
     assert.match(restore, new RegExp(migration));
   }

@@ -111,6 +111,10 @@ describe("RLS database user context helper", () => {
       () => dbUserContextTransactionOptions({ serializableRetry: true, isolationLevel: "ReadCommitted" }),
       /requires Serializable isolation/,
     );
+    assert.throws(
+      () => dbUserContextTransactionOptions({ serializableRetry: true, transactionRetry: true }),
+      /retry modes are mutually exclusive/,
+    );
   });
 
   it("sets transaction-local app.user_id with a parameterized query", () => {
@@ -158,7 +162,10 @@ describe("RLS database user context helper", () => {
     assert.notEqual(transactionStart, -1);
     assert.notEqual(retry, -1);
     assert.match(helper, /const transactionOptions = dbUserContextTransactionOptions\(options\);/);
-    assert.match(helper, /Omit<WithDbUserContextOptions, "serializableRetry" \| "isolationLevel">/);
+    assert.match(
+      helper,
+      /"serializableRetry" \| "transactionRetry" \| "isolationLevel"/,
+    );
   });
 
   it("executes the helper against a forced RLS canary with a non-owner runtime role", { skip: helperIntegrationSkipReason() }, async () => {

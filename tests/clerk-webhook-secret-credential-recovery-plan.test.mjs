@@ -22,9 +22,11 @@ describe("Clerk webhook credential-recovery contract", () => {
     assert.doesNotMatch(route, /CLERK_WEBHOOK_SECRET_PREVIOUS/);
     assert.doesNotMatch(route, /unsafe_metadata|legal_accepted_at/);
     assert.doesNotMatch(ensureUser, /unsafeMetadata|dateFromMetadata/);
-    assert.match(acceptance, /prisma\.\$transaction\(async \(tx\)/);
+    assert.match(acceptance, /withDbUserContext\(me\.id, async \(tx\)/);
+    assert.match(acceptance, /acceptUserOwnerLegalTerms\(tx, \{/);
     assert.match(acceptance, /logUserAuditActionOrThrow/);
     assert.match(acceptance, /client: tx/);
+    assert.doesNotMatch(acceptance, /(?:prisma|tx)\.user\./);
   });
 
   it("does not amplify unauthenticated failures through shared telemetry", () => {

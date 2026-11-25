@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { isSerializableRetryError, withSerializableRetry } = await import("../src/lib/transactionRetry.ts");
+const {
+  isSerializableRetryError,
+  isTransactionRetryError,
+  withSerializableRetry,
+  withTransactionRetry,
+} = await import("../src/lib/transactionRetry.ts");
 
 describe("serializable transaction retry", () => {
   it("recognizes Prisma and database serialization failures", () => {
@@ -33,5 +38,28 @@ describe("serializable transaction retry", () => {
       { code: "P2002" },
     );
     assert.equal(attempts, 1);
+  });
+
+  it("retries deadlocks only through the general transaction helper", async () => {
+    assert.equal(isSerializableRetryError({ code: "40P01" }), false);
+    assert.equal(isTransactionRetryError({ code: "40P01" }), true);
+    let attempts = 0;
+    const result = await withTransactionRetry(async () => {
+      attempts += 1;
+      if (attempts === 1) throw { code: "40P01" };
+      return "ok";
+    }, 3);
+    assert.equal(result, "ok");
+    assert.equal(attempts, 2);
+
+    let serializableAttempts = 0;
+    await assert.rejects(
+      withSerializableRetry(async () => {
+        serializableAttempts += 1;
+        throw { code: "40P01" };
+      }, 3),
+      { code: "40P01" },
+    );
+    assert.equal(serializableAttempts, 1);
   });
 });

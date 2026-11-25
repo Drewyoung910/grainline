@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type AuditJsonValue =
   | null
   | string
@@ -8,6 +10,72 @@ export type AuditJsonValue =
 
 export const ACCOUNT_DELETION_AUDIT_REDACTION = "[deleted account]";
 export const ACCOUNT_DELETION_TEXT_REDACTION = "[deleted account]";
+
+export type AuditJsonPatch = {
+  path: string[];
+  value: AuditJsonValue;
+};
+
+export type AuditTextPatch = {
+  expectedSha256: string;
+  length: number;
+  replacement: string;
+};
+
+function auditJsonValuesEqual(left: AuditJsonValue, right: AuditJsonValue): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return left.length === right.length
+      && left.every((value, index) => auditJsonValuesEqual(value, right[index] as AuditJsonValue));
+  }
+  if (
+    left && right
+    && typeof left === "object" && typeof right === "object"
+    && !Array.isArray(left) && !Array.isArray(right)
+  ) {
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    return leftKeys.length === rightKeys.length
+      && leftKeys.every(
+        (key) => Object.hasOwn(right, key)
+          && auditJsonValuesEqual(left[key] as AuditJsonValue, right[key] as AuditJsonValue),
+      );
+  }
+  return false;
+}
+
+export function buildAccountDeletionAuditJsonPatches(
+  before: AuditJsonValue,
+  after: AuditJsonValue,
+  path: string[] = [],
+): AuditJsonPatch[] {
+  if (auditJsonValuesEqual(before, after)) return [];
+
+  if (Array.isArray(before) && Array.isArray(after) && before.length === after.length) {
+    return before.flatMap((value, index) =>
+      buildAccountDeletionAuditJsonPatches(value, after[index] as AuditJsonValue, [
+        ...path,
+        String(index),
+      ]));
+  }
+
+  if (
+    before && after
+    && typeof before === "object" && typeof after === "object"
+    && !Array.isArray(before) && !Array.isArray(after)
+  ) {
+    return Object.entries(after).flatMap(([key, value]) => {
+      if (!Object.hasOwn(before, key)) return [{ path: [...path, key], value }];
+      return buildAccountDeletionAuditJsonPatches(
+        before[key] as AuditJsonValue,
+        value,
+        [...path, key],
+      );
+    });
+  }
+
+  return [{ path, value: after }];
+}
 
 function normalizeNeedles(values: Iterable<string | null | undefined>) {
   const seen = new Set<string>();
@@ -76,6 +144,26 @@ function redactTextWithNeedles(text: string, needles: string[], replacement: str
   return redacted;
 }
 
+function textRedactionPatches(
+  text: string,
+  needles: string[],
+  replacement: string,
+): AuditTextPatch[] {
+  const matches = new Map<string, AuditTextPatch>();
+  for (const needle of needles.sort((a, b) => b.length - a.length)) {
+    for (const match of text.matchAll(redactionPatternForNeedle(needle))) {
+      const matched = match[0];
+      const expectedSha256 = createHash("sha256").update(matched).digest("hex");
+      matches.set(`${expectedSha256}:${Array.from(matched).length}`, {
+        expectedSha256,
+        length: Array.from(matched).length,
+        replacement,
+      });
+    }
+  }
+  return [...matches.values()];
+}
+
 export function redactAccountDeletionAuditMetadata(
   metadata: AuditJsonValue,
   sensitiveValues: Iterable<string | null | undefined>,
@@ -121,7 +209,7 @@ export function redactAccountDeletionText(
     const bounded = maxLength === undefined
       ? text
       : Array.from(text).slice(0, maxLength).join("");
-    return { text: bounded, changed: bounded !== text };
+    return { text: bounded, changed: bounded !== text, patches: [] };
   }
 
   const redacted = redactTextWithNeedles(text, needles, replacement);
@@ -129,5 +217,11 @@ export function redactAccountDeletionText(
   const bounded = maxLength === undefined
     ? redacted
     : Array.from(redacted).slice(0, maxLength).join("");
-  return { text: bounded, changed: bounded !== text };
+  return {
+    text: bounded,
+    changed: bounded !== text,
+    patches: bounded !== text
+      ? textRedactionPatches(text, needles, replacement)
+      : [],
+  };
 }
