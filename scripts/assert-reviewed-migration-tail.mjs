@@ -55,8 +55,9 @@ export function assertReviewedMigrationTail({
   rootDir = process.cwd(),
 } = {}) {
   const releaseMigrations = migrationList(env.REVIEWED_RELEASE_MIGRATIONS);
-  const laterPendingMigrations = migrationList(
-    env.REVIEWED_LATER_PENDING_MIGRATIONS,
+  const laterMigrations = migrationList(
+    env.REVIEWED_LATER_MIGRATION_SOURCES
+      ?? env.REVIEWED_LATER_PENDING_MIGRATIONS,
   );
   const directoryNames = readdirSync(
     path.join(rootDir, "prisma", "migrations"),
@@ -65,12 +66,12 @@ export function assertReviewedMigrationTail({
   const issues = collectReviewedMigrationTailIssues({
     directoryNames,
     releaseMigrations,
-    laterPendingMigrations,
+    laterPendingMigrations: laterMigrations,
   });
   if (issues.length > 0) throw stopped();
   return Object.freeze({
     releaseMigrationCount: releaseMigrations.length,
-    laterPendingMigrationCount: laterPendingMigrations.length,
+    laterMigrationCount: laterMigrations.length,
   });
 }
 
@@ -78,7 +79,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
     const result = assertReviewedMigrationTail();
     process.stdout.write(
-      `Reviewed migration tail accepted: ${result.releaseMigrationCount} release, ${result.laterPendingMigrationCount} later pending.\n`,
+      `Reviewed migration tail accepted: ${result.releaseMigrationCount} release, ${result.laterMigrationCount} later reviewed.\n`,
     );
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

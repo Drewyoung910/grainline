@@ -190,17 +190,17 @@ jobs:
         run: |
           set -euo pipefail
           migration="$(node scripts/privilege-release-catalog.mjs)"
-          mapfile -t later_pending < <(
+          mapfile -t later_source < <(
             node scripts/privilege-release-catalog.mjs \
-              --later-pending-migrations
+              --later-source-migrations
           )
           test -n "$migration"
-          later_pending_csv=""
-          if [ "${#later_pending[@]}" -gt 0 ]; then
-            later_pending_csv="$(IFS=,; echo "${later_pending[*]}")"
+          later_source_csv=""
+          if [ "${#later_source[@]}" -gt 0 ]; then
+            later_source_csv="$(IFS=,; echo "${later_source[*]}")"
           fi
           REVIEWED_RELEASE_MIGRATIONS="$migration" \
-          REVIEWED_LATER_PENDING_MIGRATIONS="$later_pending_csv" \
+          REVIEWED_LATER_MIGRATION_SOURCES="$later_source_csv" \
             node scripts/assert-reviewed-migration-tail.mjs
           mapfile -t release_tests < <(node scripts/privilege-release-catalog.mjs --tests)
           test "${#release_tests[@]}" -gt 0

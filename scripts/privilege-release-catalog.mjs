@@ -28,6 +28,12 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     sourceTests: Object.freeze([
       "tests/email-service-least-privilege-activation.test.mjs",
     ]),
+    laterSourceMigrations: Object.freeze([
+      "20261102050000_prepare_listing_domain_authorities",
+      "20261102060000_activate_listing_domain_rls",
+      "20261113010000_prepare_commission_domain_authorities",
+      "20261113020000_activate_commission_domain_rls",
+    ]),
     laterPendingMigrations: Object.freeze([]),
     tables: Object.freeze({
       EmailFailureCount: Object.freeze([]),
@@ -81,6 +87,14 @@ export const PRIVILEGE_RELEASES = Object.freeze({
       "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c",
     sourceTests: Object.freeze([
       "tests/service-reference-least-privilege.test.mjs",
+    ]),
+    laterSourceMigrations: Object.freeze([
+      "20261101080000_prepare_email_service_least_privilege",
+      "20261101090000_activate_email_service_least_privilege",
+      "20261102050000_prepare_listing_domain_authorities",
+      "20261102060000_activate_listing_domain_rls",
+      "20261113010000_prepare_commission_domain_authorities",
+      "20261113020000_activate_commission_domain_rls",
     ]),
     laterPendingMigrations: Object.freeze([
       "20261101080000_prepare_email_service_least_privilege",
@@ -153,6 +167,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.stdout.write(`${verified.release.sourceTests.join("\n")}\n`);
     } else if (option === "--minimum-compatible-app-commit") {
       process.stdout.write(`${verified.release.minimumCompatibleAppCommit}\n`);
+    } else if (option === "--later-source-migrations") {
+      if (verified.release.laterSourceMigrations.length > 0) {
+        process.stdout.write(
+          `${verified.release.laterSourceMigrations.join("\n")}\n`,
+        );
+      }
     } else if (option === "--later-pending-migrations") {
       if (verified.release.laterPendingMigrations.length > 0) {
         process.stdout.write(
