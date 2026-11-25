@@ -508,7 +508,7 @@ function commissionDomainPreparationMigrationSourcePath() {
     : stagedPath;
 }
 
-function privateTableActivationMigrationSourcePath(migration, envName) {
+function privateTableCandidateMigrationSourcePath(migration, envName) {
   const livePath = path.join("prisma", "migrations", migration);
   if (existsSync(livePath)) return livePath;
   const stagedPath = process.env[envName]?.trim() ?? "";
@@ -1331,7 +1331,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(blockActivationTarget)) {
       cpSync(
-        privateTableActivationMigrationSourcePath(
+        privateTableCandidateMigrationSourcePath(
           blockActivationMigration,
           "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
         ),
@@ -1360,7 +1360,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(userReportActivationTarget)) {
       cpSync(
-        privateTableActivationMigrationSourcePath(
+        privateTableCandidateMigrationSourcePath(
           userReportActivationMigration,
           "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
         ),
@@ -1389,7 +1389,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(sellerFaqActivationTarget)) {
       cpSync(
-        privateTableActivationMigrationSourcePath(
+        privateTableCandidateMigrationSourcePath(
           sellerFaqActivationMigration,
           "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
         ),
@@ -1418,7 +1418,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(commissionDomainActivationTarget)) {
       cpSync(
-        privateTableActivationMigrationSourcePath(
+        privateTableCandidateMigrationSourcePath(
           commissionDomainActivationMigration,
           "COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
         ),
@@ -1426,22 +1426,20 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
-    for (const [migration, envName, label] of [
+    for (const [migration, envName] of [
       [
         adminAuditLogCandidateMigrations[0],
         "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
-        "AdminAuditLog",
       ],
       [
         adminAuditLogCandidateMigrations[1],
         "ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_PATH",
-        "AdminAuditLog activation",
       ],
     ]) {
       const target = path.join(root, "prisma", "migrations", migration);
       if (!existsSync(target)) {
         cpSync(
-          privateTablePreparationMigrationSourcePath(migration, envName, label),
+          privateTableCandidateMigrationSourcePath(migration, envName),
           target,
           { recursive: true },
         );
