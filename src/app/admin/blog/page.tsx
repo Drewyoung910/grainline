@@ -32,7 +32,7 @@ async function requireAdmin() {
 async function approveComment(commentId: string) {
   "use server";
   const me = await requireAdmin();
-  const approved = await prisma.$transaction(async (tx) => {
+  const approved = await withDbUserContext(me.id, async (tx) => {
     const result = await tx.blogComment.updateMany({
       where: { id: commentId, approved: false },
       data: { approved: true },

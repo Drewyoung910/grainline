@@ -95,6 +95,10 @@ test("banning an account sweeps its checkouts as a buyer, even with no shop", as
       mintBanReviewCapability: async () => "review",
       flagBannedSellerOpenOrders: async () => [],
     },
+    "./adminAuditLogAccess": {
+      appendAdminAuditLog: async () => ({ id: "audit" }),
+      appendAdminAuditLogForActor: async () => ({ id: "audit-sync" }),
+    },
     "./dbUserContext": {
       withDbUserContext: (_id, callback) => callback({
         commissionRequest: { findMany: async () => [], updateMany: async () => ({ count: 0 }) },

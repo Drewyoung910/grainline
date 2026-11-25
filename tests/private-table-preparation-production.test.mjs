@@ -21,6 +21,7 @@ import {
 } from "../scripts/reviewed-manually-applied-migrations.mjs";
 import {
   inspectPrivateTablePreparationProduction,
+  preparationMarkersAreAbsent,
 } from "../scripts/private-table-preparation-production-inspect.mjs";
 
 const releaseId = "support_request_v1";
@@ -135,7 +136,10 @@ function fakeClientClass({
       const sql = String(statement);
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
       if (sql.includes("current_database() AS database_name")) {
-        const tables = parameters[0] ?? [release.table];
+        const tables = Array.isArray(parameters[0])
+          ? parameters[0]
+          : [String(parameters[0] ?? `public."${candidateRelease.table}"`)
+            .match(/"([^"]+)"$/u)?.[1] ?? candidateRelease.table];
         return { rows: tables.map((table) => ({
           table_name: table,
           database_name: "grainline",
@@ -166,6 +170,9 @@ function fakeClientClass({
                 (entry) => entry.predecessorSourceSha256 === undefined,
               ).length - (partial ? 1 : 0)
             : 0,
+          constraints: schemaApplied
+            ? (candidateRelease.addedConstraints ?? []).length
+            : 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
@@ -184,6 +191,8 @@ function fakeClientClass({
             source: candidateVerified.functionSources.get(entry.name),
             runtime_execute: true,
             staff_execute: false,
+            account_deletion_execute: (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+              .includes("account_deletion"),
             public_execute: false,
           }))
           .sort((left, right) => (
@@ -421,6 +430,58 @@ test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", 
   );
 });
 
+test("AdminAuditLog preparation seals new and retained authorities", () => {
+  const candidate = privateTablePreparation("admin_audit_log_v1");
+  const verifiedCandidate = verifyPrivateTablePreparationSource(
+    "admin_audit_log_v1",
+  );
+  assert.equal(candidate.table, "AdminAuditLog");
+  assert.equal(candidate.functions.length, 16);
+  assert.equal(candidate.retainedFunctions.length, 23);
+  assert.equal(candidate.addedIndexes.length, 2);
+  assert.equal(candidate.addedTriggers.length, 1);
+  assert.equal(verifiedCandidate.functionSources.size, 16);
+  assert.equal(verifiedCandidate.digest, candidate.migrationSha256);
+  assert.deepEqual(
+    candidate.functions
+      .filter((entry) => entry.executeRole === "account_deletion")
+      .map((entry) => entry.name),
+    [
+      "grainline_admin_audit_account_deletion_redaction_apply",
+      "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+    ],
+  );
+  assert.deepEqual(
+    candidate.functions.find(
+      (entry) => entry.name === "grainline_admin_audit_redact_deleted_references",
+    ).executeRoles,
+    [],
+  );
+  assert.deepEqual(
+    candidate.functions.find(
+      (entry) => entry.name === "grainline_admin_audit_insert_write_fence",
+    ).executeRoles,
+    [],
+  );
+});
+
+test("pending preparation accepts clean index and trigger marker families", () => {
+  assert.equal(preparationMarkersAreAbsent({
+    columns: 0,
+    functions: 0,
+    constraints: 0,
+    indexes: 0,
+    triggers: 0,
+  }), true);
+  assert.equal(preparationMarkersAreAbsent({
+    columns: 0,
+    functions: 0,
+    constraints: 0,
+    indexes: 1,
+    triggers: 0,
+  }), false);
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -543,6 +604,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "seller_faq_v1",
     "email_service_v1",
     "commission_domain_v1",
+    "admin_audit_log_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -583,6 +645,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "maker_verification_v1",
       "email_service_v1",
       "commission_domain_v1",
+      "admin_audit_log_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
       "listing_domain_v1",

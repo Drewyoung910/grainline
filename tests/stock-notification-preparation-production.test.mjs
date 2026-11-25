@@ -61,8 +61,10 @@ function functionRow(entry, source) {
     security_definer: true,
     configuration: ["search_path=pg_catalog"],
     source,
+    volatility: entry.volatility ?? "v",
     runtime_execute: true,
     staff_execute: false,
+    account_deletion_execute: false,
     public_execute: false,
   };
 }
@@ -101,6 +103,7 @@ function fakeClientClass({ applied, predecessorBody = predecessorSource }) {
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
         return { rows: [{
           columns: 0,
+          constraints: 0,
           functions: applied
             ? release.functions.filter(
                 (entry) => entry.predecessorSourceSha256 === undefined,
@@ -140,6 +143,17 @@ function environment(directory, phase, previousPath) {
 test("StockNotification preparation is byte sealed with an exact predecessor function", () => {
   assert.equal(verified.digest, release.migrationSha256);
   assert.equal(verified.functionSources.size, 9);
+  assert.deepEqual(
+    release.functions
+      .filter((entry) => entry.volatility === "s")
+      .map((entry) => entry.name),
+    [
+      "grainline_stock_notification_seller_counts",
+      "grainline_stock_notification_seller_range_count",
+      "grainline_stock_notification_restock_candidates",
+      "grainline_stock_notification_owner_export",
+    ],
+  );
   assert.deepEqual(release.sourceTests, [
     "tests/stock-notification-route.test.mjs",
     "tests/stock-notification-state.test.mjs",

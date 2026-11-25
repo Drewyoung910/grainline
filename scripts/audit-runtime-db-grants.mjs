@@ -67,6 +67,7 @@ import {
   privateTableRlsActivation,
 } from "./private-table-rls-activation-catalog.mjs";
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparation,
 } from "./private-table-preparation-catalog.mjs";
 import {
@@ -76,6 +77,22 @@ import {
 const { Client } = pg;
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
+const ADMIN_AUDIT_STAFF_FUNCTION_IDENTITIES = Object.freeze(
+  ADMIN_AUDIT_LOG_PREPARATION.functions
+    .filter((entry) => privateTableFunctionExecuteRoles(entry).includes("staff"))
+    .map((entry) => `${entry.name}(${entry.arguments.replaceAll(", ", ",")})`),
+);
+const ADMIN_AUDIT_ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set(
+  ADMIN_AUDIT_LOG_PREPARATION.functions
+    .filter((entry) => privateTableFunctionExecuteRoles(entry).includes("account_deletion"))
+    .map((entry) => `${entry.name}(${entry.arguments.replaceAll(", ", ",")})`),
+);
+const ADMIN_AUDIT_RUNTIME_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  ADMIN_AUDIT_LOG_PREPARATION.functions
+    .filter((entry) => !privateTableFunctionExecuteRoles(entry).includes("runtime"))
+    .map((entry) => entry.name),
+);
 
 export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"];
 export const SERVICE_REFERENCE_TABLE_PRIVILEGES = Object.freeze({
@@ -508,6 +525,7 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_user_report_staff_open_page(text,timestamp without time zone,text,integer)",
   "grainline_user_report_staff_top_reporters(text,timestamp without time zone,integer)",
   "grainline_user_report_staff_resolve(text,text,text,text)",
+  ...ADMIN_AUDIT_STAFF_FUNCTION_IDENTITIES,
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
   [
@@ -547,6 +565,7 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_user_report_staff_open_page(text,timestamp without time zone,text,integer)",
     "grainline_user_report_staff_top_reporters(text,timestamp without time zone,integer)",
     "grainline_user_report_staff_resolve(text,text,text,text)",
+    ...ADMIN_AUDIT_STAFF_FUNCTION_IDENTITIES,
   ],
 );
 export const MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -1472,13 +1491,20 @@ export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
   const effectiveFunctions = sortedUnique(
     (state.effective_function_identities ?? []).map((value) => String(value).replace(/\s*,\s*/g, ",")),
   );
-  const expectedFunctions = [...ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES].sort();
-  if (actualFunctions.join("|") !== expectedFunctions.join("|")) {
+  const expectedFunctions = new Set(ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES);
+  const functionNames = new Set(inventory?.functions ?? []);
+  if (functionNames.has("grainline_admin_audit_account_deletion_redaction_apply")) {
+    for (const identity of ADMIN_AUDIT_ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES) {
+      expectedFunctions.add(identity);
+    }
+  }
+  const sortedExpectedFunctions = [...expectedFunctions].sort();
+  if (actualFunctions.join("|") !== sortedExpectedFunctions.join("|")) {
     issues.push(
       `account-deletion worker function authority drifted: ${actualFunctions.join(", ") || "none"}`,
     );
   }
-  if (effectiveFunctions.join("|") !== expectedFunctions.join("|")) {
+  if (effectiveFunctions.join("|") !== sortedExpectedFunctions.join("|")) {
     issues.push(
       `account-deletion worker effective function authority drifted: ${effectiveFunctions.join(", ") || "none"}`,
     );
@@ -1960,6 +1986,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : blockRlsActivationExpected(inventory);
   const commissionDomainActivated =
     inventory?.commissionDomainRlsActivationApplied === true;
+  const adminAuditPrepared = (inventory?.functions ?? []).includes(
+    "grainline_admin_audit_append",
+  );
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1970,6 +1999,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !followActivated
     && !blockActivated
     && !commissionDomainActivated
+    && !adminAuditPrepared
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -2004,6 +2034,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(commissionDomainActivated
       ? COMMISSION_DOMAIN_RETIRED_RUNTIME_FUNCTION_NAMES
+      : []),
+    ...(adminAuditPrepared
+      ? ADMIN_AUDIT_RUNTIME_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }

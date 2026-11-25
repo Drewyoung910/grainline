@@ -11,6 +11,7 @@ import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { listingStaffReferenceTargets } from "@/lib/listingStaffAccess";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 export async function DELETE(
   request: Request,
@@ -44,7 +45,7 @@ export async function DELETE(
   });
   if (!listing) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(admin.id, async (tx) => {
     await tx.review.delete({ where: { id } });
     await refreshSellerRatingSummary(listing.sellerProfileId, tx);
     await logAdminActionOrThrow({

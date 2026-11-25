@@ -10,6 +10,22 @@ const RELEASE_ID_PATTERN = /^[a-z][a-z0-9_]{2,63}$/u;
 export const PRIVATE_TABLE_PREPARATION_CONFIRMATION =
   "apply-reviewed-private-table-preparation";
 
+const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
+  support_request_v1: "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH",
+  stock_notification_v1: "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH",
+  favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
+  follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
+  maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
+  email_service_v1: "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH",
+  block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
+  listing_domain_v1: "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
+});
+
 export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   support_request_v1: Object.freeze({
     migration: "20261023010000_prepare_support_request_authorities",
@@ -42,10 +58,15 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_support_request_delivery_record",
         arguments: "text, uuid, boolean, text",
       }),
-      Object.freeze({ name: "grainline_support_request_owner_export", arguments: "" }),
+      Object.freeze({
+        name: "grainline_support_request_owner_export",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_support_request_staff_state",
         arguments: "integer, integer, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_support_request_staff_transition",
@@ -59,7 +80,11 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_support_request_provider_deletion_upsert",
         arguments: "text",
       }),
-      Object.freeze({ name: "grainline_support_request_overdue_count", arguments: "" }),
+      Object.freeze({
+        name: "grainline_support_request_overdue_count",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_support_request_retention_delete_batch",
         arguments: "integer",
@@ -94,14 +119,17 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_stock_notification_seller_counts",
         arguments: "text[]",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_stock_notification_seller_range_count",
         arguments: "timestamp without time zone, timestamp without time zone, boolean",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_stock_notification_restock_candidates",
         arguments: "text, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_stock_notification_seller_listing_cleanup",
@@ -118,6 +146,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_stock_notification_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_notification_claim_back_in_stock",
@@ -153,6 +182,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_favorite_owner_listing_ids",
         arguments: "text[]",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_favorite_owner_add",
@@ -169,10 +199,12 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_favorite_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_favorite_seller_range_count",
         arguments: "timestamp without time zone, timestamp without time zone, boolean",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_favorite_seller_listing_cleanup",
@@ -208,22 +240,27 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_follow_public_state_batch",
         arguments: "text[]",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_source_notification_page",
         arguments: "text, text, text, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_owner_target_ids",
         arguments: "integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_owner_outgoing_count",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_seller_owner_incoming_count",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_account_deletion_cleanup",
@@ -286,6 +323,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_maker_verification_owner_export",
         arguments: "",
         executeRole: "runtime",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_maker_verification_owner_delete_redact",
@@ -296,31 +334,37 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_maker_verification_staff_pending_count",
         arguments: "text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_maker_verification_staff_pending_page",
         arguments: "text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_master_pending_count",
         arguments: "text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_master_pending_page",
         arguments: "text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_roster_count",
         arguments: "text, text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_roster_page",
         arguments: "text, text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
     ]),
   }),
@@ -353,6 +397,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_review_vote_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_review_vote_owner_delete_all",
@@ -390,7 +435,11 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       "tests/seller-broadcast-delivery-state.test.mjs",
     ]),
     functions: Object.freeze([
-      Object.freeze({ name: "grainline_email_suppression_exists", arguments: "text, text" }),
+      Object.freeze({
+        name: "grainline_email_suppression_exists",
+        arguments: "text, text",
+        volatility: "s",
+      }),
       Object.freeze({ name: "grainline_email_one_click_suppression_clear", arguments: "text" }),
       Object.freeze({
         name: "grainline_newsletter_signup_reserve",
@@ -400,6 +449,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_newsletter_confirmation_valid",
         arguments: "text, timestamp without time zone",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_newsletter_confirm",
@@ -408,10 +458,15 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_newsletter_token_superseded",
         arguments: "text, timestamp without time zone",
+        volatility: "s",
       }),
       Object.freeze({ name: "grainline_email_unsubscribe_apply", arguments: "text, jsonb" }),
       Object.freeze({ name: "grainline_email_account_deletion_suppression_clear", arguments: "text" }),
-      Object.freeze({ name: "grainline_email_service_owner_export", arguments: "" }),
+      Object.freeze({
+        name: "grainline_email_service_owner_export",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_email_service_account_deletion_apply",
         arguments: "text, bigint, uuid",
@@ -449,6 +504,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_email_service_ops_health",
         arguments: "timestamp without time zone, timestamp without time zone",
+        volatility: "s",
       }),
       Object.freeze({ name: "grainline_email_outbox_cancel_seller_broadcast", arguments: "text" }),
       Object.freeze({ name: "grainline_email_outbox_redact_deleted_seller", arguments: "text" }),
@@ -480,6 +536,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_user_block_pair_is_blocked",
         arguments: "text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_block_create",
@@ -492,6 +549,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_user_block_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_block_delete_owned",
@@ -541,25 +599,30 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_user_report_owner_submitted_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_owner_received_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_open_count",
         arguments: "text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_open_page",
         arguments: "text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_top_reporters",
         arguments: "text, timestamp without time zone, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_resolve",
@@ -603,11 +666,167 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_seller_faq_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_faq_account_deletion_cleanup",
         arguments: "text, text, bigint, uuid",
       }),
+    ]),
+  }),
+  admin_audit_log_v1: Object.freeze({
+    migration: "20261102010000_prepare_admin_audit_log_authorities",
+    migrationSha256: "91b1ca2a5477e86311d704622399db04e4cb2515b284a5add56d0b8cf8291803",
+    table: "AdminAuditLog",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    addedIndexes: Object.freeze([
+      Object.freeze({
+        name: "AdminAuditLog_action_createdAt_id_idx",
+        definition:
+          'CREATE INDEX "AdminAuditLog_action_createdAt_id_idx" ON public."AdminAuditLog" USING btree (action, "createdAt" DESC, id DESC)',
+      }),
+      Object.freeze({
+        name: "AdminAuditLog_createdAt_id_idx",
+        definition:
+          'CREATE INDEX "AdminAuditLog_createdAt_id_idx" ON public."AdminAuditLog" USING btree ("createdAt" DESC, id DESC)',
+      }),
+    ]),
+    addedTriggers: Object.freeze([
+      Object.freeze({
+        name: "AdminAuditLog_insert_write_fence",
+        function: "grainline_admin_audit_insert_write_fence",
+        enabled: "O",
+        type: 7,
+      }),
+    ]),
+    sourceTests: Object.freeze([
+      "tests/admin-audit-log-consumer-contracts.test.mjs",
+      "tests/admin-audit-log-account-deletion-concurrency-proof.test.mjs",
+      "tests/admin-audit-log-preparation-postgres.test.mjs",
+      "tests/admin-audit-log-preparation-rollback.test.mjs",
+      "tests/account-deletion-side-effects.test.mjs",
+      "tests/account-deletion-timeout-fix.test.mjs",
+      "tests/transaction-retry.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_admin_audit_redact_deleted_references",
+        arguments: "jsonb",
+        executeRoles: Object.freeze([]),
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_insert_write_fence",
+        arguments: "",
+        executeRoles: Object.freeze([]),
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_append",
+        arguments: "text, text, text, text, text, jsonb",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_staff_count",
+        arguments: "text, text",
+        executeRole: "staff",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_staff_page",
+        arguments: "text, text, integer, integer",
+        executeRole: "staff",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_staff_undo_source",
+        arguments: "text, text",
+        executeRole: "staff",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_undo_claim",
+        arguments: "text, text, text, text, text, text, text, jsonb",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_account_deletion_write_fence",
+        arguments: "text, bigint, uuid",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_account_deletion_candidates",
+        arguments: "text, bigint, uuid, text[], text[], text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_account_deletion_redaction_plans_enqueue",
+        arguments: "text, bigint, uuid, text[], text[], jsonb",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_account_deletion_redaction_apply",
+        arguments: "text, bigint, uuid, text",
+        executeRole: "account_deletion",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+        arguments: "text, bigint, uuid, text",
+        executeRole: "account_deletion",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_staff_ban_rows",
+        arguments: "text, text, boolean, integer",
+        executeRole: "staff",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_ban_repair_candidates",
+        arguments: "integer",
+        executeRole: "staff",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_ban_repair_state",
+        arguments: "text, text",
+        executeRole: "staff",
+        volatility: "s",
+      }),
+      Object.freeze({
+        name: "grainline_admin_audit_ban_repair_append",
+        arguments: "text, text, text, jsonb",
+        executeRole: "staff",
+      }),
+    ]),
+    retainedFunctions: Object.freeze([
+      Object.freeze({ name: "grainline_case_escalate", arguments: "text, text", sourceSha256: "ef94e857db8c48cffc38d2ba0a5f0d17e5cceb228e9e4268cef6dd48b4dc36fb" }),
+      Object.freeze({ name: "grainline_case_mark_resolved", arguments: "text, text", sourceSha256: "c680b8d71d3b5373a93a9b7032b9e181ff79bc6f33ab653ec9360ec724f15ba5" }),
+      Object.freeze({ name: "grainline_case_open", arguments: "text, text, text, text", sourceSha256: "601c16ca75b6da9d251b88d81c83e69df0568d0f56ffea870122e1c5be0f4e31" }),
+      Object.freeze({ name: "grainline_case_staff_resolution_finalize", arguments: "text, text", sourceSha256: "824f2752ea9c7f260a1eb63de6c9756a4b4086a1d9cb7d72c39d5f0c843e24c9" }),
+      Object.freeze({ name: "grainline_case_staff_resolution_prepare", arguments: 'text, text, "CaseResolution", integer, jsonb', sourceSha256: "f70e758f6b40f8e65fbacd046d4259587c0a5d26232281b46110a9f0658df59e" }),
+      Object.freeze({ name: "grainline_case_staff_resolution_provider_recover", arguments: "text, text, text, bigint, text", sourceSha256: "7ce6bef8ca6bfad7c50918c2905e8bd54aa7b9d872c20015b78cbbfb350b5634" }),
+      Object.freeze({ name: "grainline_case_staff_resolution_provider_recovery_load", arguments: 'text, text, "CaseResolution", integer', sourceSha256: "7b993cc8527ffed03901a36d70ba6883ecf9200ed2b98a86dd5af588498b7cfe" }),
+      Object.freeze({ name: "grainline_case_staff_resolution_provider_recovery_record", arguments: "text, text, text, text, text[], text[], text, integer, boolean, boolean", sourceSha256: "57c98610c90e8fddfed5316a43a1421efc793eb2f4f1e491e0fc27dc64a2f442" }),
+      Object.freeze({ name: "grainline_case_staff_resolution_reconcile", arguments: "text, text, text, text", sourceSha256: "85f4c1d30b6f2007c68aa97fe79cb89b418cfab94bd710f0f1cffb7c74ac7dc0" }),
+      Object.freeze({ name: "grainline_case_staff_resolution_recovery_finalize", arguments: "text, text", sourceSha256: "02509c7304e27a7e0a7cfa11a9a5a05dd65aff4aa37d8670666fb95de773b460" }),
+      Object.freeze({ name: "grainline_notification_create_core", arguments: 'text, text, "NotificationType", text, text, text', executeRoles: Object.freeze([]), sourceSha256: "271848aa27a144a0cca81616eac7398f7d2a4e342a867cb7e6f65155dd0ae5e5" }),
+      Object.freeze({ name: "grainline_order_refund_reconcile", arguments: "text, text, bigint, text, text, bigint, text, text", sourceSha256: "f3fafba64791a6f97da01799b2e5af648a8d5b6e25e6957b74f13eae081136f3" }),
+      Object.freeze({ name: "grainline_order_staff_append_note", arguments: "text, text, text", executeRole: "staff", sourceSha256: "ece7ef62aa415edd83501d31fd3027f3dc439d5e548facb5596794fde20a593b" }),
+      Object.freeze({ name: "grainline_order_staff_mark_reviewed", arguments: "text, text", executeRole: "staff", sourceSha256: "84195010343f715d2568edcff1c0ccf2ff40a98de0991088089df2269510eda1" }),
+      Object.freeze({ name: "grainline_order_staff_record_label_voided", arguments: "text, text", executeRole: "staff", sourceSha256: "e66b431743798c39917a372ea52355088357bf8560fcb3cf063bd3b0ada8d873" }),
+      Object.freeze({ name: "grainline_seller_broadcast_staff_delete", arguments: "text, text", executeRole: "staff", sourceSha256: "b8b8e1f878e3f3a5d55e1e979f96620ede4df026d5fb0603c6c55ddd00ac5aab" }),
+      Object.freeze({ name: "grainline_seller_guild_staff_transition", arguments: "text, text, text, text, text, boolean", executeRole: "staff", sourceSha256: "947296a6a8d6d26a96534d78439b51f4dd9854ce21499160ae236c5243789ec8" }),
+      Object.freeze({ name: "grainline_seller_guild_staff_transition_prepared_impl", arguments: "text, text, text, text, text, boolean", executeRoles: Object.freeze([]), sourceSha256: "36592c7c9112c6e3dd6262aa41edf9fd19bb17bbf1d942a449fec8d306e80fd7" }),
+      Object.freeze({ name: "grainline_seller_staff_feature_transition", arguments: "text, text, text", executeRole: "staff", sourceSha256: "72886c6606662c212874f23ebb15f21f34706286b36458cd1652aeedbeae753e" }),
+      Object.freeze({ name: "grainline_seller_staff_listing_review_transition", arguments: "text, text, text, text", executeRole: "staff", sourceSha256: "40857ec66b66cf3dd82af07d0747d422e3db0314d9b372daa56d912b0f18f490" }),
+      Object.freeze({ name: "grainline_support_request_staff_transition", arguments: "text, text, text", sourceSha256: "1939ad2160ab916f39523a4d9ce20be13450dc0570b469316e341ab6e7b62d7a" }),
+      Object.freeze({ name: "grainline_user_ban_repair_target", arguments: "text, text", executeRole: "staff", volatility: "s", sourceSha256: "a89d77d890930a59960fbd9bea5aa775f1bef54c531075aae8dec1348215c51c" }),
+      Object.freeze({ name: "grainline_user_report_staff_resolve", arguments: "text, text, text, text", executeRole: "staff", sourceSha256: "36289e5aa85cf9a86f73dc5943e542188d1d3c85a6928b78a289c6147e76ca93" }),
     ]),
   }),
   listing_domain_v1: Object.freeze({
@@ -868,13 +1087,33 @@ export function functionSourceFromMigration(sql, name) {
   return sql.slice(bodyStart, end);
 }
 
+function functionVolatilityFromMigration(sql, name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const markerPattern = new RegExp(
+    `AS (\\$${escapedName}(?:_[A-Za-z0-9_]+)?\\$)`,
+    "u",
+  );
+  const markerMatch = markerPattern.exec(sql);
+  if (!markerMatch) throw stopped(`function declaration is absent for ${name}`);
+  const markerIndex = markerMatch.index;
+  const functionIndex = Math.max(
+    sql.lastIndexOf(`CREATE OR REPLACE FUNCTION public.${name}`, markerIndex),
+    sql.lastIndexOf(`CREATE FUNCTION public.${name}`, markerIndex),
+  );
+  if (functionIndex < 0) throw stopped(`function declaration is absent for ${name}`);
+  const declaration = sql.slice(functionIndex, markerIndex);
+  if (/\bIMMUTABLE\b/iu.test(declaration)) return "i";
+  if (/\bSTABLE\b/iu.test(declaration)) return "s";
+  return "v";
+}
+
 export function verifyPrivateTablePreparationSource(
   releaseId,
   rootDir = process.cwd(),
-  migrationPathOverride =
-    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
+  migrationPathOverride = privateTablePreparationMigrationOverride(releaseId),
 ) {
   const release = privateTablePreparation(releaseId);
+  const tableNames = privateTablePreparationTables(release);
   const migrationPath = migrationPathOverride
     ? path.resolve(rootDir, migrationPathOverride)
     : path.join(rootDir, privateTablePreparationMigrationPath(release));
@@ -909,15 +1148,16 @@ export function verifyPrivateTablePreparationSource(
   ))) {
     throw stopped("predecessor function digest is invalid");
   }
-  const allowedExecuteRoles = new Set(["runtime", "staff"]);
-  if (release.functions.some((entry) => {
+  const allFunctions = [...release.functions, ...(release.retainedFunctions ?? [])];
+  const allowedExecuteRoles = new Set(["runtime", "staff", "account_deletion"]);
+  if (allFunctions.some((entry) => {
     const roles = privateTableFunctionExecuteRoles(entry);
     return new Set(roles).size !== roles.length
       || roles.some((role) => !allowedExecuteRoles.has(role));
   })) {
     throw stopped("function execution role is invalid");
   }
-  if (release.functions.some((entry) => (
+  if (allFunctions.some((entry) => (
     entry.volatility !== undefined && !["i", "s", "v"].includes(entry.volatility)
   ))) {
     throw stopped("function volatility is invalid");
@@ -928,11 +1168,69 @@ export function verifyPrivateTablePreparationSource(
   ))) {
     throw stopped("function security mode is invalid");
   }
+  const functionIdentities = allFunctions.map((entry) => `${entry.name}(${entry.arguments})`);
+  if (new Set(functionIdentities).size !== functionIdentities.length) {
+    throw stopped("function identity catalog is duplicated");
+  }
+  if ((release.retainedFunctions ?? []).some((entry) => (
+    !/^[0-9a-f]{64}$/u.test(entry.sourceSha256 ?? "")
+  ))) {
+    throw stopped("retained function digest is invalid");
+  }
+  if ((release.addedConstraints ?? []).some((entry) => (
+    !tableNames.includes(entry.table)
+    || typeof entry.name !== "string"
+    || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.name)
+  ))) {
+    throw stopped("constraint catalog is invalid");
+  }
+  if ((release.addedIndexes ?? []).some((entry) => (
+    typeof entry.name !== "string"
+    || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.name)
+    || typeof entry.definition !== "string"
+    || !entry.definition.startsWith("CREATE INDEX ")
+  ))) {
+    throw stopped("index catalog is invalid");
+  }
+  if ((release.addedTriggers ?? []).some((entry) => (
+    typeof entry.name !== "string"
+    || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.name)
+    || typeof entry.function !== "string"
+    || !/^[a-z][a-z0-9_]{2,62}$/u.test(entry.function)
+    || (entry.table !== undefined && (
+      typeof entry.table !== "string"
+      || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.table)
+    ))
+    || !["O", "D", "R", "A"].includes(entry.enabled)
+    || !Number.isSafeInteger(entry.type)
+  ))) {
+    throw stopped("trigger catalog is invalid");
+  }
+  for (const entry of release.functions) {
+    const actualVolatility = functionVolatilityFromMigration(sql, entry.name);
+    if (actualVolatility !== (entry.volatility ?? "v")) {
+      throw stopped(`${entry.name} volatility catalog drifted`);
+    }
+  }
   const functionSources = new Map(release.functions.map((entry) => [
     entry.name,
     functionSourceFromMigration(sql, entry.name),
   ]));
   return Object.freeze({ releaseId, release, migrationPath, digest, functionSources });
+}
+
+export function privateTablePreparationMigrationOverride(
+  releaseId,
+  env = process.env,
+) {
+  const releaseEnvName = PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE[releaseId];
+  const releasePath = releaseEnvName ? env[releaseEnvName]?.trim() : undefined;
+  const configured = releasePath
+    || env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim();
+  if (!configured) return undefined;
+  return configured.endsWith("/migration.sql")
+    ? configured
+    : `${configured}/migration.sql`;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

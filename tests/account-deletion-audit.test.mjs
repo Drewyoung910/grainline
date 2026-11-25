@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 const {
   ACCOUNT_DELETION_AUDIT_REDACTION,
   ACCOUNT_DELETION_TEXT_REDACTION,
+  buildAccountDeletionAuditJsonPatches,
   markAccountDeletionAuditMetadata,
   redactAccountDeletionAuditMetadata,
   redactAccountDeletionText,
@@ -95,6 +96,22 @@ describe("account deletion audit metadata redaction", () => {
     });
   });
 
+  it("stores only monotonic metadata patches for overlapping deletions", () => {
+    const patches = buildAccountDeletionAuditJsonPatches(
+      { first: "user-a", nested: { second: "user-b" } },
+      {
+        first: ACCOUNT_DELETION_AUDIT_REDACTION,
+        nested: { second: "user-b" },
+        redactedForAccountDeletion: true,
+      },
+    );
+    assert.deepEqual(patches, [
+      { path: ["first"], value: ACCOUNT_DELETION_AUDIT_REDACTION },
+      { path: ["redactedForAccountDeletion"], value: true },
+    ]);
+    assert.doesNotMatch(JSON.stringify(patches), /user-a/u);
+  });
+
   it("redacts notification text case-insensitively without broad matching tiny values", () => {
     const result = redactAccountDeletionText(
       "Drew Young sent a message from drew@example.com about a listing.",
@@ -106,6 +123,8 @@ describe("account deletion audit metadata redaction", () => {
       result.text,
       `${ACCOUNT_DELETION_TEXT_REDACTION} sent a message from ${ACCOUNT_DELETION_TEXT_REDACTION} about a listing.`,
     );
+    assert.equal(result.patches.length, 2);
+    assert.doesNotMatch(JSON.stringify(result.patches), /Drew|example\.com/iu);
 
     const short = redactAccountDeletionText("Li sent a note about a listing.", ["li"]);
     assert.equal(short.changed, true);

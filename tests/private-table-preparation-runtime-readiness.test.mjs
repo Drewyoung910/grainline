@@ -31,7 +31,12 @@ function sha256(value) {
 }
 
 const sourceByIdentity = new Map(
-  ["owner_social_verification_v1", "block_report_seller_faq_v1", "listing_domain_v1"]
+  [
+    "owner_social_verification_v1",
+    "block_report_seller_faq_v1",
+    "listing_domain_v1",
+    "admin_audit_log_v1",
+  ]
     .flatMap((selection) => privateTablePreparationReleaseIds(selection))
     .flatMap((releaseId) => {
       const verified = verifyPrivateTablePreparationSource(
@@ -152,6 +157,7 @@ test("production readiness checks runtime and staff functions read-only", async 
         "owner_social_verification_v1",
         "block_report_seller_faq_v1",
         "listing_domain_v1",
+        "admin_audit_log_v1",
       ],
       runtimeFunctionCount: runtimeCount,
       staffFunctionCount: staffCount,

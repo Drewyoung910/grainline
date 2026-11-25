@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { adminAuditLogPreparationMigrationPath } from "./helpers/admin-audit-log-preparation-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 const { isAlwaysOnEmailPreferenceKey } = await import(
@@ -36,11 +37,13 @@ describe("admin query and email guardrails", () => {
     const users = source("src/app/admin/users/page.tsx");
     const audit = source("src/app/admin/audit/page.tsx");
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
+    const auditMigration = source(adminAuditLogPreparationMigrationPath());
     const reviews = source("src/app/admin/reviews/page.tsx");
     const supportMigration = source(supportRequestPreparationMigrationPath());
 
     assert.match(users, /userStaffDirectoryPage\(staffClient, \{ actorId: staff\.id, query: q, page \}\)/);
-    assert.match(audit, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(audit, /adminAuditLogStaffPage\(staffClient,/);
+    assert.match(auditMigration, /ORDER BY audit\."createdAt" DESC, audit\.id DESC/);
     assert.match(broadcasts, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(reviews, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(reviews, /photos: \{ orderBy: \[\{ sortOrder: "asc" \}, \{ id: "asc" \}\] \}/);

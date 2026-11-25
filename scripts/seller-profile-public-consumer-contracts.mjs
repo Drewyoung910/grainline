@@ -177,7 +177,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // Listing preparation also removes the residual Listing writes and
       // projections. Their behavior is pinned by the executed Listing
       // authority proofs instead of app-side Prisma shapes.
-      || reviewedNonTargetResiduals.length !== 11) {
+      // AdminAuditLog preparation moves its deletion selector and retry
+      // payload construction behind fixed authorities, removing two more
+      // app-side residual shapes without adding SellerProfile access.
+      || reviewedNonTargetResiduals.length !== 9) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

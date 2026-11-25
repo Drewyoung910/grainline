@@ -103,7 +103,7 @@ describe("terms acceptance enforcement", () => {
     const route = source("src/app/api/account/accept-terms/route.ts");
 
     assert.match(route, /import \{ logUserAuditActionOrThrow \} from "@\/lib\/audit"/);
-    assert.match(route, /const user = await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(route, /const user = await withDbUserContext\(me\.id, async \(tx\) => \{/);
     assert.match(route, /await acceptUserOwnerLegalTerms\(tx, \{/);
     assert.match(route, /await logUserAuditActionOrThrow\(\{/);
     assert.match(route, /client: tx/);
