@@ -701,6 +701,127 @@ TO :"runtime_role";
 \endif
 \unset grainline_service_reference_least_privilege_applied
 
+-- These private email-service tables intentionally use fixed-purpose
+-- SECURITY DEFINER operations instead of row policies. Preserve predecessor
+-- CRUD until the exact activation is durably recorded; afterwards every role
+-- provisioning replay must converge back to zero direct table or column
+-- authority. Refuse a partial or checksum-drifted ledger row before touching
+-- the grants.
+WITH email_service_least_privilege_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+        AND pg_catalog.strpos(
+          COALESCE(logs, ''),
+          'GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1'
+        ) = 0
+    )::integer AS exact_active_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+        AND pg_catalog.strpos(
+          COALESCE(logs, ''),
+          'GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1'
+        ) > 0
+    )::integer AS exact_emergency_rollback_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = 'cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NOT NULL
+        AND applied_steps_count IN (0, 1)
+    )::integer AS exact_rolled_back_count
+  FROM public._prisma_migrations
+  WHERE migration_name =
+    '20261101090000_activate_email_service_least_privilege'
+), failure AS (
+  SELECT
+    'email-service least-privilege activation ledger drifted; refusing runtime-role provisioning'
+      AS message
+  FROM email_service_least_privilege_ledger
+  WHERE row_count <> 0
+    AND (
+      row_count <> 1
+      OR exact_active_count
+         + exact_emergency_rollback_count
+         + exact_rolled_back_count <> 1
+    )
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((
+    SELECT exact_active_count = 1
+    FROM email_service_least_privilege_ledger
+  ), false) AS grainline_email_service_least_privilege_applied,
+  COALESCE((
+    SELECT exact_emergency_rollback_count + exact_rolled_back_count = 1
+    FROM email_service_least_privilege_ledger
+  ), false) AS grainline_email_service_predecessor_helper_required;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_email_service_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_email_service_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_email_service_least_privilege_applied
+REVOKE ALL ON TABLE
+  public."NewsletterSubscriber",
+  public."EmailSuppression",
+  public."ResendWebhookEvent",
+  public."EmailOutbox",
+  public."EmailFailureCount"
+FROM PUBLIC, :"runtime_role";
+
+WITH target AS (
+  SELECT
+    class.relname AS table_name,
+    pg_catalog.string_agg(
+      pg_catalog.format('%I', attribute.attname),
+      ', '
+      ORDER BY attribute.attnum
+    ) AS column_list
+  FROM pg_catalog.pg_class AS class
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = class.relnamespace
+  JOIN pg_catalog.pg_attribute AS attribute
+    ON attribute.attrelid = class.oid
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+  WHERE namespace.nspname = 'public'
+    AND class.relname = ANY (ARRAY[
+      'NewsletterSubscriber',
+      'EmailSuppression',
+      'ResendWebhookEvent',
+      'EmailOutbox',
+      'EmailFailureCount'
+    ]::text[])
+  GROUP BY class.relname
+)
+SELECT pg_catalog.format(
+  'REVOKE SELECT (%1$s), INSERT (%1$s), UPDATE (%1$s), REFERENCES (%1$s) ON TABLE public.%2$I FROM PUBLIC, %3$I',
+  column_list,
+  table_name,
+  :'runtime_role'
+)
+FROM target
+ORDER BY table_name;
+\gexec
+\endif
+\unset grainline_email_service_least_privilege_applied
+
 -- Public SellerProfile keeps compatible predecessor CRUD only while RLS is
 -- cleanly off. Once the reviewed policyless ENABLE (or later FORCE) posture is
 -- present, every provisioning replay must re-close direct table authority.
@@ -4628,6 +4749,16 @@ SELECT format(
      )
    );
 \gexec
+
+-- Emergency rollback durably restores direct indexed writes. Re-grant this
+-- shared helper only for the exact rollback ledger posture, after the generic
+-- Conversation/Message convergence above has restored its owner-only default.
+\if :grainline_email_service_predecessor_helper_required
+GRANT EXECUTE ON FUNCTION
+  public.grainline_account_deletion_email_key_core(text)
+TO :"runtime_role";
+\endif
+\unset grainline_email_service_predecessor_helper_required
 \unset conversation_message_rls_active
 
 WITH saved_search_rpc(function_signature) AS (

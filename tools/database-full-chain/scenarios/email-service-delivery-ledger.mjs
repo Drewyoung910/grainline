@@ -40,24 +40,44 @@ async function insertLegacyJob(database, {
 export async function proveEmailServiceDeliveryLedger({ database }) {
   await database.query("BEGIN");
   try {
-    // Exercise the exact write shape used by the live Resend webhook route.
-    // That route owns its five-minute replay lease directly and therefore has
-    // a processing timestamp without one of the future delivery-worker claim
-    // tokens. A table constraint must not reject the receipt before the route
-    // can record or process it.
+    // Exercise the exact fixed-purpose contract used by the live Resend
+    // webhook route after the email-service least-privilege activation. The
+    // runtime role must no longer write the receipt table directly.
     await database.query("SET LOCAL ROLE grainline_app_runtime");
-    await database.query(
-      `INSERT INTO public."ResendWebhookEvent" (
-         "svixId", type, "processingStartedAt", "createdAt", "updatedAt"
-       ) VALUES ($1, $2, now(), now(), now())`,
-      [`${PREFIX}_resend_route`, "email.bounced"],
+    const resendClaimToken = "00000000-0000-4000-8000-000000000002";
+    const reserved = await database.query(
+      `SELECT public.grainline_resend_webhook_event_reserve(
+         $1, $2, $3::timestamp, $4::timestamp, $5::uuid
+       ) AS result`,
+      [
+        `${PREFIX}_resend_route`,
+        "email.bounced",
+        "2026-10-25 00:10:00",
+        "2026-10-25 00:05:00",
+        resendClaimToken,
+      ],
     );
-    await database.query(
-      `UPDATE public."ResendWebhookEvent"
-          SET "processedAt" = now(), "lastError" = NULL, "updatedAt" = now()
-        WHERE "svixId" = $1`,
-      [`${PREFIX}_resend_route`],
+    assert.deepEqual(reserved.rows[0].result, {
+      action: "process",
+      claimToken: resendClaimToken,
+      claimGeneration: 1,
+    });
+    const completed = await database.query(
+      `SELECT public.grainline_resend_webhook_event_complete(
+         $1, $2, $3::uuid, $4::timestamp
+       ) AS result`,
+      [
+        `${PREFIX}_resend_route`,
+        1,
+        resendClaimToken,
+        "2026-10-25 00:10:01",
+      ],
     );
+    assert.equal(completed.rows[0].result, true);
+    await database.query("RESET ROLE");
+
+    // Keep the underlying constraint proof as an owner-only test. Runtime
+    // callers cannot reach this table shape after activation.
     await database.query("SAVEPOINT resend_claim_pair_guard");
     await assert.rejects(
       database.query(
@@ -73,7 +93,6 @@ export async function proveEmailServiceDeliveryLedger({ database }) {
       /ResendWebhookEvent_claim_pair_chk/u,
     );
     await database.query("ROLLBACK TO SAVEPOINT resend_claim_pair_guard");
-    await database.query("RESET ROLE");
 
     await insertLegacyJob(database, {
       id: `${PREFIX}_optional`,

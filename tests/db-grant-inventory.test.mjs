@@ -3546,6 +3546,35 @@ describe("database grant inventory guardrails", () => {
       ),
       [],
     );
+    const emailRollbackAware = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("emailServicePredecessorHelperRequired");
+    if (emailRollbackAware) {
+      const rollbackHelperRows = exactRows.map((row) => (
+        row.function_name === "grainline_account_deletion_email_key_core"
+          ? { ...row, execute_priv: true, runtime_direct_execute: true }
+          : row
+      ));
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          rollbackHelperRows,
+          runtimeRole,
+          migrationRole,
+          { emailServicePredecessorHelperRequired: true },
+        ),
+        [],
+        "email-service emergency rollback restores only the shared canonicalizer",
+      );
+      assert.match(
+        collectConversationMessageFunctionIssues(
+          exactRows,
+          runtimeRole,
+          migrationRole,
+          { emailServicePredecessorHelperRequired: true },
+        ).join("\n"),
+        /grainline_account_deletion_email_key_core.*runtime role must have direct EXECUTE/,
+      );
+    }
     const commissionActivationAware = source(
       "scripts/audit-runtime-db-grants.mjs",
     ).includes("commissionDomainRlsActivationApplied");
@@ -4412,6 +4441,9 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailServiceLeastPrivilegeActivationPresent = existsSync(
+      "prisma/migrations/20261101090000_activate_email_service_least_privilege/migration.sql",
+    );
     const emailProviderDeletionFencePrepared = existsSync(
       EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH,
     ) && EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES.every((functionName) =>
@@ -4685,6 +4717,9 @@ describe("database grant inventory guardrails", () => {
             // The delivery-ledger preparation already contributes the same
             // PUBLIC revoke for the provider-attempt authority.
             - (emailDeliveryLedgerPrepared ? 1 : 0)
+          : 0)
+        + (emailServiceLeastPrivilegeActivationPresent
+          ? 2 // table boundary plus temporary indexed-write helper
           : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
@@ -5448,11 +5483,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 6);
+    assert.equal(auditMatches.length, 7);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 6);
+    assert.equal(combinedStaffStageMatches.length, 7);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -5511,6 +5546,17 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreEmailService,
     );
+    const emailServiceAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyEmailService,
+    );
+    const restoreEmailServiceActivation = stagedProof.indexOf(
+      '"$holding/migrations/$email_service_activation_migration" \\\n            "prisma/migrations/$email_service_activation_migration"',
+    );
+    const applyEmailServiceActivation = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreEmailServiceActivation,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -5537,7 +5583,10 @@ describe("database grant inventory guardrails", () => {
     assert.ok(
       lockOrderCorrectionAudit < restoreEmailService
       && restoreEmailService < applyEmailService
-      && applyEmailService < finalAudit,
+      && applyEmailService < emailServiceAudit
+      && emailServiceAudit < restoreEmailServiceActivation
+      && restoreEmailServiceActivation < applyEmailServiceActivation
+      && applyEmailServiceActivation < finalAudit,
     );
   });
 
@@ -6988,6 +7037,9 @@ describe("database grant inventory guardrails", () => {
     const commissionDomainProvisioningPresent = provision.includes(
       "grainline_commission_domain_rls_active",
     );
+    const emailServiceLeastPrivilegeProvisioningPresent = provision.includes(
+      "grainline_email_service_least_privilege_applied",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -7001,7 +7053,8 @@ describe("database grant inventory guardrails", () => {
         + Number(reviewVoteProvisioningPresent)
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
         + Number(listingDomainActivationProvisioningPresent)
-        + Number(commissionDomainProvisioningPresent),
+        + Number(commissionDomainProvisioningPresent)
+        + Number(emailServiceLeastPrivilegeProvisioningPresent),
     );
     if (listingDomainActivationProvisioningPresent) {
       const listingDomainProvisioningBlock = provision.match(

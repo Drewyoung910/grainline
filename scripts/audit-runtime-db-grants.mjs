@@ -308,6 +308,22 @@ export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION =
   "20261101020000_narrow_service_reference_runtime_privileges";
 export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256 =
   "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION =
+  "20261101090000_activate_email_service_least_privilege";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_SHA256 =
+  "cfcdc7a36d2378910681f0992adc719d4645fe123c212372c274900ce2447ecf";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER =
+  "GRAINLINE_EMERGENCY_ROLLBACK:email_service_v1";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_TABLES = Object.freeze([
+  "NewsletterSubscriber",
+  "EmailSuppression",
+  "ResendWebhookEvent",
+  "EmailOutbox",
+  "EmailFailureCount",
+]);
+const EMAIL_SERVICE_LEAST_PRIVILEGE_TABLE_SET = new Set(
+  EMAIL_SERVICE_LEAST_PRIVILEGE_TABLES,
+);
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION =
   "20261013180000_move_provider_identity_seller_private_sql_callers";
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256 =
@@ -1997,7 +2013,10 @@ export async function readCheckoutStockReservationSourceCutoverState(client) {
     "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
   );
   if (relation.rows[0]?.migration_table === null) {
-    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+    return Object.freeze({
+      applied: false,
+      issues: Object.freeze([]),
+    });
   }
 
   const result = await client.query(
@@ -2007,7 +2026,10 @@ export async function readCheckoutStockReservationSourceCutoverState(client) {
     [CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION],
   );
   if (result.rows.length === 0) {
-    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+    return Object.freeze({
+      applied: false,
+      issues: Object.freeze([]),
+    });
   }
 
   const row = result.rows[0];
@@ -2096,6 +2118,56 @@ export async function readServiceReferenceLeastPrivilegeState(client) {
     migration: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION,
     checksum: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256,
     label: "service/reference least-privilege",
+  });
+}
+
+export async function readEmailServiceLeastPrivilegeActivationState(client) {
+  const relation = await client.query(
+    "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
+  );
+  if (relation.rows[0]?.migration_table === null) {
+    return Object.freeze({
+      applied: false,
+      predecessorHelperRequired: false,
+      issues: Object.freeze([]),
+    });
+  }
+  const result = await client.query(
+    `SELECT migration_name, checksum, finished_at, rolled_back_at,
+            applied_steps_count, logs
+       FROM public._prisma_migrations
+      WHERE migration_name = $1`,
+    [EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION],
+  );
+  if (result.rows.length === 0) {
+    return Object.freeze({
+      applied: false,
+      predecessorHelperRequired: false,
+      issues: Object.freeze([]),
+    });
+  }
+  const row = result.rows[0];
+  const exact = result.rows.length === 1
+    && row.checksum === EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_SHA256
+    && row.finished_at !== null
+    && [0, 1].includes(Number(row.applied_steps_count));
+  if (!exact) {
+    return Object.freeze({
+      applied: false,
+      predecessorHelperRequired: false,
+      issues: Object.freeze([
+        "email-service least-privilege activation migration ledger is partial or drifted",
+      ]),
+    });
+  }
+  const emergencyRollback = row.rolled_back_at === null
+    && String(row.logs ?? "").includes(
+      EMAIL_SERVICE_LEAST_PRIVILEGE_EMERGENCY_ROLLBACK_MARKER,
+    );
+  return Object.freeze({
+    applied: row.rolled_back_at === null && !emergencyRollback,
+    predecessorHelperRequired: emergencyRollback || row.rolled_back_at !== null,
+    issues: Object.freeze([]),
   });
 }
 
@@ -3083,6 +3155,8 @@ export function collectConversationMessageFunctionIssues(
   );
   const commissionDomainActivated =
     inventory?.commissionDomainRlsActivationApplied === true;
+  const emailServicePredecessorHelperRequired =
+    inventory?.emailServicePredecessorHelperRequired === true;
   const expectedFunctions = conversationMessageAuthorityFunctionsForState({
     blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
     blockActivationApplied: blockRlsActivationExpected(inventory),
@@ -3092,10 +3166,13 @@ export function collectConversationMessageFunctionIssues(
         return [{
           ...entry,
           runtimeExecute:
-            entry.name === "grainline_message_create_commission_interest"
-            && commissionDomainActivated
-              ? false
-              : entry.runtimeExecute,
+            entry.name === "grainline_account_deletion_email_key_core"
+            && emailServicePredecessorHelperRequired
+              ? true
+              : entry.name === "grainline_message_create_commission_interest"
+                && commissionDomainActivated
+                ? false
+                : entry.runtimeExecute,
         }];
       }
       const legacy = {
@@ -3471,6 +3548,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     serviceReferencePrivileges
     && inventory?.serviceReferenceLeastPrivilegeApplied === true
   ) return [...serviceReferencePrivileges];
+  if (
+    EMAIL_SERVICE_LEAST_PRIVILEGE_TABLE_SET.has(tableName)
+    && inventory?.emailServiceLeastPrivilegeActivationApplied === true
+  ) return [];
   if (
     RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
     || (
@@ -4036,6 +4117,9 @@ export async function auditLiveDatabase({
   const emailServicePreparation =
     await readEmailServicePreparationState(client);
   issues.push(...emailServicePreparation.issues);
+  const emailServiceLeastPrivilegeActivation =
+    await readEmailServiceLeastPrivilegeActivationState(client);
+  issues.push(...emailServiceLeastPrivilegeActivation.issues);
   const clerkWebhookEventActivation =
     await readClerkWebhookEventActivationState(client);
   issues.push(...clerkWebhookEventActivation.issues);
@@ -4218,6 +4302,10 @@ export async function auditLiveDatabase({
     orderItemQuoteRuntimeLockApplied: orderItemQuoteRuntimeLock.applied,
     serviceReferenceLeastPrivilegeApplied:
       serviceReferenceLeastPrivilege.applied,
+    emailServiceLeastPrivilegeActivationApplied:
+      emailServiceLeastPrivilegeActivation.applied,
+    emailServicePredecessorHelperRequired:
+      emailServiceLeastPrivilegeActivation.predecessorHelperRequired,
     clerkWebhookEventRlsActivationApplied:
       clerkWebhookEventActivation.applied,
     clerkWebhookEventRlsForceApplied:
@@ -4814,7 +4902,13 @@ export async function auditLiveDatabase({
   for (const row of functionResult.rows) {
     const accountDeletionExecuteExpected =
       accountDeletionRuntimeExecuteExpected(row, liveAuthorityInventory);
-    const runtimeExecuteExpected = accountDeletionExecuteExpected
+    const emailServiceHelperExecuteExpected =
+      row.function_name === "grainline_account_deletion_email_key_core"
+      && String(row.args ?? "").replace(/\s+/gu, "") === "text"
+        ? liveAuthorityInventory.emailServicePredecessorHelperRequired === true
+        : null;
+    const runtimeExecuteExpected = emailServiceHelperExecuteExpected
+      ?? accountDeletionExecuteExpected
       ?? !runtimePrivateFunctionNameSet.has(row.function_name);
     if (runtimeExecuteExpected && !row.execute_priv) {
       issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
