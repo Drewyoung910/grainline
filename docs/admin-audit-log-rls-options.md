@@ -2,15 +2,14 @@
 
 Date: 2026-11-02
 
-Status: fresh preparation candidate in PR #772. The isolated compatible
-application conversion is zero-direct and its 16-operation migration plus private insert fence passes
-focused and complete-chain PostgreSQL 17 proof. Atomic deletion-plan creation
-and five deterministic concurrency scenarios pass, as do the 100,000-row
-plans. The reusable manifest and real-catalog inspector seal the 16 new and 23
-retained functions, indexes and trigger. Deploy-order compatibility, the
-app-first rollback and the full local release-workflow restart sequence now pass
-on PostgreSQL 17. Preparation remains unaccepted until exact-branch PostgreSQL
-17 CI passes.
+Status: fresh activation restack in isolated review. The compatible application
+conversion is zero-direct and adds 16 named operations plus a private insert
+fence. Its reusable manifest seals 16 new and 23 retained functions, two
+indexes and one trigger. Preparation PR #772 is based directly on current main;
+its exact-head PostgreSQL 16/17 CI and independent review remain acceptance
+gates. The separate policyless ENABLE-plus-FORCE restack must repeat focused
+and complete-chain proof after preparation is accepted and restacked onto the
+resulting exact main.
 This document authorizes no merge, deployment, Production database change, grant change, or
 RLS activation.
 
@@ -223,3 +222,10 @@ runtime SELECT/INSERT/UPDATE/DELETE, and then admitted exact reapplication.
 The production build gate separately pins the new runtime, isolated-staff and
 account-deletion function bodies so the prepared app cannot deploy before the
 database preparation.
+
+The activation rollback from the earlier serial candidate restored predecessor
+CRUD before disabling FORCE/RLS, retained the prepared functions, indexes and
+trigger, proved predecessor runtime statements, and admitted exact forward
+reactivation. The fresh restack must repeat that proof on its exact head. A
+later Production rollback would still require a reviewed operator action and
+migration-ledger reconciliation; this evidence grants no Production authority.

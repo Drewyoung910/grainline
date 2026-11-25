@@ -45,6 +45,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
   listing_domain_v1: "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH",
   commission_domain_v1: "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -56,6 +57,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
   listing_domain_v1: "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
   commission_domain_v1: "COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 const LISTING_DOMAIN_TABLES = Object.freeze([
@@ -414,6 +416,30 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       replacements: Object.freeze([]),
       additions: Object.freeze([]),
     }),
+  }),
+  admin_audit_log_v1: Object.freeze({
+    preparationReleaseId: "admin_audit_log_v1",
+    minimumCompatibleAppCommit:
+      "0350b1c47e884b6da900136c81c05a4d7bb49435",
+    migration: "20261102020000_activate_admin_audit_log_rls",
+    migrationSha256:
+      "ee55c87a213095402052fa0efa50b85b716202cebecdf8cce044c30d921d8eb8",
+    rollbackPath: "docs/rls-drafts/admin-audit-log-activation-rollback.sql",
+    rollbackSha256:
+      "68525b71f2b7f2ea2e69739eddfdd64ed19a43ec047b070fe7696423e52a69d1",
+    table: "AdminAuditLog",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedAccountDeletionPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/admin-audit-log-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
   }),
 });
 
@@ -827,7 +853,10 @@ export function verifyPrivateTableRlsActivationSource(
   ) {
     throw stopped("activation runtime grant shape drifted");
   }
-  for (const entry of preparation.release.functions) {
+  for (const entry of [
+    ...preparation.release.functions,
+    ...(preparation.release.retainedFunctions ?? []),
+  ]) {
     const literal = signatureLiteral(entry).replaceAll("'", "''");
     if (!activation.sql.includes(`'${literal}'`)) {
       throw stopped(`reviewed operation ${literal} is absent from activation preflight`);

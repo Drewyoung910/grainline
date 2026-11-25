@@ -635,6 +635,9 @@ const {
   userReportRlsForceExpected,
   sellerFaqRlsActivationExpected,
   sellerFaqRlsForceExpected,
+  adminAuditLogRlsActivationExpected,
+  adminAuditLogRlsForceExpected,
+  ADMIN_AUDIT_LOG_TABLE,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1574,6 +1577,63 @@ describe("database grant inventory guardrails", () => {
         true,
         "the applied ledger keeps retired Commission functions forbidden after emergency rollback",
       );
+    }
+    if (existsSync(
+      "prisma/migrations/20261102020000_activate_admin_audit_log_rls/migration.sql",
+    )) {
+      const adminAuditLogPredecessorInventory = {
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const adminAuditLogActivatedInventory = {
+        tables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsEnableTables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsForceTables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsPolicyTables: [],
+      };
+      assert.equal(
+        adminAuditLogRlsActivationExpected(adminAuditLogPredecessorInventory),
+        false,
+      );
+      assert.equal(
+        adminAuditLogRlsForceExpected(adminAuditLogPredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          ADMIN_AUDIT_LOG_TABLE,
+          adminAuditLogPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        adminAuditLogRlsActivationExpected(adminAuditLogActivatedInventory),
+        true,
+      );
+      assert.equal(
+        adminAuditLogRlsForceExpected(adminAuditLogActivatedInventory),
+        true,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          ADMIN_AUDIT_LOG_TABLE,
+          adminAuditLogActivatedInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          adminAuditLogActivatedInventory,
+        ).includes(ADMIN_AUDIT_LOG_TABLE),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: ADMIN_AUDIT_LOG_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], adminAuditLogActivatedInventory), []);
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
@@ -4159,6 +4219,9 @@ describe("database grant inventory guardrails", () => {
     const adminAuditLogAuthorityPrepared = existsSync(
       ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH,
     );
+    const adminAuditLogActivationPresent = existsSync(
+      "prisma/migrations/20261102020000_activate_admin_audit_log_rls/migration.sql",
+    );
     const sellerProfilePrivateForceMigrationPresent = existsSync(
       "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
     );
@@ -4777,6 +4840,7 @@ describe("database grant inventory guardrails", () => {
         + (emailServiceLeastPrivilegeActivationPresent
           ? 2 // table boundary plus temporary indexed-write helper
           : 0)
+        + (adminAuditLogActivationPresent ? 1 : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)
@@ -5319,6 +5383,7 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsActivationExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(adminAuditLogActivationPresent ? ["AdminAuditLog"] : []),
         ...(typeof blockRlsActivationExpected === "function"
           && blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
@@ -5394,6 +5459,7 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsForceExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(adminAuditLogActivationPresent ? ["AdminAuditLog"] : []),
         ...(typeof blockRlsForceExpected === "function"
           && blockRlsForceExpected(inventory) ? [BLOCK_TABLE] : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
@@ -5529,7 +5595,7 @@ describe("database grant inventory guardrails", () => {
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
   });
 
-  it("runs the global grant audit at every reviewed email migration stage", (context) => {
+  it("runs the global grant audit at every reviewed successor migration stage", (context) => {
     if (!existsSync(".github/workflows/ci.yml")) {
       context.skip("requires the current CI workflow source");
       return;
@@ -5542,11 +5608,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 7);
+    assert.equal(auditMatches.length, 8);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 7);
+    assert.equal(combinedStaffStageMatches.length, 8);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -5616,6 +5682,16 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreEmailServiceActivation,
     );
+    const restoreAdminAuditLog = stagedProof.indexOf(
+      '"$holding/migrations/$admin_audit_log_migration" \\\n            "prisma/migrations/$admin_audit_log_migration"',
+    );
+    const restoreAdminAuditLogActivation = stagedProof.indexOf(
+      '"$holding/migrations/$admin_audit_log_activation_migration" \\\n            "prisma/migrations/$admin_audit_log_activation_migration"',
+    );
+    const applyAdminAuditLog = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreAdminAuditLogActivation,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -5645,7 +5721,10 @@ describe("database grant inventory guardrails", () => {
       && applyEmailService < emailServiceAudit
       && emailServiceAudit < restoreEmailServiceActivation
       && restoreEmailServiceActivation < applyEmailServiceActivation
-      && applyEmailServiceActivation < finalAudit,
+      && applyEmailServiceActivation < restoreAdminAuditLog
+      && restoreAdminAuditLog < restoreAdminAuditLogActivation
+      && restoreAdminAuditLogActivation < applyAdminAuditLog
+      && applyAdminAuditLog < finalAudit,
     );
   });
 
@@ -7099,6 +7178,9 @@ describe("database grant inventory guardrails", () => {
     const emailServiceLeastPrivilegeProvisioningPresent = provision.includes(
       "grainline_email_service_least_privilege_applied",
     );
+    const adminAuditLogProvisioningPresent = provision.includes(
+      "admin_audit_log_rls_active",
+    );
     const adminAuditProvisioningPresent = provision.includes(
       "grainline_admin_audit_account_deletion_redaction_apply",
     );
@@ -7116,7 +7198,8 @@ describe("database grant inventory guardrails", () => {
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
         + Number(listingDomainActivationProvisioningPresent)
         + Number(commissionDomainProvisioningPresent)
-        + Number(emailServiceLeastPrivilegeProvisioningPresent),
+        + Number(emailServiceLeastPrivilegeProvisioningPresent)
+        + Number(adminAuditLogProvisioningPresent),
     );
     if (listingDomainActivationProvisioningPresent) {
       const listingDomainProvisioningBlock = provision.match(

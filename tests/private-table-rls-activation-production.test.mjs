@@ -23,6 +23,36 @@ import {
 const releaseId = "maker_verification_v1";
 const release = privateTableRlsActivation(releaseId);
 const verified = verifyPrivateTableRlsActivationSource(releaseId);
+const userAccumulatedAccessMigrationsDir =
+  process.env.USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR || "prisma/migrations";
+const conversationAuthorityMigration = readFileSync(
+  join(
+    userAccumulatedAccessMigrationsDir,
+    "20261007160000_converge_user_cross_domain_authorities",
+    "migration.sql",
+  ),
+  "utf8",
+);
+const initialConversationAuthorityMigration = readFileSync(
+  "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+  "utf8",
+);
+const retainedSourceByName = new Map([
+  [
+    "grainline_conversation_inbox",
+    functionSourceFromMigration(
+      conversationAuthorityMigration,
+      "grainline_conversation_inbox",
+    ),
+  ],
+  [
+    "grainline_message_unread_count",
+    functionSourceFromMigration(
+      initialConversationAuthorityMigration,
+      "grainline_message_unread_count",
+    ),
+  ],
+]);
 
 function migrationRow(entry, appliedStepsCount = 1) {
   return {
@@ -72,6 +102,13 @@ function tableRow(
     staff_truncate: false,
     staff_references: false,
     staff_trigger: false,
+    account_deletion_select: false,
+    account_deletion_insert: false,
+    account_deletion_update: false,
+    account_deletion_delete: false,
+    account_deletion_truncate: false,
+    account_deletion_references: false,
+    account_deletion_trigger: false,
     public_select: false,
     public_insert: false,
     public_update: false,
@@ -83,6 +120,7 @@ function tableRow(
       ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(privilege)
     )) || activeColumns.length > 0,
     staff_any_column: false,
+    account_deletion_any_column: false,
     public_any_column: false,
     non_owner_table_acl_count: privileges.length,
     non_owner_column_acl_count: active ? activeColumns.length : 0,
@@ -91,7 +129,11 @@ function tableRow(
 }
 
 function roleRows() {
-  return ["grainline_app_runtime", "grainline_staff_read_runtime"].map((rolname) => ({
+  return [
+    "grainline_account_deletion_runtime",
+    "grainline_app_runtime",
+    "grainline_staff_read_runtime",
+  ].map((rolname) => ({
     rolname,
     rolsuper: false,
     rolinherit: false,
@@ -127,7 +169,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
   const entries = selectedRelease.preparation.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRole: privateTableFunctionExecuteRoles(entry)[0] ?? "none",
+    executeRoles: privateTableFunctionExecuteRoles(entry),
     securityDefiner: entry.securityDefiner ?? true,
     volatility: entry.volatility ?? "v",
     source: selectedVerified.preparation.functionSources.get(entry.name),
@@ -137,13 +179,13 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
     entries.push({
       name: retained.name,
       arguments: retained.arguments,
-      executeRole: active
+      executeRoles: [active
         ? retained.activatedExecuteRole
-        : retained.predecessorExecuteRole,
+        : retained.predecessorExecuteRole].filter((role) => role !== "none"),
       securityDefiner: retained.securityDefiner,
       source: sourceFile
         ? functionSourceFromMigration(readFileSync(sourceFile, "utf8"), retained.name)
-        : "retained source",
+        : retainedSourceByName.get(retained.name) ?? "retained source",
     });
   }
   if (active) {
@@ -155,12 +197,12 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       entries.push({
         ...predecessor,
         name: replacement.compatibilityName,
-        executeRole: "none",
+        executeRoles: [],
       });
       entries.push({
         name: replacement.name,
         arguments: replacement.arguments,
-        executeRole: predecessor.executeRole,
+        executeRoles: predecessor.executeRoles,
         source: selectedVerified.activeFunctionSources.get(replacement.name),
       });
     }
@@ -168,7 +210,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       entries.push({
         name: addition.name,
         arguments: addition.arguments,
-        executeRole: addition.executeRole,
+        executeRoles: addition.executeRole === "none" ? [] : [addition.executeRole],
         source: selectedVerified.activeFunctionSources.get(addition.name),
       });
     }
@@ -183,8 +225,9 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       volatility: entry.volatility ?? "v",
       configuration: ["search_path=pg_catalog"],
       source: entry.source,
-      runtime_execute: entry.executeRole === "runtime",
-      staff_execute: entry.executeRole === "staff",
+      runtime_execute: entry.executeRoles.includes("runtime"),
+      staff_execute: entry.executeRoles.includes("staff"),
+      account_deletion_execute: entry.executeRoles.includes("account_deletion"),
       public_execute: false,
       unexpected_execute_roles: [],
     }))
@@ -554,6 +597,30 @@ test("inspector rejects a stray non-owner table grant after activation", async (
         },
       ),
       /non-owner table ACL drifted/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector rejects account-deletion direct table authority", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-deletion-authority-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: true,
+            tableOverrides: {
+              account_deletion_select: true,
+              account_deletion_any_column: true,
+              non_owner_table_acl_count: 1,
+            },
+          }),
+        },
+      ),
+      /accountDeletionSelect drifted/u,
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });

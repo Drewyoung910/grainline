@@ -164,6 +164,24 @@ test("Commission activation binds both tables and exact predecessor retirements"
   assert.equal(source.rollbackDigest, commission.rollbackSha256);
 });
 
+test("catalog byte-seals AdminAuditLog and every FORCE-crossing authority", () => {
+  const audit = privateTableRlsActivation("admin_audit_log_v1");
+  const source = verifyPrivateTableRlsActivationSource("admin_audit_log_v1");
+  assert.equal(audit.table, "AdminAuditLog");
+  assert.equal(audit.mode, "policyless_combined_enable_force");
+  assert.equal(
+    audit.minimumCompatibleAppCommit,
+    "0350b1c47e884b6da900136c81c05a4d7bb49435",
+  );
+  assert.equal(audit.preparation.functions.length, 16);
+  assert.equal(audit.preparation.retainedFunctions.length, 23);
+  assert.deepEqual(audit.activatedRuntimePrivileges, []);
+  assert.deepEqual(audit.activatedStaffPrivileges, []);
+  assert.deepEqual(audit.activatedAccountDeletionPrivileges, []);
+  assert.equal(source.migrationDigest, audit.migrationSha256);
+  assert.equal(source.rollbackDigest, audit.rollbackSha256);
+});
+
 test("batch source verification prefers each release's staged paths", () => {
   const sourceByRelease = Object.fromEntries(
     privateTableRlsActivationReleaseIds("owner_social_verification_v1")

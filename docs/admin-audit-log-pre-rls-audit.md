@@ -328,4 +328,24 @@ scan, catalog drift, or rollback gap remains.
    evidence containing no row data. The exact branch must still pass the full
    PostgreSQL 17 CI job, including the deterministic concurrency proof.
 
-Activation remains a later separately reviewed and authorized release.
+## Activation-candidate evidence
+
+**GO for fresh isolated activation restack; not authorized for Production.** The
+separate `20261102020000_activate_admin_audit_log_rls` candidate combines
+policyless `ENABLE` plus `FORCE`, revokes all direct runtime, isolated-staff,
+account-deletion and `PUBLIC` table authority, and seals the exact 38-function
+prepared/retained catalog, 12 columns, two constraints, seven indexes and the
+private insert-fence trigger.
+
+The prior serial candidate passed a complete disposable PostgreSQL 17 proof
+from an empty database through final runtime, staff and account-deletion role
+convergence, including direct denial, database-first rollback, predecessor
+runtime CRUD and exact reactivation. The reusable production inspector also
+covered the local `ready` and `active_unrecorded` states. The fresh restack on
+current main must repeat focused and complete-chain proof on its exact head.
+
+Exact-branch CI, independent exact-head review, compatible application
+deployment and predecessor drain, Production inventory, and Drew's separate
+approval of the exact Production action remain mandatory. No merge,
+deployment, Production database change or RLS activation is authorized by
+this evidence.

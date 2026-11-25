@@ -1426,6 +1426,27 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    for (const [migration, envName, label] of [
+      [
+        adminAuditLogCandidateMigrations[0],
+        "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
+        "AdminAuditLog",
+      ],
+      [
+        adminAuditLogCandidateMigrations[1],
+        "ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_PATH",
+        "AdminAuditLog activation",
+      ],
+    ]) {
+      const target = path.join(root, "prisma", "migrations", migration);
+      if (!existsSync(target)) {
+        cpSync(
+          privateTablePreparationMigrationSourcePath(migration, envName, label),
+          target,
+          { recursive: true },
+        );
+      }
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
@@ -1604,6 +1625,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       commissionDomainPreparationMigration,
       commissionDomainActivationMigration,
     ].map((migration) => `prisma/migrations/${migration}/migration.sql`);
+    const adminAuditLogCandidatePaths = adminAuditLogCandidateMigrations.map(
+      (migration) => `prisma/migrations/${migration}/migration.sql`,
+    );
     const serviceReferenceLeastPrivilegePath =
       `prisma/migrations/${serviceReferenceLeastPrivilegeMigration}/migration.sql`;
     const emailServiceLeastPrivilegePath =
@@ -1648,6 +1672,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       sellerFaqActivationPath,
       ...listingDomainCandidatePaths,
       ...commissionDomainCandidatePaths,
+      ...adminAuditLogCandidatePaths,
       serviceReferenceLeastPrivilegePath,
       emailServiceLeastPrivilegePath,
       emailServiceLeastPrivilegeActivationPath,
@@ -1699,6 +1724,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate SellerFaq source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate Listing domain source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate Commission domain source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate AdminAuditLog candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate service and reference least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email service least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1738,6 +1764,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       (relative) => !existsSync(path.join(root, relative)),
     ));
     assert.ok(commissionDomainCandidatePaths.every(
+      (relative) => !existsSync(path.join(root, relative)),
+    ));
+    assert.ok(adminAuditLogCandidatePaths.every(
       (relative) => !existsSync(path.join(root, relative)),
     ));
     assert.equal(existsSync(path.join(root, serviceReferenceLeastPrivilegePath)), false);
@@ -1832,6 +1861,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore SellerFaq source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore Listing domain source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore Commission domain source packages after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore AdminAuditLog candidates after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore service and reference least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email service least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
