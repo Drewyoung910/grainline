@@ -26,6 +26,8 @@ const stagedMigrationPath =
 const migrationPath = stagedMigrationPath !== ""
   ? stagedMigrationPath
   : join(rootDir, "prisma", "migrations", release.migration, "migration.sql");
+const stagedEmailPreparationMigrationPath =
+  process.env.EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH?.trim() ?? "";
 const workflowPath = join(
   rootDir,
   ".github",
@@ -216,6 +218,7 @@ test("email activation pins every function body installed by its preparation", (
   const preparation = verifyPrivateTablePreparationSource(
     "email_service_v1",
     rootDir,
+    stagedEmailPreparationMigrationPath || undefined,
   );
   assert.equal(
     emailRelease.preparationMigration.sha256,
