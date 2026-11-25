@@ -2677,6 +2677,19 @@ describe("database grant inventory guardrails", () => {
       expectation("grainline_account_deletion_media_key_enqueue_claimed", "text,bigint,uuid,text[]", active),
       true,
     );
+    for (const functionName of [
+      "grainline_admin_audit_account_deletion_redaction_apply",
+      "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+    ]) {
+      assert.equal(
+        expectation(functionName, "text,bigint,uuid,text"),
+        true,
+      );
+      assert.equal(
+        expectation(functionName, "text,bigint,uuid,text", active),
+        true,
+      );
+    }
     assert.equal(
       accountDeletionRuntimeExecuteExpected({
         function_name: "grainline_user_account_deletion_preflight",

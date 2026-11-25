@@ -993,15 +993,6 @@ const ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
   "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
 ]);
-const ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES = new Set([
-  "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
-  "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
-]);
-const ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_NAMES = new Set(
-  [...ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES].map(
-    (identity) => identity.slice(0, identity.indexOf("(")),
-  ),
-);
 const ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])",
 ]);
@@ -1428,8 +1419,8 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
   if (ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
     return !accountDeletionSideEffectRlsActivationExpected(inventory);
   }
-  if (ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES.has(identity)) {
-    return false;
+  if (ADMIN_AUDIT_ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
+    return true;
   }
   if (ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES.has(identity)) {
     return true;
