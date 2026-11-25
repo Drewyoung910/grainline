@@ -174,7 +174,7 @@ test("catalog byte-seals AdminAuditLog and every FORCE-crossing authority", () =
     "0350b1c47e884b6da900136c81c05a4d7bb49435",
   );
   assert.equal(audit.preparation.functions.length, 16);
-  assert.equal(audit.preparation.retainedFunctions.length, 23);
+  assert.equal(audit.preparation.retainedFunctions.length, 22);
   assert.deepEqual(audit.activatedRuntimePrivileges, []);
   assert.deepEqual(audit.activatedStaffPrivileges, []);
   assert.deepEqual(audit.activatedAccountDeletionPrivileges, []);

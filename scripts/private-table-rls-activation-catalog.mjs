@@ -423,7 +423,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "0350b1c47e884b6da900136c81c05a4d7bb49435",
     migration: "20261102020000_activate_admin_audit_log_rls",
     migrationSha256:
-      "ee55c87a213095402052fa0efa50b85b716202cebecdf8cce044c30d921d8eb8",
+      "648604c23d26470b762c4289c8c5c0a3102f9ced7b105ad3cc172bcdea846fd4",
     rollbackPath: "docs/rls-drafts/admin-audit-log-activation-rollback.sql",
     rollbackSha256:
       "68525b71f2b7f2ea2e69739eddfdd64ed19a43ec047b070fe7696423e52a69d1",

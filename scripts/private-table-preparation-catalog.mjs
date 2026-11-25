@@ -819,7 +819,6 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({ name: "grainline_order_staff_append_note", arguments: "text, text, text", executeRole: "staff", sourceSha256: "ece7ef62aa415edd83501d31fd3027f3dc439d5e548facb5596794fde20a593b" }),
       Object.freeze({ name: "grainline_order_staff_mark_reviewed", arguments: "text, text", executeRole: "staff", sourceSha256: "84195010343f715d2568edcff1c0ccf2ff40a98de0991088089df2269510eda1" }),
       Object.freeze({ name: "grainline_order_staff_record_label_voided", arguments: "text, text", executeRole: "staff", sourceSha256: "e66b431743798c39917a372ea52355088357bf8560fcb3cf063bd3b0ada8d873" }),
-      Object.freeze({ name: "grainline_seller_broadcast_staff_delete", arguments: "text, text", executeRole: "staff", sourceSha256: "b8b8e1f878e3f3a5d55e1e979f96620ede4df026d5fb0603c6c55ddd00ac5aab" }),
       Object.freeze({ name: "grainline_seller_guild_staff_transition", arguments: "text, text, text, text, text, boolean", executeRole: "staff", sourceSha256: "947296a6a8d6d26a96534d78439b51f4dd9854ce21499160ae236c5243789ec8" }),
       Object.freeze({ name: "grainline_seller_guild_staff_transition_prepared_impl", arguments: "text, text, text, text, text, boolean", executeRoles: Object.freeze([]), sourceSha256: "36592c7c9112c6e3dd6262aa41edf9fd19bb17bbf1d942a449fec8d306e80fd7" }),
       Object.freeze({ name: "grainline_seller_staff_feature_transition", arguments: "text, text, text", executeRole: "staff", sourceSha256: "72886c6606662c212874f23ebb15f21f34706286b36458cd1652aeedbeae753e" }),

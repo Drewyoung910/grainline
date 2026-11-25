@@ -69,8 +69,6 @@ async function readyDatabase() {
       RETURNS void LANGUAGE sql AS 'SELECT';
     CREATE FUNCTION public.grainline_order_staff_record_label_voided(text, text)
       RETURNS void LANGUAGE sql AS 'SELECT';
-    CREATE FUNCTION public.grainline_seller_broadcast_staff_delete(text, text)
-      RETURNS void LANGUAGE sql AS 'SELECT';
     CREATE FUNCTION public.grainline_seller_guild_staff_transition(
       text, text, text, text, text, boolean
     ) RETURNS void LANGUAGE sql AS 'SELECT';

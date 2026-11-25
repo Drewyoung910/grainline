@@ -8,7 +8,7 @@ conversion is zero-direct and its 16-operation migration plus private insert
 fence passes focused PGlite and complete-chain PostgreSQL 17 behavior/ACL
 proof. Durable in-transaction deletion plans, deterministic concurrency cases
 and 100,000-row query plans now pass. The reusable release catalog seals all
-16 new functions, 23 retained functions, two indexes and one trigger, and its
+16 new functions, 22 retained functions, two indexes and one trigger, and its
 real-catalog inspector proof passes. Compatibility, rollback and the complete
 local release-workflow proof now pass, including pending, applied-unrecorded and
 applied restart states with the actual Prisma ledger command. Preparation PR
