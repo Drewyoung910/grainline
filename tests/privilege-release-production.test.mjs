@@ -238,7 +238,12 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
 
 test("email activation separates reviewed source tail from pending migrations", () => {
   const emailRelease = privilegeRelease("email_service_v1");
-  const directoryNames = readdirSync(join(rootDir, "prisma", "migrations"), {
+  const preservedMigrationsDirectory =
+    process.env.DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR?.trim() ?? "";
+  const migrationsDirectory = preservedMigrationsDirectory !== ""
+    ? preservedMigrationsDirectory
+    : join(rootDir, "prisma", "migrations");
+  const directoryNames = readdirSync(migrationsDirectory, {
     withFileTypes: true,
   }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   assert.deepEqual(collectReviewedMigrationTailIssues({
