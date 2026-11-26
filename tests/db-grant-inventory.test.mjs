@@ -2686,11 +2686,11 @@ describe("database grant inventory guardrails", () => {
       ]) {
         assert.equal(
           expectation(functionName, "text,bigint,uuid,text"),
-          true,
+          false,
         );
         assert.equal(
           expectation(functionName, "text,bigint,uuid,text", active),
-          true,
+          false,
         );
       }
     }

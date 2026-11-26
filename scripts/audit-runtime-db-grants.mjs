@@ -1420,7 +1420,7 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
     return !accountDeletionSideEffectRlsActivationExpected(inventory);
   }
   if (ADMIN_AUDIT_ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
-    return true;
+    return false;
   }
   if (ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES.has(identity)) {
     return true;
