@@ -166,9 +166,13 @@ const LISTING_DOMAIN_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("listing_domain_v1");
 const COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("commission_domain_v1");
+const ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("admin_audit_log_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
+export const ADMIN_AUDIT_LOG_TABLE =
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -1415,6 +1419,9 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
   if (ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
     return !accountDeletionSideEffectRlsActivationExpected(inventory);
   }
+  if (ADMIN_AUDIT_ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
+    return false;
+  }
   if (ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES.has(identity)) {
     return true;
   }
@@ -1703,7 +1710,9 @@ export async function readAccountDeletionWorkerBoundaryState(client) {
              'grainline_user_account_deletion_finalize',
              'grainline_case_account_deletion_redact',
              'grainline_message_redact_for_account_deletion',
-             'grainline_order_account_deletion_scrub'
+             'grainline_order_account_deletion_scrub',
+             'grainline_admin_audit_account_deletion_redaction_apply',
+             'grainline_admin_audit_account_deletion_legacy_redaction_apply'
            )
            AND acl.grantee = 0
            AND acl.privilege_type = 'EXECUTE')
@@ -1879,6 +1888,21 @@ export function followRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
 }
 
+export function adminAuditLogRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
+  );
+}
+
+export function adminAuditLogRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
+  );
+}
 function policylessCatalogActivationExpected(inventory, tableName, stateField) {
   if (typeof inventory?.[stateField] === "boolean") {
     return inventory[stateField];
@@ -2591,6 +2615,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
     ...(makerVerificationRlsActivationExpected(inventory)
       ? [MAKER_VERIFICATION_TABLE]
+      : []),
+    ...(adminAuditLogRlsActivationExpected(inventory)
+      ? [ADMIN_AUDIT_LOG_TABLE]
       : []),
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
@@ -3676,6 +3703,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && inventory?.commissionDomainRlsActivationApplied === true
     )
     || (
+      tableName === ADMIN_AUDIT_LOG_TABLE
+      && adminAuditLogRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3786,6 +3817,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? followRlsForceExpected(inventory)
         : tableName === MAKER_VERIFICATION_TABLE
           ? makerVerificationRlsForceExpected(inventory)
+        : tableName === ADMIN_AUDIT_LOG_TABLE
+          ? adminAuditLogRlsForceExpected(inventory)
         : tableName === BLOCK_TABLE
           ? blockRlsForceExpected(inventory)
         : tableName === USER_REPORT_TABLE

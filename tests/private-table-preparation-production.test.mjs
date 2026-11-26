@@ -437,7 +437,7 @@ test("AdminAuditLog preparation seals new and retained authorities", () => {
   );
   assert.equal(candidate.table, "AdminAuditLog");
   assert.equal(candidate.functions.length, 16);
-  assert.equal(candidate.retainedFunctions.length, 23);
+  assert.equal(candidate.retainedFunctions.length, 22);
   assert.equal(candidate.addedIndexes.length, 2);
   assert.equal(candidate.addedTriggers.length, 1);
   assert.equal(verifiedCandidate.functionSources.size, 16);

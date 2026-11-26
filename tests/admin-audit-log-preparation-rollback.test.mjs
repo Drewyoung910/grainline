@@ -64,5 +64,5 @@ test("AdminAuditLog preparation rollback removes only the additive objects", () 
     NEW_FUNCTIONS.length,
   );
   assert.match(rollback, /changed retained functions/u);
-  assert.match(rollback, /<> 23/u);
+  assert.match(rollback, /<> 22/u);
 });

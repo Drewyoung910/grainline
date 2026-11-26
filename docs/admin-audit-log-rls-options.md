@@ -2,15 +2,15 @@
 
 Date: 2026-11-02
 
-Status: fresh preparation candidate in PR #772. The isolated compatible
-application conversion is zero-direct and its 16-operation migration plus private insert fence passes
-focused and complete-chain PostgreSQL 17 proof. Atomic deletion-plan creation
-and five deterministic concurrency scenarios pass, as do the 100,000-row
-plans. The reusable manifest and real-catalog inspector seal the 16 new and 23
-retained functions, indexes and trigger. Deploy-order compatibility, the
-app-first rollback and the full local release-workflow restart sequence now pass
-on PostgreSQL 17. Preparation remains unaccepted until exact-branch PostgreSQL
-17 CI passes.
+Status: fresh activation restack in isolated review. The compatible application
+conversion is zero-direct and adds 16 named operations plus a private insert
+fence. Its reusable manifest seals 16 new and 22 retained functions, two
+indexes and one trigger. Preparation PR #772 passed exact-head PostgreSQL
+16/17 CI and the complete ordered gate, then merged as exact main
+`fb79cd52f8dbc533d9b3b02d2c35e047024b0bda`. The separate policyless
+ENABLE-plus-FORCE candidate is restacked directly onto that main; its focused
+local source, grant, workflow, isolation-replay, TypeScript and lint gates pass.
+Exact-head CI and review remain activation-source acceptance gates.
 This document authorizes no merge, deployment, Production database change, grant change, or
 RLS activation.
 
@@ -23,10 +23,10 @@ Rows contain private moderation reasons, provider-recovery evidence, account
 state snapshots, undo state, and identifiers used by other durable ledgers.
 
 The current public-main baseline is
-`6bd5e47ef36c51abaa4aaaa6d59f7dc7efc41a87`; the fresh preparation candidate is
-PR #772 on `codex/rls-queue-reconcile-20261125`. Current main already contains
-the accepted Listing, Commission and email-service releases. SellerBroadcast
-and SellerMetrics are not part of this release stack.
+`fb79cd52f8dbc533d9b3b02d2c35e047024b0bda`, which merged preparation PR #772.
+Current main already contains the accepted Listing, Commission, email-service
+and AdminAuditLog preparation releases. SellerBroadcast and SellerMetrics are
+not part of this release stack.
 
 The audited baseline had 20 executable direct AdminAuditLog accesses across
 six files; the current isolated candidate has zero. The complete PostgreSQL 17 schema has 23 installed functions whose
@@ -223,3 +223,10 @@ runtime SELECT/INSERT/UPDATE/DELETE, and then admitted exact reapplication.
 The production build gate separately pins the new runtime, isolated-staff and
 account-deletion function bodies so the prepared app cannot deploy before the
 database preparation.
+
+The activation rollback from the earlier serial candidate restored predecessor
+CRUD before disabling FORCE/RLS, retained the prepared functions, indexes and
+trigger, proved predecessor runtime statements, and admitted exact forward
+reactivation. The fresh restack must repeat that proof on its exact head. A
+later Production rollback would still require a reviewed operator action and
+migration-ledger reconciliation; this evidence grants no Production authority.

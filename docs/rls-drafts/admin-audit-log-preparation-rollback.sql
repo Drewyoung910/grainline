@@ -7,7 +7,7 @@
 --
 -- This rollback removes only the additive preparation objects. It preserves all
 -- AdminAuditLog rows, predecessor table grants, RLS-off posture, constraints,
--- existing indexes and the 23 retained cross-domain functions.
+-- existing indexes and the 22 retained cross-domain functions.
 --
 -- Keep the successfully applied Prisma ledger row intact. Prisma cannot mark a
 -- completed migration rolled back. Re-preparation requires a new reviewed
@@ -261,7 +261,6 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_order_staff_append_note(text,text,text)'),
        pg_catalog.to_regprocedure('public.grainline_order_staff_mark_reviewed(text,text)'),
        pg_catalog.to_regprocedure('public.grainline_order_staff_record_label_voided(text,text)'),
-       pg_catalog.to_regprocedure('public.grainline_seller_broadcast_staff_delete(text,text)'),
        pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)'),
        pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_transition_prepared_impl(text,text,text,text,text,boolean)'),
        pg_catalog.to_regprocedure('public.grainline_seller_staff_feature_transition(text,text,text)'),
@@ -270,7 +269,7 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_user_ban_repair_target(text,text)'),
        pg_catalog.to_regprocedure('public.grainline_user_report_staff_resolve(text,text,text,text)')
      )
-  ) <> 23 THEN
+  ) <> 22 THEN
     RAISE EXCEPTION 'AdminAuditLog preparation rollback changed retained functions: % remain',
       (
         SELECT pg_catalog.count(*)
@@ -291,7 +290,6 @@ BEGIN
            pg_catalog.to_regprocedure('public.grainline_order_staff_append_note(text,text,text)'),
            pg_catalog.to_regprocedure('public.grainline_order_staff_mark_reviewed(text,text)'),
            pg_catalog.to_regprocedure('public.grainline_order_staff_record_label_voided(text,text)'),
-           pg_catalog.to_regprocedure('public.grainline_seller_broadcast_staff_delete(text,text)'),
            pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)'),
            pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_transition_prepared_impl(text,text,text,text,text,boolean)'),
            pg_catalog.to_regprocedure('public.grainline_seller_staff_feature_transition(text,text,text)'),
