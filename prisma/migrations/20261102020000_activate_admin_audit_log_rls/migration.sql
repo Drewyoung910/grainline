@@ -240,6 +240,44 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Production can already contain the later Listing preparation when this
+  -- held activation is applied. Those successor functions are optional in a
+  -- timestamp-ordered rebuild, but when present they must match their exact
+  -- reviewed owner, body, security posture, and isolated-staff grant.
+  FOR reviewed_function, expected_source_md5 IN
+    SELECT expected.identity, expected.source_md5
+      FROM (VALUES
+        ('public.grainline_seller_staff_listing_remove_transition(text,text,text,timestamp without time zone)', '2b657d81f4f84053e10781018a80eef6'),
+        ('public.grainline_seller_staff_listing_undo_transition(text,text,text)', '6dcbda0ca1fda2f0be64d674ac397168')
+      ) AS expected(identity, source_md5)
+  LOOP
+    IF pg_catalog.to_regprocedure(reviewed_function) IS NOT NULL
+       AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid = procedure.proowner
+      WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
+        AND procedure.proowner = table_owner AND procedure.prosecdef
+        AND procedure.prokind = 'f' AND procedure.provolatile = 'v'::"char"
+        AND procedure.proparallel = 'u'::"char"
+        AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+        AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
+        AND (owner_role.rolsuper OR owner_role.rolbypassrls)
+        AND NOT pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
+        AND NOT pg_catalog.has_function_privilege(
+          runtime_oid, procedure.oid, 'EXECUTE'
+        )
+        AND pg_catalog.has_function_privilege(
+          staff_oid, procedure.oid, 'EXECUTE'
+        )
+        AND NOT pg_catalog.has_function_privilege(
+          account_deletion_oid, procedure.oid, 'EXECUTE'
+        )
+    ) THEN
+      RAISE EXCEPTION 'AdminAuditLog reviewed successor function posture drifted: %',
+        reviewed_function;
+    END IF;
+  END LOOP;
+
   IF EXISTS (
     SELECT 1 FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
@@ -282,6 +320,14 @@ BEGIN
         pg_catalog.to_regprocedure('public.grainline_seller_guild_staff_transition_prepared_impl(text,text,text,text,text,boolean)'),
         pg_catalog.to_regprocedure('public.grainline_seller_staff_feature_transition(text,text,text)'),
         pg_catalog.to_regprocedure('public.grainline_seller_staff_listing_review_transition(text,text,text,text)'),
+        COALESCE(
+          pg_catalog.to_regprocedure('public.grainline_seller_staff_listing_remove_transition(text,text,text,timestamp without time zone)'),
+          0::oid
+        ),
+        COALESCE(
+          pg_catalog.to_regprocedure('public.grainline_seller_staff_listing_undo_transition(text,text,text)'),
+          0::oid
+        ),
         pg_catalog.to_regprocedure('public.grainline_support_request_staff_transition(text,text,text)'),
         pg_catalog.to_regprocedure('public.grainline_user_ban_repair_target(text,text)'),
         pg_catalog.to_regprocedure('public.grainline_user_report_staff_resolve(text,text,text,text)')

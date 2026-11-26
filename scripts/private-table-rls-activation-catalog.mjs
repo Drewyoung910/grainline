@@ -423,7 +423,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "0350b1c47e884b6da900136c81c05a4d7bb49435",
     migration: "20261102020000_activate_admin_audit_log_rls",
     migrationSha256:
-      "648604c23d26470b762c4289c8c5c0a3102f9ced7b105ad3cc172bcdea846fd4",
+      "c9b253e0f7be5dadf32408ff7e231ab5d0642f6190160074fd00f6d3b257d5e8",
     rollbackPath: "docs/rls-drafts/admin-audit-log-activation-rollback.sql",
     rollbackSha256:
       "68525b71f2b7f2ea2e69739eddfdd64ed19a43ec047b070fe7696423e52a69d1",
@@ -437,6 +437,24 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     activatedPublicPrivileges: NO_PRIVILEGES,
     sourceTests: Object.freeze([
       "tests/admin-audit-log-rls-activation.test.mjs",
+    ]),
+    reviewedSuccessorFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_staff_listing_remove_transition",
+        arguments: "text, text, text, timestamp without time zone",
+        executeRole: "staff",
+        sourceMd5: "2b657d81f4f84053e10781018a80eef6",
+        securityDefiner: true,
+        volatility: "v",
+      }),
+      Object.freeze({
+        name: "grainline_seller_staff_listing_undo_transition",
+        arguments: "text, text, text",
+        executeRole: "staff",
+        sourceMd5: "6dcbda0ca1fda2f0be64d674ac397168",
+        securityDefiner: true,
+        volatility: "v",
+      }),
     ]),
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
@@ -616,6 +634,24 @@ export function verifyPrivateTableRlsActivationSource(
     ))
   ) {
     throw stopped("source-test catalog is invalid");
+  }
+  const reviewedSuccessorFunctions = release.reviewedSuccessorFunctions ?? [];
+  if (
+    !Array.isArray(reviewedSuccessorFunctions)
+    || new Set(reviewedSuccessorFunctions.map(signatureLiteral)).size
+      !== reviewedSuccessorFunctions.length
+    || reviewedSuccessorFunctions.some((entry) => (
+      typeof entry.name !== "string"
+      || typeof entry.arguments !== "string"
+      || entry.executeRole !== "staff"
+      || !/^[0-9a-f]{32}$/u.test(entry.sourceMd5 ?? "")
+      || entry.securityDefiner !== true
+      || entry.volatility !== "v"
+      || !activation.sql.includes(`'${signatureLiteral(entry)}'`)
+      || !activation.sql.includes(`'${entry.sourceMd5}'`)
+    ))
+  ) {
+    throw stopped("reviewed successor function catalog drifted");
   }
   if (release.mode === "policyless_domain_combined_enable_force") {
     if (

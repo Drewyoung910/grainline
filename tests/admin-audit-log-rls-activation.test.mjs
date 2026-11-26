@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -6,6 +7,9 @@ import {
   privateTableRlsActivation,
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
+import {
+  functionSourceFromMigration,
+} from "../scripts/private-table-preparation-catalog.mjs";
 
 const releaseId = "admin_audit_log_v1";
 
@@ -26,6 +30,25 @@ test("AdminAuditLog activation is policyless and removes all direct authority", 
   assert.deepEqual(release.activatedPublicPrivileges, []);
   assert.equal(release.preparation.functions.length, 16);
   assert.equal(release.preparation.retainedFunctions.length, 22);
+  assert.deepEqual(
+    release.reviewedSuccessorFunctions.map((entry) => ({
+      identity: `${entry.name}(${entry.arguments})`,
+      executeRole: entry.executeRole,
+      sourceMd5: entry.sourceMd5,
+    })),
+    [
+      {
+        identity: "grainline_seller_staff_listing_remove_transition(text, text, text, timestamp without time zone)",
+        executeRole: "staff",
+        sourceMd5: "2b657d81f4f84053e10781018a80eef6",
+      },
+      {
+        identity: "grainline_seller_staff_listing_undo_transition(text, text, text)",
+        executeRole: "staff",
+        sourceMd5: "6dcbda0ca1fda2f0be64d674ac397168",
+      },
+    ],
+  );
   assert.equal(verified.migrationDigest, release.migrationSha256);
   assert.equal(verified.rollbackDigest, release.rollbackSha256);
   assert.match(migration, /LOCK TABLE public\."AdminAuditLog" IN ACCESS EXCLUSIVE MODE/u);
@@ -55,8 +78,30 @@ test("AdminAuditLog activation seals the table, trigger, and every function", ()
   for (const entry of [
     ...verified.preparation.release.functions,
     ...verified.preparation.release.retainedFunctions,
+    ...verified.release.reviewedSuccessorFunctions,
   ]) {
     assert.match(migration, new RegExp(`public\\.${entry.name}\\(`, "u"));
+  }
+  assert.match(
+    migration,
+    /reviewed successor function posture drifted/u,
+  );
+  assert.match(
+    migration,
+    /COALESCE\(\s*pg_catalog\.to_regprocedure\('public\.grainline_seller_staff_listing_remove_transition/u,
+  );
+  const listingPreparation = readFileSync(
+    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    "utf8",
+  );
+  for (const entry of verified.release.reviewedSuccessorFunctions) {
+    assert.equal(
+      createHash("md5")
+        .update(functionSourceFromMigration(listingPreparation, entry.name), "utf8")
+        .digest("hex"),
+      entry.sourceMd5,
+      `${entry.name} successor source drifted`,
+    );
   }
 });
 
