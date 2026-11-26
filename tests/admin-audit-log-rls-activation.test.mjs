@@ -8,7 +8,7 @@ import {
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
 import {
-  functionSourceFromMigration,
+  verifyPrivateTablePreparationSource,
 } from "../scripts/private-table-preparation-catalog.mjs";
 
 const releaseId = "admin_audit_log_v1";
@@ -90,14 +90,13 @@ test("AdminAuditLog activation seals the table, trigger, and every function", ()
     migration,
     /COALESCE\(\s*pg_catalog\.to_regprocedure\('public\.grainline_seller_staff_listing_remove_transition/u,
   );
-  const listingPreparation = readFileSync(
-    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    "utf8",
+  const listingPreparation = verifyPrivateTablePreparationSource(
+    "listing_domain_v1",
   );
   for (const entry of verified.release.reviewedSuccessorFunctions) {
     assert.equal(
       createHash("md5")
-        .update(functionSourceFromMigration(listingPreparation, entry.name), "utf8")
+        .update(listingPreparation.functionSources.get(entry.name), "utf8")
         .digest("hex"),
       entry.sourceMd5,
       `${entry.name} successor source drifted`,
