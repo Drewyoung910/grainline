@@ -635,4 +635,17 @@ test("inspector resolves reviewed function identities without absorbing unrelate
 
   assert.match(inspector, /pg_catalog\.to_regprocedure\(expected\.identity\)/u);
   assert.doesNotMatch(inspector, /procedure\.proname = ANY\(\$1::text\[\]\)/u);
+  assert.match(
+    inspector,
+    /verified\.release\.reviewedSuccessorFunctions \?\? \[\]/u,
+  );
+  assert.match(inspector, /existing\.optional = true/u);
+  assert.match(
+    inspector,
+    /entry\.optional !== true[\s\S]*"function count drifted"/u,
+  );
+  assert.match(
+    inspector,
+    /entry\.optional !== true\)\.length,[\s\S]*"reviewed function is absent"/u,
+  );
 });
