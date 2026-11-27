@@ -997,6 +997,9 @@ export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
 });
 
 const PRIVATE_TABLE_PREPARATION_LATER_PENDING = Object.freeze({
+  admin_audit_log_v1: Object.freeze([
+    "20261102020000_activate_admin_audit_log_rls",
+  ]),
   email_service_v1: Object.freeze([
     "20261102050000_prepare_listing_domain_authorities",
   ]),

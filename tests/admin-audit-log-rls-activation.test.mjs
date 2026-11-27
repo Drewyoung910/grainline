@@ -10,6 +10,9 @@ import {
 import {
   verifyPrivateTablePreparationSource,
 } from "../scripts/private-table-preparation-catalog.mjs";
+import {
+  REVIEWED_MANUALLY_APPLIED_MIGRATIONS,
+} from "../scripts/reviewed-manually-applied-migrations.mjs";
 
 const releaseId = "admin_audit_log_v1";
 
@@ -55,6 +58,10 @@ test("AdminAuditLog activation is policyless and removes all direct authority", 
     ],
   );
   assert.equal(verified.migrationDigest, release.migrationSha256);
+  assert.equal(
+    REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(release.migration),
+    release.migrationSha256,
+  );
   assert.equal(verified.rollbackDigest, release.rollbackSha256);
   assert.match(migration, /LOCK TABLE public\."AdminAuditLog" IN ACCESS EXCLUSIVE MODE/u);
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/u);

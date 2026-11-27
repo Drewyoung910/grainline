@@ -638,7 +638,11 @@ test("all generic preparation releases admit only their exact manual ledger row"
   }
 });
 
-test("email-service preparation preserves the reviewed later Listing preparation", () => {
+test("preparations preserve only their reviewed later pending migrations", () => {
+  assert.deepEqual(
+    privateTablePreparationLaterPendingMigrations("admin_audit_log_v1"),
+    ["20261102020000_activate_admin_audit_log_rls"],
+  );
   assert.deepEqual(
     privateTablePreparationLaterPendingMigrations("email_service_v1"),
     ["20261102050000_prepare_listing_domain_authorities"],
