@@ -13,6 +13,7 @@ import {
   privateTableFunctionExecuteRoles,
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
+  assertPrivateTableRlsActivationFunctionBoundary,
   inspectPrivateTableRlsActivationProduction,
 } from "../scripts/private-table-rls-activation-production-inspect.mjs";
 import {
@@ -635,4 +636,65 @@ test("inspector resolves reviewed function identities without absorbing unrelate
 
   assert.match(inspector, /pg_catalog\.to_regprocedure\(expected\.identity\)/u);
   assert.doesNotMatch(inspector, /procedure\.proname = ANY\(\$1::text\[\]\)/u);
+  assert.match(
+    inspector,
+    /verified\.release\.reviewedSuccessorFunctions \?\? \[\]/u,
+  );
+  assert.match(inspector, /existing\.optional = true/u);
+  assert.match(
+    inspector,
+    /entry\.optional !== true[\s\S]*"function count drifted"/u,
+  );
+  assert.match(
+    inspector,
+    /entry\.optional !== true\)\.length,[\s\S]*"reviewed function is absent"/u,
+  );
+});
+
+test("activation function boundary permits only new reviewed successors", () => {
+  const required = Object.freeze({
+    name: "grainline_required",
+    arguments: "text",
+    sourceSha256: "required",
+  });
+  const existingSuccessor = Object.freeze({
+    name: "grainline_successor",
+    arguments: "text",
+    sourceSha256: "existing",
+  });
+  const newSuccessor = Object.freeze({
+    name: "grainline_successor",
+    arguments: "text, text",
+    sourceSha256: "new",
+  });
+  const selectedRelease = {
+    reviewedSuccessorFunctions: [
+      { name: existingSuccessor.name, arguments: existingSuccessor.arguments },
+      { name: newSuccessor.name, arguments: newSuccessor.arguments },
+    ],
+  };
+
+  assert.doesNotThrow(() => {
+    assertPrivateTableRlsActivationFunctionBoundary(
+      [required, existingSuccessor],
+      [required, existingSuccessor, newSuccessor],
+      selectedRelease,
+    );
+  });
+  assert.throws(
+    () => assertPrivateTableRlsActivationFunctionBoundary(
+      [required, existingSuccessor],
+      [{ ...required, sourceSha256: "drifted" }, existingSuccessor, newSuccessor],
+      selectedRelease,
+    ),
+    /function boundary changed during activation/u,
+  );
+  assert.throws(
+    () => assertPrivateTableRlsActivationFunctionBoundary(
+      [required, existingSuccessor],
+      [required, newSuccessor],
+      selectedRelease,
+    ),
+    /reviewed successor function boundary changed during activation/u,
+  );
 });

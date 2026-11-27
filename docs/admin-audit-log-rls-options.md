@@ -4,7 +4,7 @@ Date: 2026-11-02
 
 Status: fresh activation restack in isolated review. The compatible application
 conversion is zero-direct and adds 16 named operations plus a private insert
-fence. Its reusable manifest seals 16 new and 22 retained functions, two
+fence. Its reusable manifest seals 16 new and 23 retained functions, two
 indexes and one trigger. Preparation PR #772 passed exact-head PostgreSQL
 16/17 CI and the complete ordered gate, then merged as exact main
 `fb79cd52f8dbc533d9b3b02d2c35e047024b0bda`. The separate policyless

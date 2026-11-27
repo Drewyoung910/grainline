@@ -220,6 +220,29 @@ function expectedFunctions(verified, active) {
       sourceSha256: entry.sourceSha256,
     });
   }
+  const entryByIdentity = new Map(entries.map((entry) => [
+    `${entry.name}(${entry.arguments})`,
+    entry,
+  ]));
+  for (const successor of verified.release.reviewedSuccessorFunctions ?? []) {
+    const identity = `${successor.name}(${successor.arguments})`;
+    const existing = entryByIdentity.get(identity);
+    if (existing) {
+      existing.optional = true;
+      continue;
+    }
+    const optional = {
+      name: successor.name,
+      arguments: successor.arguments,
+      executeRoles: privateTableFunctionExecuteRoles(successor),
+      securityDefiner: successor.securityDefiner,
+      volatility: successor.volatility,
+      sourceMd5: successor.sourceMd5,
+      optional: true,
+    };
+    entries.push(optional);
+    entryByIdentity.set(identity, optional);
+  }
   for (const retained of verified.release.functionChanges.retained) {
     entries.push({
       name: retained.name,
@@ -260,6 +283,37 @@ function expectedFunctions(verified, active) {
     }
   }
   return entries;
+}
+
+function functionEvidenceIdentity(entry) {
+  return `${entry.name}(${entry.arguments})`;
+}
+
+export function assertPrivateTableRlsActivationFunctionBoundary(
+  previousFunctions,
+  currentFunctions,
+  release,
+) {
+  const optionalIdentities = new Set(
+    (release.reviewedSuccessorFunctions ?? []).map(functionEvidenceIdentity),
+  );
+  const isOptional = (entry) => optionalIdentities.has(functionEvidenceIdentity(entry));
+  assert.deepEqual(
+    previousFunctions.filter((entry) => !isOptional(entry)),
+    currentFunctions.filter((entry) => !isOptional(entry)),
+    "function boundary changed during activation",
+  );
+
+  const currentByIdentity = new Map(
+    currentFunctions.map((entry) => [functionEvidenceIdentity(entry), entry]),
+  );
+  for (const previous of previousFunctions.filter(isOptional)) {
+    assert.deepEqual(
+      currentByIdentity.get(functionEvidenceIdentity(previous)),
+      previous,
+      "reviewed successor function boundary changed during activation",
+    );
+  }
 }
 
 async function readFunctions(client, verified, tableOwner, active) {
@@ -319,7 +373,13 @@ async function readFunctions(client, verified, tableOwner, active) {
      WHERE namespace.nspname = 'public'
      ORDER BY procedure.proname, identity_arguments
   `, [identities])).rows;
-  assert.equal(rows.length, expectedEntries.length, "function count drifted");
+  const requiredFunctionCount = expectedEntries.filter(
+    (entry) => entry.optional !== true,
+  ).length;
+  assert.ok(
+    rows.length >= requiredFunctionCount && rows.length <= expectedEntries.length,
+    "function count drifted",
+  );
   const expected = new Map(expectedEntries.map((entry) => [
     `${entry.name}(${entry.arguments})`,
     entry,
@@ -377,7 +437,11 @@ async function readFunctions(client, verified, tableOwner, active) {
     }
     expected.delete(identity);
   }
-  assert.equal(expected.size, 0, "reviewed function is absent");
+  assert.equal(
+    [...expected.values()].filter((entry) => entry.optional !== true).length,
+    0,
+    "reviewed function is absent",
+  );
   return rows.map((row) => Object.freeze({
     name: row.function_name,
     arguments: row.identity_arguments,
@@ -656,10 +720,10 @@ export async function inspectPrivateTableRlsActivationProduction(
         && changes.replacements.length === 0
         && changes.additions.length === 0
       ) {
-        assert.deepEqual(
+        assertPrivateTableRlsActivationFunctionBoundary(
           previous.functions,
           evidence.functions,
-          "function boundary changed during activation",
+          release,
         );
       }
     }
