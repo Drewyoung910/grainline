@@ -285,6 +285,37 @@ function expectedFunctions(verified, active) {
   return entries;
 }
 
+function functionEvidenceIdentity(entry) {
+  return `${entry.name}(${entry.arguments})`;
+}
+
+export function assertPrivateTableRlsActivationFunctionBoundary(
+  previousFunctions,
+  currentFunctions,
+  release,
+) {
+  const optionalIdentities = new Set(
+    (release.reviewedSuccessorFunctions ?? []).map(functionEvidenceIdentity),
+  );
+  const isOptional = (entry) => optionalIdentities.has(functionEvidenceIdentity(entry));
+  assert.deepEqual(
+    previousFunctions.filter((entry) => !isOptional(entry)),
+    currentFunctions.filter((entry) => !isOptional(entry)),
+    "function boundary changed during activation",
+  );
+
+  const currentByIdentity = new Map(
+    currentFunctions.map((entry) => [functionEvidenceIdentity(entry), entry]),
+  );
+  for (const previous of previousFunctions.filter(isOptional)) {
+    assert.deepEqual(
+      currentByIdentity.get(functionEvidenceIdentity(previous)),
+      previous,
+      "reviewed successor function boundary changed during activation",
+    );
+  }
+}
+
 async function readFunctions(client, verified, tableOwner, active) {
   const expectedEntries = expectedFunctions(verified, active);
   const identities = expectedEntries.map((entry) => (
@@ -689,10 +720,10 @@ export async function inspectPrivateTableRlsActivationProduction(
         && changes.replacements.length === 0
         && changes.additions.length === 0
       ) {
-        assert.deepEqual(
+        assertPrivateTableRlsActivationFunctionBoundary(
           previous.functions,
           evidence.functions,
-          "function boundary changed during activation",
+          release,
         );
       }
     }
