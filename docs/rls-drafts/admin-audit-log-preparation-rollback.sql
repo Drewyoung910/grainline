@@ -7,7 +7,7 @@
 --
 -- This rollback removes only the additive preparation objects. It preserves all
 -- AdminAuditLog rows, predecessor table grants, RLS-off posture, constraints,
--- existing indexes and the 22 retained cross-domain functions.
+-- existing indexes and the 22 timestamp-ordered retained cross-domain functions.
 --
 -- Keep the successfully applied Prisma ledger row intact. Prisma cannot mark a
 -- completed migration rolled back. Re-preparation requires a new reviewed

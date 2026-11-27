@@ -29,7 +29,7 @@ test("AdminAuditLog activation is policyless and removes all direct authority", 
   assert.deepEqual(release.activatedAccountDeletionPrivileges, []);
   assert.deepEqual(release.activatedPublicPrivileges, []);
   assert.equal(release.preparation.functions.length, 16);
-  assert.equal(release.preparation.retainedFunctions.length, 22);
+  assert.equal(release.preparation.retainedFunctions.length, 23);
   assert.deepEqual(
     release.reviewedSuccessorFunctions.map((entry) => ({
       identity: `${entry.name}(${entry.arguments})`,
@@ -37,6 +37,11 @@ test("AdminAuditLog activation is policyless and removes all direct authority", 
       sourceMd5: entry.sourceMd5,
     })),
     [
+      {
+        identity: "grainline_seller_staff_listing_review_transition(text, text, text, text, timestamp without time zone)",
+        executeRole: "staff",
+        sourceMd5: "b5d1b63fea0f7e56b366a9e80e9f38e4",
+      },
       {
         identity: "grainline_seller_staff_listing_remove_transition(text, text, text, timestamp without time zone)",
         executeRole: "staff",
@@ -85,6 +90,10 @@ test("AdminAuditLog activation seals the table, trigger, and every function", ()
   assert.match(
     migration,
     /reviewed successor function posture drifted/u,
+  );
+  assert.match(
+    migration,
+    /COALESCE\(\s*pg_catalog\.to_regprocedure\('public\.grainline_seller_staff_listing_review_transition\(text,text,text,text,timestamp without time zone\)'/u,
   );
   assert.match(
     migration,

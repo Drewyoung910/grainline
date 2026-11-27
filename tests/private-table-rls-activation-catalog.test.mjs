@@ -174,10 +174,11 @@ test("catalog byte-seals AdminAuditLog and every FORCE-crossing authority", () =
     "0350b1c47e884b6da900136c81c05a4d7bb49435",
   );
   assert.equal(audit.preparation.functions.length, 16);
-  assert.equal(audit.preparation.retainedFunctions.length, 22);
+  assert.equal(audit.preparation.retainedFunctions.length, 23);
   assert.deepEqual(
     audit.reviewedSuccessorFunctions.map((entry) => entry.name),
     [
+      "grainline_seller_staff_listing_review_transition",
       "grainline_seller_staff_listing_remove_transition",
       "grainline_seller_staff_listing_undo_transition",
     ],

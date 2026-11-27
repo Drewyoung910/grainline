@@ -437,11 +437,28 @@ test("AdminAuditLog preparation seals new and retained authorities", () => {
   );
   assert.equal(candidate.table, "AdminAuditLog");
   assert.equal(candidate.functions.length, 16);
-  assert.equal(candidate.retainedFunctions.length, 22);
+  assert.equal(candidate.retainedFunctions.length, 23);
   assert.equal(candidate.addedIndexes.length, 2);
   assert.equal(candidate.addedTriggers.length, 1);
   assert.equal(verifiedCandidate.functionSources.size, 16);
   assert.equal(verifiedCandidate.digest, candidate.migrationSha256);
+  const listingReviewSuccessor = candidate.retainedFunctions.find((entry) => (
+    entry.name === "grainline_seller_staff_listing_review_transition"
+      && entry.arguments ===
+        "text, text, text, text, timestamp without time zone"
+  ));
+  assert.ok(listingReviewSuccessor);
+  const listingPreparation = readFileSync(
+    listingDomainPreparationMigrationPath(),
+    "utf8",
+  );
+  assert.equal(
+    createHash("sha256").update(functionSourceFromMigration(
+      listingPreparation,
+      listingReviewSuccessor.name,
+    ), "utf8").digest("hex"),
+    listingReviewSuccessor.sourceSha256,
+  );
   assert.deepEqual(
     candidate.functions
       .filter((entry) => entry.executeRole === "account_deletion")

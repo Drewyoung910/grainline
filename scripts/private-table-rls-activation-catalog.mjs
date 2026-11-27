@@ -423,7 +423,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "0350b1c47e884b6da900136c81c05a4d7bb49435",
     migration: "20261102020000_activate_admin_audit_log_rls",
     migrationSha256:
-      "c9b253e0f7be5dadf32408ff7e231ab5d0642f6190160074fd00f6d3b257d5e8",
+      "7c02767ca1a825eef7c5d380f37ccae8b2b6b372c6369bd473975d04078783f0",
     rollbackPath: "docs/rls-drafts/admin-audit-log-activation-rollback.sql",
     rollbackSha256:
       "68525b71f2b7f2ea2e69739eddfdd64ed19a43ec047b070fe7696423e52a69d1",
@@ -439,6 +439,14 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "tests/admin-audit-log-rls-activation.test.mjs",
     ]),
     reviewedSuccessorFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_staff_listing_review_transition",
+        arguments: "text, text, text, text, timestamp without time zone",
+        executeRole: "staff",
+        sourceMd5: "b5d1b63fea0f7e56b366a9e80e9f38e4",
+        securityDefiner: true,
+        volatility: "v",
+      }),
       Object.freeze({
         name: "grainline_seller_staff_listing_remove_transition",
         arguments: "text, text, text, timestamp without time zone",
