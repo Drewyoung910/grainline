@@ -573,6 +573,10 @@ const {
   COMMISSION_DOMAIN_RETIRED_RUNTIME_FUNCTION_NAMES = Object.freeze([]),
   COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION,
   COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
+  ADMIN_AUDIT_LOG_PREPARATION_MIGRATION,
+  ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_SHA256,
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION,
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_SHA256,
   FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
@@ -611,6 +615,7 @@ const {
   collectListingDomainMigrationOrderIssues,
   collectSellerProfilePrivateMigrationOrderIssues,
   collectSellerProfilePublicMigrationOrderIssues,
+  collectAdminAuditLogMigrationOrderIssues,
   clerkWebhookEventRlsActivationExpected,
   clerkWebhookEventRlsForceExpected,
   checkoutStockReservationRlsActivationExpected,
@@ -674,6 +679,8 @@ const {
   readListingDomainMessageListPredecessorState,
   readListingDomainRlsActivationState,
   readCommissionDomainRlsActivationState,
+  readAdminAuditLogPreparationState,
+  readAdminAuditLogRlsActivationState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -1586,11 +1593,21 @@ describe("database grant inventory guardrails", () => {
         rlsForceTables: [],
         rlsPolicyTables: [],
       };
+      const adminAuditLogPreparedInventory = {
+        tables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsEnableTables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsForceTables: [ADMIN_AUDIT_LOG_TABLE],
+        rlsPolicyTables: [],
+        adminAuditLogPreparationApplied: true,
+        adminAuditLogRlsActivationApplied: false,
+      };
       const adminAuditLogActivatedInventory = {
         tables: [ADMIN_AUDIT_LOG_TABLE],
         rlsEnableTables: [ADMIN_AUDIT_LOG_TABLE],
         rlsForceTables: [ADMIN_AUDIT_LOG_TABLE],
         rlsPolicyTables: [],
+        adminAuditLogPreparationApplied: true,
+        adminAuditLogRlsActivationApplied: true,
       };
       assert.equal(
         adminAuditLogRlsActivationExpected(adminAuditLogPredecessorInventory),
@@ -1606,6 +1623,27 @@ describe("database grant inventory guardrails", () => {
           adminAuditLogPredecessorInventory,
         ),
         REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        adminAuditLogRlsActivationExpected(adminAuditLogPreparedInventory),
+        false,
+      );
+      assert.equal(
+        adminAuditLogRlsForceExpected(adminAuditLogPreparedInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          ADMIN_AUDIT_LOG_TABLE,
+          adminAuditLogPreparedInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          adminAuditLogPreparedInventory,
+        ).includes(ADMIN_AUDIT_LOG_TABLE),
+        false,
       );
       assert.equal(
         adminAuditLogRlsActivationExpected(adminAuditLogActivatedInventory),
@@ -1634,6 +1672,20 @@ describe("database grant inventory guardrails", () => {
         rls_forced: true,
         policy_count: 0,
       }], adminAuditLogActivatedInventory), []);
+      assert.deepEqual(collectAdminAuditLogMigrationOrderIssues({
+        preparationApplied: true,
+        activationApplied: false,
+      }), []);
+      assert.deepEqual(collectAdminAuditLogMigrationOrderIssues({
+        preparationApplied: true,
+        activationApplied: true,
+      }), []);
+      assert.deepEqual(collectAdminAuditLogMigrationOrderIssues({
+        preparationApplied: false,
+        activationApplied: true,
+      }), [
+        "AdminAuditLog RLS activation is applied without its exact compatible preparation",
+      ]);
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
@@ -6147,6 +6199,16 @@ describe("database grant inventory guardrails", () => {
         readCommissionDomainRlsActivationState,
         COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION,
         COMMISSION_DOMAIN_RLS_ACTIVATION_MIGRATION_SHA256,
+      ],
+      [
+        readAdminAuditLogPreparationState,
+        ADMIN_AUDIT_LOG_PREPARATION_MIGRATION,
+        ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_SHA256,
+      ],
+      [
+        readAdminAuditLogRlsActivationState,
+        ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION,
+        ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_SHA256,
       ],
     ].filter(([reader]) => typeof reader === "function")) {
       assert.deepEqual(

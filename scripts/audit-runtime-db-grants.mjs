@@ -168,6 +168,14 @@ const COMMISSION_DOMAIN_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("commission_domain_v1");
 const ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("admin_audit_log_v1");
+export const ADMIN_AUDIT_LOG_PREPARATION_MIGRATION =
+  ADMIN_AUDIT_LOG_PREPARATION.migration;
+export const ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_SHA256 =
+  ADMIN_AUDIT_LOG_PREPARATION.migrationSha256;
+export const ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION =
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.migration;
+export const ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_SHA256 =
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.migrationSha256;
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
@@ -2363,6 +2371,31 @@ export async function readCommissionDomainRlsActivationState(client) {
   });
 }
 
+export async function readAdminAuditLogPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ADMIN_AUDIT_LOG_PREPARATION_MIGRATION,
+    checksum: ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_SHA256,
+    label: "AdminAuditLog compatible preparation",
+  });
+}
+
+export async function readAdminAuditLogRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION,
+    checksum: ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "AdminAuditLog RLS activation",
+  });
+}
+
+export function collectAdminAuditLogMigrationOrderIssues({
+  preparationApplied,
+  activationApplied,
+}) {
+  return activationApplied && !preparationApplied
+    ? ["AdminAuditLog RLS activation is applied without its exact compatible preparation"]
+    : [];
+}
+
 export async function readClerkWebhookEventForceState(client) {
   return readExactMigrationAppliedState(client, {
     migration: CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
@@ -4233,6 +4266,16 @@ export async function auditLiveDatabase({
   const commissionDomainPreparation =
     await readCommissionDomainPreparationState(client);
   issues.push(...commissionDomainPreparation.issues);
+  const adminAuditLogPreparation =
+    await readAdminAuditLogPreparationState(client);
+  issues.push(...adminAuditLogPreparation.issues);
+  const adminAuditLogRlsActivation =
+    await readAdminAuditLogRlsActivationState(client);
+  issues.push(...adminAuditLogRlsActivation.issues);
+  issues.push(...collectAdminAuditLogMigrationOrderIssues({
+    preparationApplied: adminAuditLogPreparation.applied,
+    activationApplied: adminAuditLogRlsActivation.applied,
+  }));
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -4392,6 +4435,8 @@ export async function auditLiveDatabase({
     listingDomainRlsActivationApplied: listingDomainRlsActivation.applied,
     commissionDomainRlsActivationApplied: commissionDomainRlsActivation.applied,
     commissionDomainPreparationApplied: commissionDomainPreparation.applied,
+    adminAuditLogPreparationApplied: adminAuditLogPreparation.applied,
+    adminAuditLogRlsActivationApplied: adminAuditLogRlsActivation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,
